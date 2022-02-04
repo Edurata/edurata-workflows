@@ -1,0 +1,80 @@
+apiVersion: "0.0.1"
+title: Import workflows and functions
+description: For internal use and curious eyes
+schedule: "0 8 * * *"
+onFailure:
+  push: personal
+interface:
+  inputs:
+    s3Auth:
+      title: S3 Access Key
+      required: true
+      type: String
+      default: $.secrets.
+    bucketName:
+      name: Bucket Name of storage where the repo urls of the source are defined
+      type: String
+      required: true
+
+steps:
+  pull-file:
+    action: pull
+    source: 
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: handle-git
+    inputs:
+      bucketName: $.inputs.bucketName
+  convert-file-to-list:
+    action: convert
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: convert-file-to-list
+    inputs:
+      file: $.pull-file.file
+  find-files-from-list:
+    action: find
+    foreach: $.convert-file-to-list.list
+    source: 
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: find-files-in-repo
+    inputs:
+      repoUrl: $.each # .each is defined if foreach is defined
+      returnSorted: true
+      fileSuffix: 
+        - .edurc.graphql
+        - .eduwc.yaml
+        - .edufc.yaml
+  merge-filenames:
+    action: merge
+    source: 
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: merge-array
+    inputs:
+      mergeKeys:
+        - .edurc.graphql
+        - .eduwc.yaml
+        - .edufc.yaml
+  import-resources:
+    action: import
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: handle-resource
+    inputs:
+      repoUrl: $.merge-filenames.\.edurc\.graphql
+      multiple: true
+  import-workflows:
+    action: import
+    source: 
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: handle-workflow
+    inputs:
+      repoUrl: $.merge-filenames.\.eduwc\.yaml
+      multiple: true
+  import-functions:
+      action: import
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: handle-function
+    inputs:
+      repoUrl: $.merge-filenames.\.edufc\.yaml
+      multiple: true

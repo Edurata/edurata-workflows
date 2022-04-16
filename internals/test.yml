@@ -1,4 +1,4 @@
-apiVersion: 5
+apiRevision: 5
 title: Import workflows and functions
 name: import-workflows-and-functions
 description: For internal use and curious eyes

@@ -1,0 +1,23 @@
+apiVersion: 5
+title: Import workflows and functions
+name: import-workflows-and-functions
+description: For internal use and curious eyes
+interface:
+  inputs:
+    s3Auth:
+      title: S3 Access Key
+      required: true
+      type: String
+      default: "$.secrets.test"
+    bucketName:
+      name: Bucket Name of storage where the repo urls of the source are defined
+      type: String
+      required: true
+steps:
+  pull-file:
+    action: pull
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: tests/sleep
+    inputs:
+      bucketName: "$.inputs.bucketName"

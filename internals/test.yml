@@ -15,7 +15,6 @@ interface:
       required: true
 steps:
   pull-file:
-    action: pull
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep

@@ -10,7 +10,7 @@ interface:
       type: String
       default: "$.secrets.test"
     bucketName:
-      name: Bucket Name of storage where the repo urls of the source are defined
+      title: Bucket Name of storage where the repo urls of the source are defined
       type: String
       required: true
 steps:

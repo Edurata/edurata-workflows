@@ -4,19 +4,14 @@ name: import-workflows-and-functions
 description: For internal use and curious eyes
 interface:
   inputs:
-    s3Auth:
-      title: S3 Access Key
+    sleepTime:
+      title: Sleep Time
       required: true
-      type: String
-      default: "$.secrets.test"
-    bucketName:
-      title: Bucket Name of storage where the repo urls of the source are defined
-      type: String
-      required: true
+      type: Number
 steps:
   pull-file:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      bucketName: "$.inputs.bucketName"
+      sleepTimeMs: "$.inputs.sleepTime"

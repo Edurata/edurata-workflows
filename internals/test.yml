@@ -9,9 +9,30 @@ interface:
       required: true
       type: Number
 steps:
-  pull-file:
+  sleep-abit:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: tests/sleep
+      ref: 1cab22d6f7c93845685ea9bc1ecbbb05a8561664
+    inputs:
+      sleepTimeMs: "$.inputs.sleepTime"
+  sleep-abit-more:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.inputs.sleepTime"
+      sleepTimeMs: "$.sleep-abit.sleepTime"
+  just-alittle-bit:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: tests/sleep
+    inputs:
+      sleepTimeMs: "$.sleep-abit.sleepTime"
+      file: "$.sleep-abit-more.file"
+  hey-alittle-bit:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: tests/sleep
+    inputs:
+      sleepTimeMs: "$.sleep-abit-more.sleepTime"
+      file: "$.sleep-abit.file"

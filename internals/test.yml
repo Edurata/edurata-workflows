@@ -1,4 +1,3 @@
-apiRevision: 5
 title: Import workflows and functions
 name: import-workflows-and-functions
 description: For internal use and curious eyes
@@ -9,27 +8,28 @@ interface:
       required: true
       type: Number
 steps:
-  sleep-abit:
+  sleep-1:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
       ref: 1cab22d6f7c93845685ea9bc1ecbbb05a8561664
     inputs:
       sleepTimeMs: "$.inputs.sleepTime"
-  sleep-abit-more:
+  sleep-2:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.sleep-abit.sleepTime"
-  just-alittle-bit:
+      sleepTimeMs: "$.sleep-1.sleepTime"
+      file: "$.sleep-1.file"
+  sleep-31:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.sleep-abit.sleepTime"
-      file: "$.sleep-abit-more.file"
-  hey-alittle-bit:
+      sleepTimeMs: "$.sleep-2.sleepTime"
+      file: "$.sleep-1.file"
+  sleep-3:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep

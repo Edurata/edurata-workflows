@@ -29,10 +29,10 @@ steps:
     inputs:
       sleepTimeMs: "$.sleep-2.sleepTime"
       file: "$.sleep-1.file"
-  sleep-3:
+  sleep-32:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.sleep-abit-more.sleepTime"
-      file: "$.sleep-abit.file"
+      sleepTimeMs: "$.sleep-1.sleepTime"
+      file: "$.sleep-2.file"

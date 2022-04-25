@@ -20,19 +20,19 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.sleep-1.sleepTime"
+      sleepTimeMs: "$.sleep-1.sleepTimeMs"
       file: "$.sleep-1.file"
   sleep-31:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.sleep-2.sleepTime"
+      sleepTimeMs: "$.sleep-2.sleepTimeMs"
       file: "$.sleep-1.file"
   sleep-32:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.sleep-1.sleepTime"
+      sleepTimeMs: "$.sleep-1.sleepTimeMs"
       file: "$.sleep-2.file"

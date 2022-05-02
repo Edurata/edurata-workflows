@@ -12,7 +12,6 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
-      ref: 1cab22d6f7c93845685ea9bc1ecbbb05a8561664
     inputs:
       sleepTimeMs: "$.inputs.sleepTime"
   sleep-2:

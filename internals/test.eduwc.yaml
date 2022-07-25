@@ -4,34 +4,37 @@ description: For internal use and curious eyes
 interface:
   inputs:
     sleepTime:
-      title: Sleep Time
       required: true
       type: Number
+  outputs:
+    totalElapsedSleepTime:
+      value: sleep-32.sleepTimeMs
+
 steps:
   sleep-1:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.inputs.sleepTime"
+      sleepTimeMs: "inputs.sleepTime"
   sleep-2:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.sleep-1.sleepTimeMs"
-      file: "$.sleep-1.file"
+      sleepTimeMs: "sleep-1.sleepTimeMs"
+      file: "sleep-1.file"
   sleep-31:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.sleep-2.sleepTimeMs"
-      file: "$.sleep-1.file"
+      sleepTimeMs: "sleep-2.sleepTimeMs"
+      file: "sleep-1.file"
   sleep-32:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/sleep
     inputs:
-      sleepTimeMs: "$.sleep-1.sleepTimeMs"
-      file: "$.sleep-2.file"
+      sleepTimeMs: "sleep-1.sleepTimeMs"
+      file: "sleep-2.file"

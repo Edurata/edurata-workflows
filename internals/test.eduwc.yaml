@@ -1,40 +1,50 @@
+apiRevision: edurata.io/v1
 title: Import workflows and functions
-name: import-workflows-and-functions
 description: For internal use and curious eyes
 interface:
   inputs:
-    sleepTime:
-      required: true
-      type: Number
+    properties:
+      sleepTime:
+        type: number
+    required:
+      - sleepTime
   outputs:
-    totalElapsedSleepTime:
-      value: sleep-32.sleepTimeMs
-
+    properties:
+      totalElapsedSleepTime:
+        type: string
+outputs:
+  totalElapsedSleepTime: $.sleep-31.elapsedTime
 steps:
+  sleep-0:
+    source:
+      imageRepoUrl: hello-world
+      tag: latest
+    dependencies:
+      sleepTime: $.inputs.sleepTime
   sleep-1:
     source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep
-    inputs:
-      sleepTimeMs: "inputs.sleepTime"
+    dependencies:
+      sleepTime: $.inputs.sleepTime
   sleep-2:
     source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep
-    inputs:
-      sleepTimeMs: "sleep-1.sleepTimeMs"
-      file: "sleep-1.file"
+    dependencies:
+      sleepTime: $.sleep-1.sleepTime
+      file: $.sleep-1.file
   sleep-31:
     source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep
-    inputs:
-      sleepTimeMs: "sleep-2.sleepTimeMs"
-      file: "sleep-1.file"
+    dependencies:
+      sleepTime: $.sleep-2.sleepTime
+      file: $.sleep-1.file
   sleep-32:
     source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep
-    inputs:
-      sleepTimeMs: "sleep-1.sleepTimeMs"
-      file: "sleep-2.file"
+    dependencies:
+      sleepTime: $.sleep-1.sleepTime
+      file: $.sleep-2.file

@@ -13,7 +13,7 @@ interface:
       totalElapsedSleepTime:
         type: string
 outputs:
-  totalElapsedSleepTime: $.sleep-31.elapsedTime
+  totalElapsedSleepTime: $.sleep-31.sleepTime
 steps:
   sleep-0:
     source:

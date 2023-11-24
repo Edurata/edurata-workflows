@@ -26,7 +26,7 @@ interface:
       file:
         type: file
 outputs:
-  directIn: $.inputs
+  # directIn: $.inputs
   directInSub: $.inputs.sleepTime
   sleepTimeIn: $.secrets.sleepTimeObj.sleep2
   sleepTimeResult: $.sleep-2.sleepTime

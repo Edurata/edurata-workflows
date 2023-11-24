@@ -1,11 +1,37 @@
 apiRevision: edurata.io/v1
 name: test-secrets
 title: Import workflows and functions.
-description: For internal use and curious eyes
+description: |
+  Tests:
+  - Secrets to step inputs
+  - Secrets to outputs
+  - python, bash, docker, node runtimes
+  - docker CMD_VALUE
+  - file inputs and outputs
+  - interface
+  TODO:
+  - errors
+  - docker CMD_KEY_VALUE & ENV
+interface:
+  inputs:
+    properties:
+      sleepTime:
+        type: number
+    required:
+      - sleepTime
+  outputs:
+    properties:
+      totalElapsedSleepTime:
+        type: string
+      file:
+        type: file
 outputs:
+  directIn: $.inputs
+  directInSub: $.inputs.sleepTime
   sleepTimeIn: $.secrets.sleepTimeObj.sleep2
   sleepTimeResult: $.sleep-2.sleepTime
-  file: $.sleep-1.file
+  file: $.sleep-3.file
+  totalElapsedSleepTime: $.sleep-3.sleepTime
 steps:
   sleep-0:
     source:
@@ -29,7 +55,14 @@ steps:
   sleep-2:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: tests/sleep
+      path: tests/sleep-python
     dependencies:
       sleepTime: $.secrets.sleepTimeObj.sleep2
+      file: $.sleep-1.file
+  sleep-3:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: tests/sleep-bash
+    dependencies:
+      sleepTime: $.sleep-2.sleepTime
       file: $.sleep-1.file

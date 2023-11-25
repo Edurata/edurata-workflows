@@ -1,5 +1,5 @@
 apiRevision: edurata.io/v1
-name: test-secrets
+name: test-all
 title: Import workflows and functions.
 description: |
   Tests:

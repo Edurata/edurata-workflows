@@ -28,7 +28,7 @@ interface:
 outputs:
   # directIn: $.inputs
   directInSub: $.inputs.sleepTime
-  sleepTimeIn: $.secrets.sleepTimeObj.sleep2
+  sleepTimeIn: $.variables.sleepTimeObj.sleep2
   sleepTimeResult: $.sleep-2.sleepTime
   file: $.sleep-3.file
   totalElapsedSleepTime: $.sleep-3.sleepTime
@@ -42,7 +42,7 @@ steps:
         value: "cowsay"
         useAs: CMD_VALUE
       second:
-        stepId: secrets
+        stepId: variables
         outputId: sleepTimeObj
         outputPath: sleep2
         useAs: CMD_VALUE
@@ -51,13 +51,13 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep
     dependencies:
-      sleepTime: $.secrets.sleepTimeObj.sleep1
+      sleepTime: $.variables.sleepTimeObj.sleep1
   sleep-2:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep-python
     dependencies:
-      sleepTime: $.secrets.sleepTimeObj.sleep2
+      sleepTime: $.variables.sleepTimeObj.sleep2
       file: $.sleep-1.file
   sleep-3:
     source:

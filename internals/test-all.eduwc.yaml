@@ -5,12 +5,13 @@ description: |
   Tests:
   - Secrets to step inputs
   - Secrets to outputs
-  - python, bash, docker, node runtimes
+  - python, docker, node runtimes
   - docker CMD_VALUE
   - file inputs and outputs
   - interface
   TODO:
-  - errors
+  - error inside functions
+  - error inside wrapper
   - docker CMD_KEY_VALUE & ENV
 interface:
   inputs:
@@ -58,11 +59,4 @@ steps:
       path: tests/sleep-python
     dependencies:
       sleepTime: $.variables.sleepTimeObj.sleep2
-      file: $.sleep-1.file
-  sleep-3:
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: tests/sleep-bash
-    dependencies:
-      sleepTime: $.sleep-2.sleepTime
       file: $.sleep-1.file

@@ -1,0 +1,79 @@
+apiRevision: edurata.io/v1
+name: breakfast-info
+title: Fetch daily weather and news for your location.
+schedule: "0 8 * * *"
+description: |
+  Using https://openweathermap.org/api for weather data.
+  Using https://newsapi.org/ for news data.
+interface:
+  inputs:
+    properties:
+      lat:
+        type: number
+        description: |
+          Latitude
+      long:
+        type: number
+        description: |
+          Longitude
+      date:
+        type: string
+        description: |
+          Date in YYYY-MM-DD format.
+      email:
+        type: string
+        description: |
+          A registered email from aws ses that should receive the message.
+    required:
+      - lat
+      - long
+      - date
+  outputs:
+    properties:
+      weather:
+        type: string
+        description: Weather data
+outputs:
+  weather: $.weather-1.weather
+  news: $.news-1.
+steps:
+  geo-data:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: api/axios
+    dependencies:
+      url: "https://maps.googleapis.com/maps/api/geocode/json?latlng=${inputs.lat},${inputs.long}&key=${secrets.GOOGLE_API_KEY}"
+      method: "GET"
+      headers:
+        "Content-Type": "application/json"
+  fetch-weather:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: api/axios
+    dependencies:
+      url: "https://api.openweathermap.org/data/2.5/onecall/timemachine?lat=${inputs.lat}&lon=${inputs.long}&dt=${inputs.date}&appid=9f9b3b9c9b9b9b9b9b9b9b9b9b9b9b9b"
+      method: "GET"
+      headers:
+        "Content-Type": "application/json"
+  fetch-news:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: api/axios
+    dependencies:
+      url: "https://newsapi.org/v2/top-headlines?country=${geo-data.data.location}&apiKey=${secrets.NEWS_API_KEY}"
+      method: "GET"
+      headers:
+        "Content-Type": "application/json"
+  send-message:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: messages/send-ses
+    dependencies:
+      sender: ${inputs.email}
+      to: ${inputs.email}
+      subject: "Weather and news for ${inputs.date}"
+      body: |
+        Weather: ${steps.fetch-weather.data}
+        News: ${steps.fetch-news.data}
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}

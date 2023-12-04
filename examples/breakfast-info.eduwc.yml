@@ -34,8 +34,8 @@ interface:
         type: string
         description: Weather data
 outputs:
-  weather: $.weather-1.weather
-  news: $.news-1.
+  weather: ${fetch-weather.data}
+  news: ${fetch-news.data}
 steps:
   geo-data:
     source:

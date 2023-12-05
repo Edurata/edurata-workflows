@@ -51,7 +51,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: api/axios
     dependencies:
-      url: "https://api.openweathermap.org/data/2.5/onecall/timemachine?lat=${inputs.lat}&lon=${inputs.long}&dt=${inputs.date}&appid=9f9b3b9c9b9b9b9b9b9b9b9b9b9b9b9b"
+      url: "https://api.openweathermap.org/data/3.0/onecall?lat=${inputs.lat}&lon=${inputs.long}&appid=${secrets.WEATHER_API_KEY}"
       method: "GET"
       headers:
         "Content-Type": "application/json"
@@ -60,7 +60,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: api/axios
     dependencies:
-      url: "https://newsapi.org/v2/top-headlines?country=${geo-data.data.location}&apiKey=${secrets.NEWS_API_KEY}"
+      url: "https://newsapi.org/v2/top-headlines?country=${geo-data.response.data.location}&apiKey=${secrets.NEWS_API_KEY}"
       method: "GET"
       headers:
         "Content-Type": "application/json"

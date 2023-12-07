@@ -51,7 +51,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: api/axios
     dependencies:
-      url: "https://api.openweathermap.org/data/3.0/onecall?lat=${inputs.lat}&lon=${inputs.long}&appid=${secrets.WEATHER_API_KEY}"
+      url: "https://api.tomorrow.io/v4/weather/forecast?location=${inputs.lat},${inputs.long}&apikey=${secrets.WEATHER_API_KEY}"
       method: "GET"
       headers:
         "Content-Type": "application/json"

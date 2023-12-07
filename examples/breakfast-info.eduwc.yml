@@ -60,7 +60,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: api/axios
     dependencies:
-      url: "https://newsapi.org/v2/top-headlines?country=${geo-data.response.data.location}&apiKey=${secrets.NEWS_API_KEY}"
+      url: "https://newsapi.org/v2/top-headlines?country=${geo-data.response.data.results[0].address_components[6].short_name}&apiKey=${secrets.NEWS_API_KEY}"
       method: "GET"
       headers:
         "Content-Type": "application/json"
@@ -73,7 +73,7 @@ steps:
       to: ${inputs.email}
       subject: "Weather and news for ${inputs.date}"
       body: |
-        Weather: ${fetch-weather.data}
-        News: ${fetch-news.data}
+        Max temperature today: ${fetch-weather.timelines.daily[0].values.temperatureMax}
+        News: ${fetch-news.articles[0].title}
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}

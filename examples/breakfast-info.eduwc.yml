@@ -47,6 +47,9 @@ steps:
       headers:
         "Content-Type": "application/json"
   fetch-weather:
+    resources:
+      memory: 2
+      cpu: 1
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: api/axios

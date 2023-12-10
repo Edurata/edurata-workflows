@@ -76,7 +76,7 @@ steps:
       to: ${inputs.email}
       subject: "Weather and news for ${inputs.date}"
       body: |
-        Max temperature today: ${fetch-weather.timelines.daily[0].values.temperatureMax}
-        News: ${fetch-news.articles[0].title}
+        Max temperature today: ${fetch-weather.response.data.timelines.daily[0].values.temperatureMax}
+        News: ${fetch-news.response.data.articles[0].title}
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}

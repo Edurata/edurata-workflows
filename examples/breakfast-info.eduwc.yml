@@ -74,10 +74,17 @@ steps:
     dependencies:
       sender: ${inputs.email}
       to: ${inputs.email}
-      subject: "Weather and news for ${inputs.date}"
+      subject: "Weather and news for today ${fetch-weather.response.data.timelines.daily[0].time}"
       body: |
-        Max temperature today: ${fetch-weather.response.data.timelines.daily[0].values.temperatureMax}
-        News: ${fetch-news.response.data.articles[0].title}
+        Temperature: ${fetch-weather.response.data.timelines.daily[0].values.temperatureAvg}°C
+        Cloud coverage: ${fetch-weather.response.data.timelines.daily[0].values.cloudCoverAvg}%
+        Rain intensity: ${fetch-weather.response.data.timelines.daily[0].values.raintensityAvg}%
+        News: 
+          - ${fetch-news.response.data.articles[0].title}
+          - ${fetch-news.response.data.articles[1].title}
+          - ${fetch-news.response.data.articles[2].title}
+          - ${fetch-news.response.data.articles[3].title}
+          - ${fetch-news.response.data.articles[4].title}
       AWS_ACCESS_KEY_ID:
         value: ${secrets.AWS_ACCESS_KEY_ID}
         useAs: ENV

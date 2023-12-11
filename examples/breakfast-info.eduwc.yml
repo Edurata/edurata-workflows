@@ -1,6 +1,6 @@
 apiRevision: edurata.io/v1
 name: breakfast-info
-title: Fetch daily weather and news for your location using a few example functions.
+title: Fetch daily weather and news for your location using a few example functions..
 schedule: "0 8 * * *"
 description: |
   Using https://openweathermap.org/api for weather data.

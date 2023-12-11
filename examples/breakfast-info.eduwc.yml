@@ -78,7 +78,7 @@ steps:
       body: |
         Temperature: ${fetch-weather.response.data.timelines.daily[0].values.temperatureAvg}°C
         Cloud coverage: ${fetch-weather.response.data.timelines.daily[0].values.cloudCoverAvg}%
-        Rain intensity: ${fetch-weather.response.data.timelines.daily[0].values.raintensityAvg}%
+        Rain intensity: ${fetch-weather.response.data.timelines.daily[0].values.rainIntensityAvg}%
         News: 
           - ${fetch-news.response.data.articles[0].title}
           - ${fetch-news.response.data.articles[1].title}

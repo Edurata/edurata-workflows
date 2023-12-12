@@ -16,10 +16,6 @@ interface:
         type: number
         description: |
           Longitude
-      date:
-        type: string
-        description: |
-          Date in YYYY-MM-DD format.
       email:
         type: string
         description: |
@@ -27,7 +23,6 @@ interface:
     required:
       - lat
       - long
-      - date
   outputs:
     properties:
       weather:

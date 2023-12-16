@@ -1,0 +1,57 @@
+apiRevision: edurata.io/v1
+name: ai-translator
+title: Ai Translator
+schedule: "0 8 * * *"
+description: Fetching the latest posts from an instagram site and translates them to a target language and then pushes it to an X account.
+interface:
+  inputs:
+    properties:
+      sourceLanguage:
+        type: string
+        description: The language of the posts.
+      targetLanguage:
+        type: string
+        description: The language to translate the posts to.
+      sourceInstagramId:
+        type: string
+        description: The instagram id of the source account.
+      targetXAccountId:
+        type: string
+        description: The X account id of the target account.
+    required:
+      - targetLanguage
+      - sourceInstagramId
+      - targetXAccountId
+steps:
+  extract-text-from-instagram:
+    description: Fetching the latest posts from an instagram site and tries to translate the content
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: ai/extract-text-from-instagram
+    dependencies:
+      SOURCE_PROFILE:
+        useAs: ENV
+        value: ${inputs.sourceInstagramId}
+      SOURCE_LANG:
+        useAs: ENV
+        value: ${inputs.sourceLanguage}
+  translating-text:
+    description: Translating the text from the source language to the target language
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: ai/translate-google
+    dependencies:
+      sourceTexts: ${extract-text-from-instagram.posts[*].text}
+      apiKey: ${secrets.DEEPL_API_KEY}
+      sourceLanguage: ${inputs.sourceLanguage}
+      targetLanguage: ${inputs.targetLanguage}
+  push-to-x:
+    description: Pushing the translated texts to an X account
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: ai/translate-google
+    dependencies:
+      targetXAccountId: ${inputs.targetXAccountId}
+      apiKey: ${secrets.X_API_KEY}
+      translatedTexts: ${translating-text.translatedTexts}
+      sourceTexts: ${extract-text-from-instagram.posts[*].text}

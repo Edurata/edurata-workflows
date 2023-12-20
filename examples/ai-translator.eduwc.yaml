@@ -52,7 +52,7 @@ steps:
     cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: api/twitter-v2
+      path: api/tweet
     dependencies:
       API_KEY: ${secrets.TWITTER_API_KEY}
       API_SECRET: ${secrets.TWITTER_API_SECRET}

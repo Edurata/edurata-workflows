@@ -15,13 +15,9 @@ interface:
       sourceInstagramId:
         type: string
         description: The instagram id of the source account.
-      targetXAccountId:
-        type: string
-        description: The X account id of the target account.
     required:
       - targetLanguage
       - sourceInstagramId
-      - targetXAccountId
 steps:
   extract-text-from-instagram:
     description: Fetching the latest posts from an instagram site and tries to extract the content text

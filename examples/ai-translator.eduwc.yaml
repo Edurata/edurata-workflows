@@ -24,10 +24,11 @@ interface:
       - targetXAccountId
 steps:
   extract-text-from-instagram:
-    description: Fetching the latest posts from an instagram site and tries to translate the content
+    description: Fetching the latest posts from an instagram site and tries to extract the content text
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: ai/extract-text-from-instagram
+      imageRepoUrl: "edurata/ai-translator"
+      tag: "1.0.0"
+    cache: true
     dependencies:
       SOURCE_PROFILE:
         useAs: ENV
@@ -39,19 +40,23 @@ steps:
     description: Translating the text from the source language to the target language
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: ai/translate-google
+      path: ai/translate-deepl
     dependencies:
       sourceTexts: ${extract-text-from-instagram.posts[*].text}
-      apiKey: ${secrets.DEEPL_API_KEY}
-      sourceLanguage: ${inputs.sourceLanguage}
       targetLanguage: ${inputs.targetLanguage}
+      DEEPL_API_KEY:
+        value: ${secrets.DEEPL_API_KEY}
+        useAs: ENV
   push-to-x:
     description: Pushing the translated texts to an X account
+    cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: ai/translate-google
+      path: api/twitter-v2
     dependencies:
-      targetXAccountId: ${inputs.targetXAccountId}
-      apiKey: ${secrets.X_API_KEY}
-      translatedTexts: ${translating-text.translatedTexts}
-      sourceTexts: ${extract-text-from-instagram.posts[*].text}
+      API_KEY: ${secrets.TWITTER_API_KEY}
+      API_SECRET: ${secrets.TWITTER_API_SECRET}
+      ACCESS_TOKEN: ${secrets.TWITTER_ACCESS_TOKEN}
+      ACCESS_TOKEN_SECRET: ${secrets.TWITTER_ACCESS_TOKEN_SECRET}
+      messages: ${translating-text.translated}
+      mediaPaths: ${extract-text-from-instagram.posts[*].mediaPath}

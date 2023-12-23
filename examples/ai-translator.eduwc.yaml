@@ -22,8 +22,8 @@ steps:
   extract-text-from-instagram:
     description: Fetching the latest posts from an instagram site and tries to extract the content text
     source:
-      imageRepoUrl: "edurata/ai-translator"
-      tag: "1.0.0"
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: ai/pull-instagram.edufc.yml
     cache: true
     dependencies:
       SOURCE_PROFILE: ${inputs.sourceInstagramId}

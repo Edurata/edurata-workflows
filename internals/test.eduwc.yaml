@@ -17,8 +17,8 @@ outputs:
 steps:
   sleep-0:
     source:
-      imageRepoUrl: hello-world
-      tag: latest
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: tests/whalesay.edufc.yml
     dependencies:
       sleepTime: $.inputs.sleepTime
   sleep-1:

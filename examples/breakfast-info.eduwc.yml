@@ -81,9 +81,5 @@ steps:
           - ${fetch-news.response.data.articles[2].title}
           - ${fetch-news.response.data.articles[3].title}
           - ${fetch-news.response.data.articles[4].title}
-      AWS_ACCESS_KEY_ID:
-        value: ${secrets.AWS_ACCESS_KEY_ID}
-        useAs: ENV
-      AWS_SECRET_ACCESS_KEY:
-        value: ${secrets.AWS_SECRET_ACCESS_KEY}
-        useAs: ENV
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}

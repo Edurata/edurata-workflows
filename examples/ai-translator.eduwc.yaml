@@ -26,12 +26,10 @@ steps:
       tag: "1.0.0"
     cache: true
     dependencies:
-      SOURCE_PROFILE:
-        useAs: ENV
-        value: ${inputs.sourceInstagramId}
-      SOURCE_LANG:
-        useAs: ENV
-        value: ${inputs.sourceLanguage}
+      SOURCE_PROFILE: ${inputs.sourceInstagramId}
+      SOURCE_LANG: ${inputs.sourceLanguage}
+      USER: ${secrets.INSTAGRAM_DUMMY_USER}
+      PASSWORD: ${secrets.INSTAGRAM_DUMMY_PASSWORD}
   translating-text:
     description: Translating the text from the source language to the target language
     source:
@@ -40,9 +38,7 @@ steps:
     dependencies:
       sourceTexts: ${extract-text-from-instagram.posts[*].text}
       targetLanguage: ${inputs.targetLanguage}
-      DEEPL_API_KEY:
-        value: ${secrets.DEEPL_API_KEY}
-        useAs: ENV
+      DEEPL_API_KEY: ${secrets.DEEPL_API_KEY}
   push-to-x:
     description: Pushing the translated texts to an X account
     cache: true

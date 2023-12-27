@@ -13,38 +13,38 @@ interface:
       totalElapsedSleepTime:
         type: string
 outputs:
-  totalElapsedSleepTime: $.sleep-31.sleepTime
+  totalElapsedSleepTime: ${sleep-31.sleepTime}
 steps:
   sleep-0:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/whalesay.edufc.yml
     dependencies:
-      sleepTime: $.inputs.sleepTime
+      sleepTime: ${inputs.sleepTime}
   sleep-1:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep
     dependencies:
-      sleepTime: $.inputs.sleepTime
+      sleepTime: ${inputs.sleepTime}
   sleep-2:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep
     dependencies:
-      sleepTime: $.sleep-1.sleepTime
-      file: $.sleep-1.file
+      sleepTime: ${sleep-1.sleepTime}
+      file: ${sleep-1.file}
   sleep-31:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep
     dependencies:
-      sleepTime: $.sleep-2.sleepTime
-      file: $.sleep-1.file
+      sleepTime: ${sleep-2.sleepTime}
+      file: ${sleep-1.file}
   sleep-32:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/sleep
     dependencies:
-      sleepTime: $.sleep-1.sleepTime
-      file: $.sleep-2.file
+      sleepTime: ${sleep-1.sleepTime}
+      file: ${sleep-2.file}

@@ -2,7 +2,7 @@ apiRevision: edurata.io/v1
 name: ai-translator
 title: Ai Translator
 schedule: "0 8 * * *"
-description: Fetching the latest posts from an instagram site and translates them to a target language and then pushes it to an X account.
+description: Fetching the latest posts from an X account and translates them to a target language and then pushes it to another X account.
 interface:
   inputs:
     properties:
@@ -12,31 +12,42 @@ interface:
       targetLanguage:
         type: string
         description: The language to translate the posts to.
-      sourceInstagramId:
+      sourceTelegramAccount:
         type: string
-        description: The instagram id of the source account.
+        description: The id of the source account.
+      targetXAccount:
+        type: string
+        description: The id of the target account.
     required:
       - targetLanguage
-      - sourceInstagramId
+      - sourceTelegramAccount
+      - targetXAccount
 steps:
-  extract-text-from-instagram:
-    description: Fetching the latest posts from an instagram site and tries to extract the content text
+  fetch-from-telegram:
+    description: Fetching the latest posts from a telegram channel
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: ai/pull-instagram.edufc.yml
-    cache: true
+      path: etl/extract/fetch-telegram
     dependencies:
-      SOURCE_PROFILE: ${inputs.sourceInstagramId}
+      TELEGRAM_API_HASH: ${secrets.TELEGRAM_API_HASH}
+      TELEGRAM_API_ID: ${variables.TELEGRAM_API_ID}
+      channelId: ${inputs.sourceTelegramAccount}
+      imageDir: ${meta.tmpDir}/images/telegram/${meta.executionId}
+  extract-text:
+    description: Try to extract the content text
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/translate-tesseract.edufc.yml
+    dependencies:
       SOURCE_LANG: ${inputs.sourceLanguage}
-      USER: ${secrets.INSTAGRAM_DUMMY_USER}
-      PASSWORD: ${secrets.INSTAGRAM_DUMMY_PASSWORD}
+      SOURCE_PATHS: ${fetch-from-telegram.posts[*].mediaPath}
   translating-text:
     description: Translating the text from the source language to the target language
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: ai/translate-deepl
     dependencies:
-      sourceTexts: ${extract-text-from-instagram.posts[*].text}
+      sourceTexts: ${extract-text.texts[*].text}
       targetLanguage: ${inputs.targetLanguage}
       DEEPL_API_KEY: ${secrets.DEEPL_API_KEY}
   push-to-x:
@@ -44,11 +55,11 @@ steps:
     cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: api/tweet
+      path: load/tweet
     dependencies:
       API_KEY: ${secrets.TWITTER_API_KEY}
       API_SECRET: ${secrets.TWITTER_API_SECRET}
       ACCESS_TOKEN: ${secrets.TWITTER_ACCESS_TOKEN}
       ACCESS_TOKEN_SECRET: ${secrets.TWITTER_ACCESS_TOKEN_SECRET}
       messages: ${translating-text.translated}
-      mediaPaths: ${extract-text-from-instagram.posts[*].mediaPath}
+      mediaPaths: ${fetch-from-telegram.posts[*].mediaPath}

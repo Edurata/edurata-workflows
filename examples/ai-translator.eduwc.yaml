@@ -45,7 +45,7 @@ steps:
     description: Translating the text from the source language to the target language
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: ai/translate-deepl
+      path: etl/transform/translate-deepl
     dependencies:
       sourceTexts: ${extract-text.texts[*].text}
       targetLanguage: ${inputs.targetLanguage}
@@ -55,7 +55,7 @@ steps:
     cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: load/tweet
+      path: etl/load/tweet
     dependencies:
       API_KEY: ${secrets.TWITTER_API_KEY}
       API_SECRET: ${secrets.TWITTER_API_SECRET}

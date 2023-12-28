@@ -15,13 +15,9 @@ interface:
       sourceTelegramAccount:
         type: string
         description: The id of the source account.
-      targetXAccount:
-        type: string
-        description: The id of the target account.
     required:
       - targetLanguage
       - sourceTelegramAccount
-      - targetXAccount
 steps:
   fetch-from-telegram:
     description: Fetching the latest posts from a telegram channel

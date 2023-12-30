@@ -20,7 +20,9 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/whalesay.edufc.yml
     dependencies:
-      cmd: cowsay ${inputs.sleepTime}
+      cmd:
+        - cowsay
+        - ${inputs.sleepTime}
   sleep-1:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

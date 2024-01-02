@@ -21,6 +21,7 @@ interface:
 steps:
   fetch-from-telegram:
     description: Fetching the latest posts from a telegram channel
+    cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/fetch-telegram
@@ -32,6 +33,7 @@ steps:
       imageDir: ${meta.tmpDir}/images/telegram/${meta.executionId}
   extract-text:
     description: Try to extract the content text
+    cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/translate-tesseract.edufc.yml

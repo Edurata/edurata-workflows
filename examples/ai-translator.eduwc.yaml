@@ -46,7 +46,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/translate-deepl
     dependencies:
-      sourceTexts: ${extract-text.texts[*].text}
+      sourceTexts: ${extract-text.extractions[*].text}
       targetLanguage: ${inputs.targetLanguage}
       DEEPL_API_KEY: ${secrets.DEEPL_API_KEY}
   push-to-x:

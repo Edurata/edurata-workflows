@@ -61,5 +61,6 @@ steps:
       API_SECRET: ${secrets.TWITTER_API_SECRET}
       ACCESS_TOKEN: ${secrets.TWITTER_ACCESS_TOKEN}
       ACCESS_TOKEN_SECRET: ${secrets.TWITTER_ACCESS_TOKEN_SECRET}
+      BEARER_TOKEN: ${secrets.TWITTER_BEARER_TOKEN}
       messages: ${translating-text.translations}
       mediaPaths: ${fetch-from-telegram.posts[*].mediaPath}

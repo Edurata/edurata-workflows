@@ -12,8 +12,14 @@ interface:
     properties:
       totalElapsedSleepTime:
         type: string
+      outputArtefact1:
+        type: file
+      outputArtefact2:
+        type: file
 outputs:
   totalElapsedSleepTime: ${sleep-31.sleepTime}
+  outputArtefact1: ${sleep-31.file}
+  outputArtefact2: ${sleep-0.file}
 steps:
   sleep-0:
     source:

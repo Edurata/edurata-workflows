@@ -36,7 +36,7 @@ steps:
   geo-data:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: api/axios
+      path: general/axios
     dependencies:
       url: "https://maps.googleapis.com/maps/api/geocode/json?latlng=${inputs.lat},${inputs.long}&key=${secrets.GOOGLE_API_KEY}"
       method: "GET"
@@ -45,7 +45,7 @@ steps:
   fetch-weather:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: api/axios
+      path: general/axios
     dependencies:
       url: "https://api.tomorrow.io/v4/weather/forecast?location=${inputs.lat},${inputs.long}&apikey=${secrets.WEATHER_API_KEY}"
       method: "GET"
@@ -54,7 +54,7 @@ steps:
   fetch-news:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: api/axios
+      path: general/axios
     dependencies:
       url: "https://newsapi.org/v2/top-headlines?country=${geo-data.response.data.results[0].address_components[5].short_name}&apiKey=${secrets.NEWS_API_KEY}"
       method: "GET"
@@ -66,7 +66,7 @@ steps:
       cpu: 1
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: messages/send-ses
+      path: etl/load/send-ses
     dependencies:
       sender: ${inputs.email}
       to: ${inputs.email}

@@ -31,7 +31,7 @@ steps:
       TELEGRAM_API_SESSION: ${secrets.TELEGRAM_API_SESSION}
       sinceDays: 1
       channelId: ${inputs.sourceTelegramAccount}
-      imageDir: ${meta.tmpDir}/images/telegram/${meta.executionId}
+      imageDir: ${meta.cacheMountDir}/images/telegram/${meta.executionId}
   extract-text:
     description: Try to extract the content text
     cache: true

@@ -1,0 +1,51 @@
+apiRevision: edurata.io/v1
+name: test-all-features
+title: |
+  Test all features on the platform
+description: |
+  Testing
+  - outputs
+  - artefacts
+interface:
+  inputs:
+    properties:
+      sleepTime:
+        type: number
+    required:
+      - sleepTime
+  outputs:
+    properties:
+      totalElapsedSleepTime:
+        type: string
+      runningFile:
+        type: file
+      randomFile:
+        type: file
+outputs:
+  totalElapsedSleepTime: ${sleep-3.sleepTime}
+  runningFile: ${sleep-3.outfile}
+  randomFile: ${sleep-3.randomfile}
+steps:
+  sleep-1:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: tests/node
+    dependencies:
+      sleepTime: ${inputs.sleepTime}
+      message: "Hello from 1, snoozed ${inputs.sleepTime} ms \n"
+  sleep-2:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: tests/python
+    dependencies:
+      sleepTime: ${sleep-1.sleepTime}
+      file: ${sleep-1.file}
+      message: "Hello from 2, snoozed ${sleep-1.sleepTime} ms \n"
+  sleep-3:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: tests/python
+    dependencies:
+      sleepTime: ${sleep-2.sleepTime}
+      file: ${sleep-2.file}
+      message: "Hello from 3, snoozed ${sleep-2.sleepTime} ms \n"

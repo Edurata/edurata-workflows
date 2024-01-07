@@ -21,7 +21,7 @@ interface:
       messageFromNode:
         type: string
 outputs:
-  messageFromDocker: ${test-docker-custom.message}
+  messageFromDocker: ${test-docker-upstream.message}
   messageFromPython: ${test-python.message}
   messageFromNode: ${test-node.message}
 steps:

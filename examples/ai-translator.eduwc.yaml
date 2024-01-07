@@ -37,7 +37,7 @@ steps:
     cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/transform/translate-tesseract.edufc.yml
+      path: etl/transform/extract-tesseract.edufc.yml
     dependencies:
       SOURCE_LANG: ${inputs.sourceLanguage}
       SOURCE_PATHS: ${fetch-from-telegram.posts[*].mediaPath}

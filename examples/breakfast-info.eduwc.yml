@@ -28,7 +28,6 @@ interface:
       weather:
         type: string
         description: Weather data
-
 outputs:
   weather: ${fetch-weather.response.data.timelines.daily[0].values}
   news: ${fetch-news.response.data.articles}

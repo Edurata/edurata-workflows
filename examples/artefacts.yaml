@@ -39,7 +39,7 @@ steps:
       path: tests/python
     dependencies:
       sleepTime: ${sleep-1.sleepTime}
-      file: ${sleep-1.file}
+      infile: ${sleep-1.outfile}
       message: "Hello from 2, snoozed ${sleep-1.sleepTime} ms \n"
   sleep-3:
     source:
@@ -47,5 +47,5 @@ steps:
       path: tests/python
     dependencies:
       sleepTime: ${sleep-2.sleepTime}
-      file: ${sleep-2.file}
+      infile: ${sleep-2.outfile}
       message: "Hello from 3, snoozed ${sleep-2.sleepTime} ms \n"

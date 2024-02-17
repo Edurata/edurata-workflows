@@ -55,7 +55,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      url: "https://newsapi.org/v2/top-headlines?country=${geo-data.response.data.results[0].address_components[5].short_name}&apiKey=${secrets.NEWS_API_KEY}"
+      url: "https://newsapi.org/v2/top-headlines?country=${geo-data.response.data.results[0].address_components[0].short_name}&apiKey=${secrets.NEWS_API_KEY}"
       method: "GET"
       headers:
         "Content-Type": "application/json"

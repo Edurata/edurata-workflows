@@ -37,7 +37,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      url: "https://maps.googleapis.com/maps/api/geocode/json?latlng=${inputs.lat},${inputs.long}&key=${secrets.GOOGLE_API_KEY}"
+      url: "https://maps.googleapis.com/maps/api/geocode/json?latlng=${inputs.lat},${inputs.long}&result_type=country&key=${secrets.GOOGLE_API_KEY}"
       method: "GET"
       headers:
         "Content-Type": "application/json"

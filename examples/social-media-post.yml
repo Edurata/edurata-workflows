@@ -58,7 +58,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      url: "https://www.googleapis.com/drive/v3/files/${img_drive_folder}/${get-airtable-data.response.data.records[0].id}?alt=media&key=${secrets.GOOGLE_API_KEY}"
+      url: "https://www.googleapis.com/drive/v3/files/${inputs.img_drive_folder}/${get-airtable-data.response.data.records[0].id}?alt=media&key=${secrets.GOOGLE_API_KEY}"
       streamToFile: true
   push-to-x:
     foreach: ${filter-for-release-date.output}

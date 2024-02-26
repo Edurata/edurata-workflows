@@ -1,0 +1,88 @@
+apiRevision: edurata.io/v1
+name: breakfast-info
+title: Fetch daily weather and news for your location using a few example functions..
+schedule: "0 8 * * *"
+description: |
+  Using https://openweathermap.org/api for weather data.
+  Using https://newsapi.org/ for news data.
+interface:
+  inputs:
+    properties:
+      airtable_base:
+        type: string
+        description: |
+          The base id of the airtable to fetch data from.
+      post_table_id:
+        type: string
+        description: |
+          The name of the airtable to fetch data from.
+      img_drive_folder:
+        type: string
+        description: |
+          The folder id of the google drive to fetch the image from.
+    required:
+      - lat
+      - long
+  outputs:
+    properties:
+      weather:
+        type: string
+        description: Weather data
+outputs:
+  weather: ${fetch-weather.response.data.timelines.daily[0].values}
+  news: ${fetch-news.response.data.articles}
+steps:
+  get-airtable-data:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: "https://api.airtable.com/v0/${inputs.airtable_base}/{inputs.post_table_id}?filterByFormula=NOT(processed)"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  filter-for-release-date:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/eval-nodejs
+    dependencies:
+      code: |
+        const today = new Date();
+        return input.filter(record => {
+          const releaseDate = new Date(record.fields.releaseDate);
+          return today > releaseDate;
+        });
+      input: ${get-airtable-data.response.data.records}
+  get-gif:
+    foreach: ${filter-for-release-date.output}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: "https://www.googleapis.com/drive/v3/files/${img_drive_folder}/${get-airtable-data.response.data.records[0].id}?alt=media&key=${secrets.GOOGLE_API_KEY}"
+      streamToFile: true
+  push-to-x:
+    foreach: ${filter-for-release-date.output}
+    description: Pushing the social post to x
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/tweet
+    dependencies:
+      API_KEY: ${secrets.TWITTER_API_KEY}
+      API_SECRET: ${secrets.TWITTER_API_SECRET}
+      ACCESS_TOKEN: ${secrets.TWITTER_ACCESS_TOKEN}
+      ACCESS_TOKEN_SECRET: ${secrets.TWITTER_ACCESS_TOKEN_SECRET}
+      BEARER_TOKEN: ${secrets.TWITTER_BEARER_TOKEN}
+      messages:
+        - ${eachValue.fields.text}
+      mediaPaths:
+        - ${get-gif[eachIt].response.file}
+  push-to-linkedin:
+    foreach: ${filter-for-release-date.output}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-linkedin
+    dependencies:
+      LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
+      text: ${eachValue.fields.text}
+      mediaPaths:
+        - ${get-gif[eachIt].response.file}

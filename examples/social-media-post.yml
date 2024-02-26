@@ -58,10 +58,23 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      url: "https://www.googleapis.com/drive/v3/files/${inputs.img_drive_folder}/${get-airtable-data.response.data.records[0].id}?alt=media&key=${secrets.GOOGLE_API_KEY}"
+      url: "https://www.googleapis.com/drive/v3/files/${inputs.img_drive_folder}/${each.value.id}?alt=media&key=${secrets.GOOGLE_API_KEY}"
       streamToFile: true
+  records_with_gif:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/eval-nodejs
+    dependencies:
+      code: |
+        const [records, gifs] = input;
+        return records.map((record, index) => {
+          return [record, gifs[index]];
+        });
+      input:
+        - ${filter-for-release-date.output[*].fields.text}
+        - ${get-gif[*].response.file}
   push-to-x:
-    foreach: ${filter-for-release-date.output}
+    foreach: ${records_with_gif.output}
     description: Pushing the social post to x
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -73,16 +86,16 @@ steps:
       ACCESS_TOKEN_SECRET: ${secrets.TWITTER_ACCESS_TOKEN_SECRET}
       BEARER_TOKEN: ${secrets.TWITTER_BEARER_TOKEN}
       messages:
-        - ${eachValue.fields.text}
+        - ${each.value[0].fields.text}
       mediaPaths:
-        - ${get-gif[eachIt].response.file}
+        - ${each.value[1].response.file}
   push-to-linkedin:
-    foreach: ${filter-for-release-date.output}
+    foreach: ${records_with_gif.output}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-linkedin
     dependencies:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
-      text: ${eachValue.fields.text}
+      text: ${each.value[0].fields.text}
       mediaPaths:
-        - ${get-gif[eachIt].response.file}
+        - ${each.value[1].response.file}

@@ -71,7 +71,7 @@ steps:
           return [record, gifs[index]];
         });
       input:
-        - ${filter-for-release-date.output[*].fields.text}
+        - ${filter-for-release-date.output}
         - ${get-gif[*].response.file}
   push-to-x:
     foreach: ${records_with_gif.output}
@@ -86,7 +86,7 @@ steps:
       ACCESS_TOKEN_SECRET: ${secrets.TWITTER_ACCESS_TOKEN_SECRET}
       BEARER_TOKEN: ${secrets.TWITTER_BEARER_TOKEN}
       messages:
-        - ${each.value[0]}
+        - ${each.value[0].fields.text}
       mediaPaths:
         - ${each.value[1]}
   push-to-linkedin:
@@ -96,6 +96,6 @@ steps:
       path: etl/load/send-linkedin
     dependencies:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
-      text: ${each.value[0]}
+      text: ${each.value[0].fields.text}
       mediaPaths:
         - ${each.value[1]}

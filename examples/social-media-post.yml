@@ -35,7 +35,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      url: "https://api.airtable.com/v0/${inputs.airtable_base}/{inputs.post_table_id}?filterByFormula=NOT(processed)"
+      url: "https://api.airtable.com/v0/${inputs.airtable_base}/${inputs.post_table_id}?filterByFormula=NOT(processed)"
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   filter-for-release-date:

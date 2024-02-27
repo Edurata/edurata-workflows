@@ -1,5 +1,5 @@
 apiRevision: edurata.io/v1
-name: breakfast-info
+name: social-media-post
 title: Fetch daily weather and news for your location using a few example functions..
 schedule: "0 8 * * *"
 description: |
@@ -21,8 +21,9 @@ interface:
         description: |
           The folder id of the google drive to fetch the image from.
     required:
-      - lat
-      - long
+      - airtable_base
+      - post_table_id
+      - img_drive_folder
   outputs:
     properties:
       weather:

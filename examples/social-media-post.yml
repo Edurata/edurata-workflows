@@ -1,10 +1,10 @@
 apiRevision: edurata.io/v1
 name: social-media-post
-title: Fetch daily weather and news for your location using a few example functions..
+title: Alternative to services like hootsuite or buffer
 schedule: "0 8 * * *"
 description: |
-  Using https://openweathermap.org/api for weather data.
-  Using https://newsapi.org/ for news data.
+  Using airtable to fetch data and google drive to fetch images.
+  Using twitter and linkedin to post the data.
 interface:
   inputs:
     properties:
@@ -50,29 +50,44 @@ steps:
           return today > releaseDate;
         });
       input: ${get-airtable-data.response.data.records}
-  get-gif:
-    foreach: ${filter-for-release-date.output}
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    dependencies:
-      url: "https://www.googleapis.com/drive/v3/files/${inputs.img_drive_folder}/${each.id}?alt=media&key=${secrets.GOOGLE_API_KEY}"
-      streamToFile: true
-  records_with_gif:
+  get-chatgpt-commands:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/eval-nodejs
     dependencies:
       code: |
-        const [records, gifs] = input;
-        return records.map((record, index) => {
-          return [record, gifs[index]];
-        });
-      input:
-        - ${filter-for-release-date.output}
-        - ${get-gif[*].response.file}
+        return input.map(record => `Generate a social media post with smileys and hashtags for the following listings: \n ${record.fields.text}`)
+      input: ${filter-for-release-date.output}
+  get-chatgpt-response:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/chatgpt
+    dependencies:
+      messages: ${get-chatgpt-commands.output}
+      API_KEY: ${secrets.OPENAI_API_KEY}
+  # get-gif:
+  #   foreach: ${filter-for-release-date.output}
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: etl/extract/download-s3
+  #   dependencies:
+  #     url: "https://www.googleapis.com/drive/v3/files/${each.file_id}?alt=media&key=${secrets.GOOGLE_API_KEY}"
+  #     streamToFile: true
+  # records_with_gif:
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: general/eval-nodejs
+  #   dependencies:
+  #     code: |
+  #       const [records, gifs] = input;
+  #       return records.map((record, index) => {
+  #         return [record, gifs[index]];
+  #       });
+  #     input:
+  #       - ${get-chatgpt-response.output}
+  #       - ${get-gif[*].response.file}
   push-to-x:
-    foreach: ${records_with_gif.output}
+    foreach: ${get-chatgpt-response.output}
     description: Pushing the social post to x
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -84,9 +99,9 @@ steps:
       ACCESS_TOKEN_SECRET: ${secrets.TWITTER_ACCESS_TOKEN_SECRET}
       BEARER_TOKEN: ${secrets.TWITTER_BEARER_TOKEN}
       messages:
-        - ${each[0].fields.text}
-      mediaPaths:
-        - ${each[1]}
+        - ${each}
+      # mediaPaths:
+      #   - ${each[1]}
   push-to-linkedin:
     foreach: ${records_with_gif.output}
     source:
@@ -94,6 +109,6 @@ steps:
       path: etl/load/send-linkedin
     dependencies:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
-      text: ${each[0].fields.text}
-      mediaPaths:
-        - ${each[1]}
+      text: ${each}
+      # mediaPaths:
+      #   - ${each[1]}

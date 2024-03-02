@@ -11,7 +11,7 @@ interface:
       airtable_base:
         type: string
         description: |
-          The base id of the airtable to fetch data from.
+          The base id of the airtable to fetch data from...
       post_table_id:
         type: string
         description: |

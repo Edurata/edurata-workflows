@@ -56,7 +56,7 @@ steps:
       path: general/eval-nodejs
     dependencies:
       code: |
-        return input.map(record => `Generate a social media post with smileys and hashtags for the following listings: \n ${record.fields.text}`)
+        return input.map(record => `Generate a social media post with smileys and hashtags for the following listings: \n \${record.fields.text}`)
       input: ${filter-for-release-date.output}
   get-chatgpt-response:
     source:

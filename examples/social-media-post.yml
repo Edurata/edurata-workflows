@@ -4,7 +4,7 @@ title: Alternative to services like hootsuite or buffer
 schedule: "0 8 * * *"
 description: |
   Using airtable to fetch data and google drive to fetch images.
-  Using twitter and linkedin to post the data.
+  Using twitter and linkedin to post the data..
 interface:
   inputs:
     properties:

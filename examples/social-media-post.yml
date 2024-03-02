@@ -103,7 +103,7 @@ steps:
       # mediaPaths:
       #   - ${each[1]}
   push-to-linkedin:
-    foreach: ${records_with_gif.output}
+    foreach: ${get-chatgpt-response.output}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-linkedin

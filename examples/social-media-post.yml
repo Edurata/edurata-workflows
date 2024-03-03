@@ -59,8 +59,8 @@ steps:
       systemMessage: You are a bot that generates social media posts.
       messages:
         - |
-          "Generate a social media post with smileys and hashtags for the following 'listings':
-           ${each.fields.text}"
+          Generate a social media post with smileys and hashtags for the following 'listings':
+          ${each.fields.text}
       API_KEY: ${secrets.OPENAI_API_KEY}
   # get-gif:
   #   foreach: ${filter-for-release-date.output}

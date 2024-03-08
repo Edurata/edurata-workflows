@@ -5,54 +5,66 @@ description: Fetches the git repo and builds the function code and then uploads 
 interface:
   inputs:
     properties:
-      newVersion:
-        type: string
-        description: The new version of the function code.
-      source:
-        type: object
-        description: The source object which contains the repoUrl and the path to the function code.
-        properties:
-          repoUrl:
-            type: string
-            description: The url of the git repo.
-          path:
-            type: string
-            description: The path to the function code.
-          ref:
-            type: string
-            description: The git ref to checkout.
+      functionsToBuild:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            source:
+              type: object
+              properties:
+                repoUrl:
+                  type: string
+                path:
+                  type: string
+                ref:
+                  type: string
+            runtime:
+              type: string
     required:
-      - source
+      - functionsToBuild
 steps:
   git-clone:
+    foreach: ${inputs.functionsToBuild}
     description: Cloning a repo
-    cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/clone-git
     dependencies:
-      repoUrl: ${inputs.source.repoUrl}
-      path: ${inputs.source.path}
-      ref: ${inputs.source.ref}
+      repoUrl: ${each.source.repoUrl}
+      path: ${each.source.path}
+      ref: ${each.source.ref}
       privateUser: ${secrets.GITLAB_USER}
       privateToken: ${secrets.GITLAB_TOKEN}
-  get-runtime:
-    description: Getting the runtime of the function
-    cache: true
+  build-nodejs20:
+    foreach: ${inputs.functionsToBuild}
+    if: ${each.runtime} === "nodejs20"
+    description: Building the python10 code
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: internals/build-function/nodejs20
+    dependencies:
+      source: ${each.source}
+  build-python3_10:
+    foreach: ${inputs.functionsToBuild}
+    if: ${each.runtime} === "python3_10"
+    description: Building the python10 code
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: internals/build-function/python3_10
+    dependencies:
+      source: ${each.source}
+  upload-function:
+    description: Uploading the function code to the function registry
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/eval-nodejs
     dependencies:
       code: |
-        import fs from "fs";
-        const { repoPath } = inputs;
-        // get .edufc.yml file
-        if (fs.)
+        const { newVersion } = inputs;
+        // upload the function code to the function registry
+        return newVersion;
       inputs:
-        repoPath: ${git-clone.repoCode}
-  build-function:
-    if: ${get-runtime.outputs.runtime == "nodejs20"}
-    description: Building the python10 code
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: internals/build-function/python3_10.yaml
+        newVersion: ${inputs.newVersion}

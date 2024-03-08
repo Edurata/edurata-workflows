@@ -107,5 +107,6 @@ steps:
     dependencies:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
       text: ${each.response}
+      author: urn:li:organization:30718435
       # mediaPaths:
       #   - ${each[1]}

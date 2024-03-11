@@ -56,15 +56,69 @@ steps:
       path: internals/build-function/python3_10
     dependencies:
       source: ${each.source}
-  upload-function:
-    description: Uploading the function code to the function registry
+  build-docker:
+    foreach: ${inputs.functionsToBuild}
+    if: ${each.runtime} === "docker"
+    description: Building the docker code
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/eval-nodejs
+      path: internals/build-function/python3_10
     dependencies:
-      code: |
-        const { newVersion } = inputs;
-        // upload the function code to the function registry
-        return newVersion;
+      source: ${each.source}
+  merge-results:
+    description: Merging the information again so that we can upload the code in an array. Interface only necessary bc of files integration.
+    dependencies:
+      results:
+        - ${build-nodejs20.result}
+        - ${build-python3_10.result}
+        - ${build-docker.result}
+    interface:
       inputs:
-        newVersion: ${inputs.newVersion}
+        type: array
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: file
+      outputs:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            code:
+              type: file
+    code: |
+      const { results } = event;
+
+      return {results: results.flat()}
+  get-upload-url:
+    foreach: ${merge-results.results}
+    if: ${each.runtime} !== "docker"
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: "https://api.edurata.io/v1/functions/${each.name}/upload-url"
+      headers:
+        Authorization: "Bearer ${secrets.EXECUTION_TOKEN}"
+  zip-code:
+    foreach: ${merge-results.results}
+    if: ${each.runtime} !== "docker"
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/zip
+    dependencies:
+      file: ${each.code}
+  upload-code:
+    foreach: ${merge-results.results}
+    if: ${each.runtime} !== "docker"
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: "${get-upload-url[each.index].response.url}"
+      file: ${zip-code[each.index].zipped}

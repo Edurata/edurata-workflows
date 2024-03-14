@@ -28,6 +28,7 @@ interface:
 steps:
   git-clone:
     foreach: ${inputs.functionsToBuild}
+    if: ${each.code} === undefined
     description: Cloning a repo
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -40,20 +41,20 @@ steps:
       privateToken: ${secrets.GITLAB_TOKEN}
   build-nodejs20:
     foreach: ${inputs.functionsToBuild}
-    if: ${each.runtime} === "nodejs20"
+    if: ${each.runtime} === "nodejs20" && ${each.code} === undefined
     description: Building the python10 code
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: internals/build-function/nodejs20
+      path: internals/build-nodejs20
     dependencies:
       source: ${each.source}
   build-python3_10:
     foreach: ${inputs.functionsToBuild}
-    if: ${each.runtime} === "python3_10"
+    if: ${each.runtime} === "python3_10" && ${each.code} === undefined
     description: Building the python10 code
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: internals/build-function/python3_10
+      path: internals/build-python3_10
     dependencies:
       source: ${each.source}
   build-docker:

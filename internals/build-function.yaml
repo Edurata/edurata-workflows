@@ -59,6 +59,7 @@ steps:
       source: ${each.source}
   merge-results:
     description: Merging the information again so that we can upload the code in an array. Interface only necessary bc of files integration.
+    runtime: nodejs20
     dependencies:
       results:
         - ${build-nodejs20.result}

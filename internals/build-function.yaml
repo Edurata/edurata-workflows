@@ -57,22 +57,12 @@ steps:
       path: internals/build-python3_10
     dependencies:
       source: ${each.source}
-  build-docker:
-    foreach: ${inputs.functionsToBuild}
-    if: ${each.runtime} === "docker"
-    description: Building the docker code
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: internals/build-function/python3_10
-    dependencies:
-      source: ${each.source}
   merge-results:
     description: Merging the information again so that we can upload the code in an array. Interface only necessary bc of files integration.
     dependencies:
       results:
         - ${build-nodejs20.result}
         - ${build-python3_10.result}
-        - ${build-docker.result}
     interface:
       inputs:
         type: array

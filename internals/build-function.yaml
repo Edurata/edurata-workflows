@@ -83,9 +83,12 @@ steps:
             code:
               type: file
     code: |
-      const { results } = event;
+      const handler = async (event) => {
+        const { results } = event;
 
-      return {results: results.flat()}
+        return {results: results.flat()}
+      }
+      module.exports = {handler}
   get-upload-url:
     foreach: ${merge-results.results}
     if: ${each.runtime} !== "docker"

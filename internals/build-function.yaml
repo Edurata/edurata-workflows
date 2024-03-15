@@ -37,7 +37,7 @@ steps:
       repoUrl: ${each.source.repoUrl}
       path: ${each.source.path}
       ref: ${each.source.ref}
-      privateUser: ${secrets.GITLAB_USER}
+      privateUser: gitlab-ci-token
       privateToken: ${secrets.GITLAB_TOKEN}
   build-nodejs20:
     foreach: ${inputs.functionsToBuild}

@@ -99,7 +99,7 @@ steps:
     dependencies:
       url: "https://api.edurata.io/v1/functions/${each.name}/upload-url"
       headers:
-        Authorization: "Bearer ${secrets.EXECUTION_TOKEN}"
+        Authorization: "Bearer ${meta.executionToken}"
   zip-code:
     foreach: ${merge-results.results}
     if: ${each.runtime} !== "docker"

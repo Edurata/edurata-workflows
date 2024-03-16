@@ -38,14 +38,6 @@ steps:
       ref: ${each.source.ref}
       privateUser: gitlab-ci-token
       privateToken: ${secrets.GITLAB_TOKEN}
-  unzip-code:
-    foreach: ${git-clone}
-    description: Unzipping the code
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/transform/unzip
-    dependencies:
-      zippedFile: ${each.code}
   get-runtime:
     runtime: python3_10
     code: |
@@ -75,7 +67,7 @@ steps:
             items:
               type: file
     dependencies:
-      files: ${unzip-code.unzipped}
+      files: ${git-clone.repoCode}
   build-nodejs20:
     foreach: ${inputs.functionsToBuild}
     if: ${get-runtime[each.index].runtime} === "nodejs20"

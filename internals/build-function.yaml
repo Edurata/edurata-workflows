@@ -131,7 +131,7 @@ steps:
         Authorization: "Bearer ${meta.executionToken}"
   zip-code:
     foreach: ${merge-results.results}
-    if: $get-runtime[each.index].runtime} !== "docker"
+    if: ${get-runtime[each.index].runtime} !== "docker"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/zip

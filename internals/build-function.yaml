@@ -38,9 +38,47 @@ steps:
       ref: ${each.source.ref}
       privateUser: gitlab-ci-token
       privateToken: ${secrets.GITLAB_TOKEN}
+  unzip-code:
+    foreach: ${git-clone}
+    description: Unzipping the code
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/unzip
+    dependencies:
+      zippedFile: ${each.code}
+  get-runtime:
+    runtime: python3_10
+    code: |
+      import os
+      def handler(event):
+        runtimes = []
+        for filepath in event["files"]:
+          # try to open definition at this path
+          definition_path = os.path.join(filepath, ".edufc.yml")
+          with open(definition_path, "r") as file:
+            definition = json.load(file)
+            if definition.get("runtime"):
+              runtimes.append({"runtime": definition["runtime"]})
+        return {runtimes: runtimes}
+    interface:
+      inputs:
+        properties:
+          files:
+            type: array
+            items:
+              type: file
+      outputs:
+        type: object
+        properties:
+          runtimes:
+            type: array
+            items:
+              type: file
+    dependencies:
+      files: ${unzip-code.unzipped}
   build-nodejs20:
     foreach: ${inputs.functionsToBuild}
-    if: ${each.runtime} === "nodejs20"
+    if: ${get-runtime[each.index].runtime} === "nodejs20"
     description: Building the python10 code
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -49,7 +87,7 @@ steps:
       source: ${each.source}
   build-python3_10:
     foreach: ${inputs.functionsToBuild}
-    if: ${each.runtime} === "python3_10"
+    if: ${get-runtime[each.index].runtime} === "python3_10"
     description: Building the python10 code
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -91,7 +129,7 @@ steps:
       module.exports = {handler}
   get-upload-url:
     foreach: ${merge-results.results}
-    if: ${each.runtime} !== "docker"
+    if: ${get-runtime[each.index].runtime} !== "docker"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -101,7 +139,7 @@ steps:
         Authorization: "Bearer ${meta.executionToken}"
   zip-code:
     foreach: ${merge-results.results}
-    if: ${each.runtime} !== "docker"
+    if: $get-runtime[each.index].runtime} !== "docker"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/zip
@@ -109,7 +147,7 @@ steps:
       file: ${each.code}
   upload-code:
     foreach: ${merge-results.results}
-    if: ${each.runtime} !== "docker"
+    if: ${get-runtime[each.index].runtime} !== "docker"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

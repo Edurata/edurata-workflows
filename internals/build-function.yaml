@@ -39,6 +39,7 @@ steps:
       privateUser: gitlab-ci-token
       privateToken: ${secrets.GITLAB_TOKEN}
   get-runtime:
+    foreach: ${git-clone}
     runtime: python3_10
     code: |
       import os
@@ -54,6 +55,7 @@ steps:
         return {runtimes: runtimes}
     interface:
       inputs:
+        type: object
         properties:
           files:
             type: array
@@ -67,7 +69,7 @@ steps:
             items:
               type: file
     dependencies:
-      files: ${git-clone.repoCode}
+      files: ${each.repoCode}
   build-nodejs20:
     foreach: ${inputs.functionsToBuild}
     if: ${get-runtime[each.index].runtime} === "nodejs20"

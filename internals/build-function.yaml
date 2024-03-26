@@ -39,7 +39,6 @@ steps:
       privateUser: gitlab-ci-token
       privateToken: ${secrets.GITLAB_TOKEN}
   get-runtime:
-    foreach: ${git-clone}
     runtime: python3_10
     code: |
       import os
@@ -67,12 +66,12 @@ steps:
           runtimes:
             type: array
             items:
-              type: file
+              type: string
     dependencies:
-      files: ${each.repoCode}
+      files: ${git-clone[*].repoCode}
   build-nodejs20:
     foreach: ${inputs.functionsToBuild}
-    if: ${get-runtime[each.index].runtime} === "nodejs20"
+    if: ${get-runtime.runtimes[each.index]} === "nodejs20"
     description: Building the python10 code
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -81,7 +80,7 @@ steps:
       source: ${each.source}
   build-python3_10:
     foreach: ${inputs.functionsToBuild}
-    if: ${get-runtime[each.index].runtime} === "python3_10"
+    if: ${get-runtime.runtimes[each.index]} === "python3_10"
     description: Building the python10 code
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

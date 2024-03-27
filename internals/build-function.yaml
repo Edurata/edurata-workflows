@@ -42,7 +42,7 @@ steps:
     runtime: python3_10
     code: |
       import os
-      import yaml
+      import json
 
       def load_definition(filepath):
           runtimes = []
@@ -50,7 +50,11 @@ steps:
               definition_path = os.path.join(filepath, filename)
               if os.path.exists(definition_path):
                   with open(definition_path, "r") as file:
-                      definition = yaml.safe_load(file)
+                      definition = {}
+                      for line in file:
+                          if ":" in line:
+                              key, value = line.strip().split(":", 1)
+                              definition[key.strip()] = value.strip()
                       if definition.get("runtime"):
                           runtimes.append({"runtime": definition["runtime"]})
                   break  # Stop iterating if a file is found

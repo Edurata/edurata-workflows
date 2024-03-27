@@ -56,7 +56,7 @@ steps:
                               key, value = line.strip().split(":", 1)
                               definition[key.strip()] = value.strip()
                       if definition.get("runtime"):
-                          runtimes.append({"runtime": definition["runtime"]})
+                          runtimes.append(definition["runtime"])
                   break  # Stop iterating if a file is found
           return runtimes
 

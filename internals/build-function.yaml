@@ -89,19 +89,19 @@ steps:
       files: ${git-clone[*].repoCode}
   build-nodejs20:
     foreach: ${inputs.functionsToBuild}
-    if: ${get-runtime.runtimes[each.index]} === "nodejs20"
+    if: \"${get-runtime.runtimes[each.index]}\" === \"nodejs20\"
     description: Building the python10 code
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: internals/build-nodejs20
     dependencies:
       source: ${each.source}
   build-python3_10:
     foreach: ${inputs.functionsToBuild}
-    if: ${get-runtime.runtimes[each.index]} === "python3_10"
+    if: \"${get-runtime.runtimes[each.index]}\" === \"python3_10\"
     description: Building the python10 code
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: internals/build-python3_10
     dependencies:
       source: ${each.source}

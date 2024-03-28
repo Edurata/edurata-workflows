@@ -90,13 +90,13 @@ steps:
   build-nodejs20:
     foreach: ${inputs.functionsToBuild}
     if: >
-      	"${get-runtime.runtimes[each.index]}" === "nodejs20"
+      "${get-runtime.runtimes[each.index]}" === "nodejs20"
     description: Building the python10 code
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: internals/build-nodejs20
     dependencies:
-      source: ${each.source}
+      code: ${each.code}
   build-python3_10:
     foreach: ${inputs.functionsToBuild}
     if: >
@@ -106,7 +106,7 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: internals/build-python3_10
     dependencies:
-      source: ${each.source}
+      code: ${each.code}
   merge-results:
     description: Merging the information again so that we can upload the code in an array. Interface only necessary bc of files integration.
     runtime: nodejs20

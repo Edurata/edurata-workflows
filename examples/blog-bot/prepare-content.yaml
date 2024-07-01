@@ -1,0 +1,109 @@
+apiRevision: edurata.io/v1
+name: prepare-content
+title: Prepare text content
+schedule: "0 8 * * *"
+description: |
+  Taking drafts from one table and suggesting a blog post and social media posts.
+interface:
+  inputs:
+    properties:
+      airtable_id:
+        type: string
+        description: |
+          The base id + table_id from which to take the raw data
+      s3_content_path:
+        type: string
+        description: |
+          The folder id of the s3 drive to fetch the image from.
+      social_media_keys:
+        type: array
+        default: ["Instagram", "Facebook", "Linkedin", "X"]
+      blog_keys:
+        type: array
+        default: ["Medium"]
+      typeToCommand:
+        type: object
+        default:
+          Medium: "Generate a blog post for Medium in html"
+          Instagram: "Generate a social media post for instagram with smileys and hashtags"
+          Facebook: "Generate a social media post for facebook with smileys and hashtags"
+          Linkedin: "Generate a professional linkedin business post with smileys and hashtags"
+          X: "Generate a social media post for X with maximum 280 chars and with smileys and hashtags"
+    required:
+      - airtable_id
+      - s3_content_path
+steps:
+  get-airtable-data:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: "https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  # add-chatgbt-command:
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: general/eval-nodejs
+  #   dependencies:
+  #     code: |
+  #       return input.map(record => record.fields.Type === "Blog" ? {
+  #         ...record,
+  #         instaType: "feed",
+  #         command: typeToCommand[record.fields.Type]
+  #       } : {
+  #         ...record,
+  #         instaType: "story",
+  #         command: typeToCommand[record.fields.Type]
+  #       });
+  #     input: ${get-airtable-data.response.data.records}
+  generate-text:
+    description: Generating a second summary with fixed length
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    dependencies:
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: You are an assistant that sums up news messages.
+      message: >
+        Fasse die Nachrichtenbeiträge auf DEUTSCH zusammen. 
+        Füge auch Icons zu den Nachrichten hinzu. 
+        Achte darauf, dass jede Nachricht in der Reihe weniger als 280 Zeichen hat. Wenn Platz vorhanden ist, füge Hashtags zu den Nachrichten hinzu. Gib die Tweets jeweils in einer neuen Zeile zurück, damit sie leicht aufgeteilt werden können.: 
+        ${generate-command.command}
+  text-to-image:
+    foreach: ${get-chatgpt-response.output}
+    description: Image to text
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/text-to-image
+    dependencies:
+      text: ${each.response}
+      type: story
+  upload-image-s3:
+    foreach: ${text-to-image}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/upload-s3
+    dependencies:
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
+      bucket_name:
+      files:
+        - path: ${each.imagePath}
+          key: ${meta.executionId}.jpg
+  push-to-airtable:
+    foreach: ${get-chatgpt-response}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: "https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        body:
+          fields:
+            Instagram: ${each.instaType}
+            X: ${each.fields.X}
+            Facebook: ${each.fields.Facebook}
+            Linkedin: ${each.fields.Linkedin}
+            Medium: ${each.fields.Medium}

@@ -1,0 +1,139 @@
+apiRevision: edurata.io/v1
+name: invoice-processor
+title: Invoice Processor
+schedule: "0 9 * * *"
+description: |
+  Searches through the inbox and saves, tags and forwards invoices
+interface:
+  inputs:
+    properties:
+      config:
+        type: object
+        description: |
+          The configuration of the invoice processor
+        properties:
+          forward_email:
+            type: string
+            description: |
+              The email address to forward the invoices to
+          success_tag:
+            type: string
+            default: "Processed"
+          fail_tag:
+            type: string
+            default: "Failed"
+          skip_tag:
+            type: string
+            default: "Skipped"
+          sender_email:
+            type: string
+            description: |
+              The email address to send the invoices from
+        required:
+          - gdrive_folder_id
+    required:
+      - config
+inputs:
+  config: ${variables.invoices_forward_config}
+steps:
+  # filter people for interval and today's day
+  get-new-mails-without-tag:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: https://gmail.googleapis.com/v1/users/me/messages
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      params:
+        q: "is:unread after:2021/01/01 -label:${inputs.config.success_tag} -label:${inputs.config.fail_tag} -label:${inputs.config.skip_tag}" 
+        maxResults: 10
+        fields: "id,threadId,labelIds"
+  get-mails-info:
+    foreach: ${get-new-mails-without-tag.response.data.messages}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: https://gmail.googleapis.com/v1/users/me/messages/${each.id}
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      params:
+        format: "full"
+        fields: "payload"
+  filter-attachments:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      path: apps/invoice-forwarder/filter-attachments
+    dependencies:
+      messages: ${get-mails-info[*].response.data}
+  download-attachments:
+    foreach: ${filter-attachments.filtered_attachments}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.message_id}/attachments/${each.attachment_id}"
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      streamToFile: true
+  forward-pdf:
+    foreach: ${filter-attachments.download-attachments[*].response.file}
+    if: ${inputs.config.forward_email}
+    description: |
+      Forward the PDF attachments to the specified email address
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-ses
+    dependencies:
+      sender: ${inputs.config.sender_email}
+      to: ${inputs.config.forward_email}
+      subject: "Invoice"
+      body: "Please find the attached invoice"
+      attachments: 
+        - ${each}
+      AWS_REGION: "eu-central-1"
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
+  map-tags-to-threads:
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          thread_to_tags = {}
+          for message in inputs["all_messages"]:
+              thread_id = message["threadId"]
+
+              # continue if already processed
+              if thread_id in thread_to_tags:
+                  continue
+
+              is_in_filtered_attachments = False
+              for attachment in inputs["filtered_attachments"]:
+                  if attachment["message_id"] == message["id"]:
+                      is_in_filtered_attachments = True
+                      break
+              thread_to_tags[thread_id] = inputs["success_tag"] if is_in_filtered_attachments else inputs["skip_tag"]
+          
+          # make into list of objects
+          return [{"threadId": thread_id, "tag": tag} for thread_id, tag in thread_to_tags.items()]
+    dependencies:
+      all_messages: ${get-new-mails-without-tag.response.data.messages}
+      filtered_attachments: ${filter-attachments.filtered_attachments} 
+      success_tag: ${inputs.config.success_tag}
+      fail_tag: ${inputs.config.fail_tag}
+      skip_tag: ${inputs.config.skip_tag}
+  tag-emails:
+    foreach: ${map-tags-to-threads}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: PATCH
+      url: "https://gmail.googleapis.com/v1/users/me/messages/${each.threadId}/modify"
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      data:
+        addLabelIds: 
+          - ${each.tag}
+        removeLabelIds: []
+        

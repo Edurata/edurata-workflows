@@ -1,0 +1,64 @@
+apiRevision: edurata.io/v1
+name: hello-world
+title: Testing all runtimes with a hello-world function.
+description: |
+  Testing
+  - hello-world
+interface:
+  inputs:
+    properties:
+      messages:
+        type: array
+        items:
+          type: string
+        default: ["Hello", "World"]
+  outputs:
+    properties:
+      messageFromDocker:
+        type: string
+      messageFromPython:
+        type: string
+      messageFromNode:
+        type: string
+outputs:
+  messageFromDocker: ${test-docker-upstream.message}
+  messageFromPython: ${test-python.message}
+  messageFromNode: ${test-node.message}
+steps:
+  construct-message:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/join
+    dependencies:
+      array: ${inputs.messages}
+      joinString: " "
+  test-python:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: tests/python
+    dependencies:
+      message: ${construct-message.string}
+  test-node:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: tests/node
+    dependencies:
+      message: ${construct-message.string}
+  test-docker-upstream:
+    description: |
+      This step is using a docker image from the docker hub
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: tests/whalesay.edufc.yml
+    dependencies:
+      cmd:
+        - cowsay
+        - ${construct-message.string}
+  # test-docker-custom:
+  #   description: |
+  #     This step is using a custom docker image that uploads the result to the orchestrator
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: tests/whalesay.edufc.yml
+  #   dependencies:
+  #     message: ${construct-message.string}

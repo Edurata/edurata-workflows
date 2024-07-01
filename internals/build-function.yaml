@@ -1,0 +1,186 @@
+apiRevision: edurata.io/v1
+name: build-function-code
+title: Build function code
+description: Fetches the git repo and builds the function code and then uploads it to the function registry.
+interface:
+  inputs:
+    properties:
+      functionsToBuild:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+            source:
+              type: object
+              properties:
+                repoUrl:
+                  type: string
+                path:
+                  type: string
+                ref:
+                  type: string
+    required:
+      - functionsToBuild
+steps:
+  git-clone:
+    foreach: ${inputs.functionsToBuild}
+    description: Cloning a repo
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/clone-git
+    dependencies:
+      repoUrl: ${each.source.repoUrl}
+      path: ${each.source.path}
+      ref: ${each.source.ref}
+      auth: ${each.auth}
+  get-runtime:
+    runtime: python3_10
+    code: |
+      import os
+      import json
+
+      def load_definition(filepath):
+          runtime = ""
+          for filename in (".edufc.yaml", ".edufc.yml"):
+              definition_path = os.path.join(filepath, filename)
+              if os.path.exists(definition_path):
+                  with open(definition_path, "r") as file:
+                      definition = {}
+                      for line in file:
+                          if ":" in line:
+                              key, value = line.strip().split(":", 1)
+                              definition[key.strip()] = value.strip()
+                      runtime = definition.get("runtime", "")  # Handling case where 'runtime' key might not exist
+                  break  # Stop iterating if a file is found
+          return runtime
+
+      def handler(event):
+          runtime_and_files = []
+          
+          for index, filepath in enumerate(event["files"]):
+              # Accessing each dictionary in event["rest"] based on index
+              rest = event["rest"][index]  
+              # log ls on the filepath
+              print(os.listdir(filepath))
+
+              # try to open either .edufc.yaml or .edufc.yml
+              runtime = load_definition(filepath)
+              runtime_and_files.append({"runtime": runtime, "repoCode": filepath, **rest})
+
+          sorted_runtime_and_files = sorted(runtime_and_files, key=lambda x: (x["runtime"] != "python", x["runtime"]))
+
+          return {"runtime_and_files": sorted_runtime_and_files}
+    interface:
+      inputs:
+        type: object
+        properties:
+          files:
+            type: array
+            items:
+              type: file
+      outputs:
+        type: object
+        properties:
+          runtime_and_files:
+            type: array
+            items:
+              type: object
+              properties:
+                runtime:
+                  type: string
+                repoCode:
+                  type: file
+    dependencies:
+      files: ${git-clone[*].repoCode}
+      rest: ${inputs.functionsToBuild}
+  build-nodejs20:
+    foreach: ${get-runtime.runtime_and_files}
+    if: >
+      "${each.runtime}" === "nodejs20"
+    description: Building the python10 code
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: internals/build-nodejs20
+    dependencies:
+      code: ${each.repoCode}
+  build-python3_10:
+    foreach: ${get-runtime.runtime_and_files}
+    if: >
+      "${each.runtime}" === "python3_10"
+    description: Building the python10 code
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: internals/build-python3_10
+    dependencies:
+      code: ${each.repoCode}
+  merge-results:
+    description: Merging the information again so that we can upload the code in an array. Interface only necessary bc of files integration.
+    runtime: nodejs20
+    dependencies:
+      results:
+        - ${build-nodejs20}
+        - ${build-python3_10}
+    interface:
+      inputs:
+        type: object
+        properties:
+          results:
+            type: array
+            items:
+              type: array
+              items:
+                type: object
+                properties:
+                  code:
+                    type: file
+      outputs:
+        type: object
+        properties:
+          results:
+            type: array
+            items:
+              type: object
+              properties:
+                code:
+                  type: file
+    code: |
+      const handler = async (event) => {
+        console.log(event, event.results)
+        const { results } = event;
+
+        return {results: results.flat().filter(result => !result.__pass__)}
+      }
+      module.exports = {handler}
+  get-upload-url:
+    foreach: ${get-runtime.runtime_and_files}
+    if: >
+      "${each.runtime}" !== "docker"
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: "${meta.apiUrl}/function/${each.name}/upload-url"
+      headers:
+        Authorization: "Bearer ${meta.executionToken}"
+  zip-code:
+    foreach: ${merge-results.results}
+    if: >
+      "${get-runtime.runtime_and_files[each.index].runtime}" !== "docker"
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/zip
+    dependencies:
+      file: ${each.code}
+  upload-code:
+    foreach: ${merge-results.results}
+    if: >
+      "${get-runtime.runtime_and_files[each.index].runtime}" !== "docker"
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: "PUT"
+      url: ${get-upload-url[each.index].response.data.uploadUrl}
+      dataFromFile: ${zip-code[each.index].zipped}

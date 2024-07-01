@@ -1,0 +1,55 @@
+apiRevision: edurata.io/v1
+name: scrape-images
+title: scrape-images
+description: Scraping images for a list of people and uploading them to the s3 bucket
+schedule: 0 */3 * * *
+interface:
+  inputs:
+    properties:
+      cursor:
+        type: string
+        title: cursor
+        description: if to start from a specific element in the array
+        default: 0
+      limit:
+        type: number
+        title: limit
+        description: if to break after a specific number of elements processed
+        default: 100
+steps:
+  get-config:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/extract/download-s3
+    dependencies:
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
+      bucket_name: test-images
+      files:
+        - key: people.json
+        - key: processed-images.json
+  scrape-images:
+    timeout: -1
+    source:
+      repoUrl: https://github.com/juliandm/penetratethecabinet.git
+      path: functions/scrape-images
+      ref: master
+    dependencies:
+      limit: ${inputs.limit}
+      people: ${get-config.files[0].path}
+      processed: ${get-config.files[1].path}
+      GOOGLE_API_KEY: ${secrets.GOOGLE_API_KEY}
+      GOOGLE_PROJECT_CX: ${variables.GOOGLE_PROJECT_CX}
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
+  upload-config:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/upload-s3
+    dependencies:
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
+      bucket_name: test-images
+      files:
+        - path: ${scrape-images.processed}
+          key: processed-images.json

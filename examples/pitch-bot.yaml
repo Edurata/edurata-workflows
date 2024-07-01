@@ -1,0 +1,199 @@
+apiRevision: edurata.io/v1
+name: pitch-bot
+title: Pitch Bot
+schedule: "*/10 8-20 * * *"
+description: |
+  Pitch bot takes a list of companies, parses their website for info, generates pitches and then sends them to the company.
+inputs:
+  company_table_id: ${variables.company_table_id}
+  sender_name: ${variables.ceo_name}
+  sender_company_name: ${variables.company_name}
+  sender_company_description: ${variables.company_description}
+  sender_email: ${variables.ceo_email}
+interface:
+  inputs:
+    properties:
+      company_table_id:
+        type: string
+        description: |
+          The base id + table_id from which to take the companies
+          The table needs to have the following columns:
+          - name: string
+          - email: string
+      contact_info:
+        type: string
+        description: What is sent at the end of the email
+      sender_name:
+        type: string
+        description: The name of the sender
+      sender_company_name:
+        type: string
+        description: The company name
+      sender_email:
+        type: string
+        description: The email address from which the emails are sent
+      limit:
+        type: number
+        description: The amount of companies to send out emails for
+        default: 3
+steps:
+  get-company-data:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: "https://api.airtable.com/v0/${inputs.company_table_id}?filterByFormula=AND(NOT({processed}), NOT({email} = ''), NOT({company_name} = ''), NOT({first_name} = ''), NOT({last_name} = ''), NOT({title} = ''), NOT({MANational} = '0'))&maxRecords=${inputs.limit}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  add-website-from-email:
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          return {
+              "companies": [
+                  {
+                      "company_name": company["fields"]["company_name"],
+                      "first_name": company["fields"]["first_name"],
+                      "last_name": company["fields"]["last_name"],
+                      "ceo_name": company["fields"]["title"] + " " + company["fields"]["first_name"] + " " + company["fields"]["last_name"],
+                      "email": company["fields"]["email"],
+                      "website": f"https://{company['fields']['email'].split('@')[1]}"
+                  }
+                  for company in inputs["get-company-data"]["response"]["data"]["records"]
+              ]
+          }
+    dependencies:
+      get-company-data: ${get-company-data}
+  extract-company-info:
+    foreach: ${add-website-from-email.companies}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/extract-text-from-webpage
+    dependencies:
+      url: ${each.website}
+      CRAWL_PASSWORD: ${secrets.CRAWL_PASSWORD}
+  generate-body:
+    foreach: ${add-website-from-email.companies}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    dependencies:
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: You are an assistant that extracts information from a text and generates an email body from it.
+      message: |
+        Ich bin ${inputs.sender_name}. Unser Unternehmen heißt ${inputs.sender_company_name}. Die Unternehmensbeschreibung lautet wie folgt: 
+        Unser Unternehmen bietet flexible, kostengünstige Automatisierungslösungen für den Mittelstand im DACH-Raum auf eigener Plattform mit Allround Betrieb und Wartung. Dank unserer erfahrenen Berater und bausteinartigen Programmierung entwickeln wir skalierbare Software schnell und effizient, wobei der Quellcode stets bei Ihnen bleibt.
+
+
+        Ich möchte, dass du einen E-Mail-Text für einen unserer Kunden ${each.ceo_name} des Unternehmens ${each.company_name} generierst.
+
+        Analysiere den folgenden Text, der von der Website des Kunden ${each.company_name} extrahiert wurde.
+        Generiere einen E-Mail-Text auf deutsch in der folgenden Struktur:
+        - Angebot von kostenlosem einstündigem Beratungsgespräch durch mich zu Cloud und Softwarelösungen.
+        - Vorstellung von unserem Unternehmen und unseren Lösungen.
+        - Detaillierte Beispiele für potenzielle Lösungen durch uns für den Kunden.
+        - Die E-Mail sollte professionell sein aber auch spannend. Verwende keine Floskeln.
+        - Erwähne am Ende auch, dass die E-Mail von einer unserer KI-Lösungen generiert wurde und die tatsächlichen Anwendungsfälle in dem kostenlosen Beratungsgespräch besprochen werden können.
+        - Gib nur den E-Mail-Text mit Grußwort zurück ohne Betreff.
+
+        Text:
+        ${extract-company-info[each.index].text}
+  generate-header:
+    foreach: ${add-website-from-email.companies}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    dependencies:
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: You are an assistant that extracts information from the website of a company and generates a nice catchline.
+      message: |
+        Unser Unternehmen heißt ${inputs.sender_company_name}. Die Unternehmensbeschreibung lautet wie folgt: ${inputs.sender_company_description}.
+
+        Analysiere den folgenden Text, der von der Website des Kunden ${each.company_name} extrahiert wurde.
+        Generiere eine kurze, ansprechende Betreffzeile für eine Email, die die Aufmerksamkeit des CEOs wecken soll und individuell seinen Unternehmensszweck mit unseren Angeboten verknüpft. Es kann auch KI enthalten.
+        Weise auf eine kostenlose Cloud-Beratung als Eye-Catcher hin.
+        Die Betreffzeile sollte auf deutsch sein!
+        Gib nur die Betreffzeile zurück ohne Zeilenumbrüche.
+
+        Text:
+        ${extract-company-info[each.index].text}
+  send-message:
+    foreach: ${generate-body}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-ses
+    dependencies:
+      sender: ${inputs.sender_email}
+      to: ${get-company-data.response.data.records[each.index].fields.email}
+      subject: ${generate-header[each.index].response}
+      body: |
+        ${each.response}
+        ${variables.company_address}, 
+        Handelsregister: ${variables.company_registry}
+        VAT: ${variables.company_vat}
+        Web: ${variables.company_website}
+      AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
+      AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
+  # prepare_hubspot_contacts:
+  #   runtime: python3_10
+  #   code: |
+  #     def handler(inputs):
+  #         return {
+  #             "contacts": [
+  #                 {
+  #                     "email": company["email"],
+  #                     "firstname": company["first_name"],
+  #                     "lastname": company["last_name"],
+  #                     "additional_properties": {
+  #                         "company_name": company["company_name"],
+  #                         "website": company["website"]
+  #                     }
+  #                 }
+  #                 for company in inputs["add-website-from-email"]["companies"]
+  #             ],
+  #             "companies": [
+  #                 {
+  #                     "name": company["company_name"],
+  #                     "domain": company["website"],
+  #                 }
+  #                 for company in inputs["add-website-from-email"]["companies"]
+  #             ]
+  #         }
+  #   dependencies:
+  #     add-website-from-email: ${add-website-from-email}
+  # create-companies-hubspot:
+  #   if: "false"
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: etl/load/hubspot/create-companies
+  #   dependencies:
+  #     HUBSPOT_API_KEY: ${secrets.HUBSPOT_API_KEY}
+  #     companies: ${prepare_hubspot_contacts.companies}
+  # create-contacts:
+  #   foreach: ${prepare_hubspot_contacts.contacts}
+  #   if: "false"
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: etl/load/hubspot/create-contacts
+  #   description: A function to create a contact or a list of contacts in HubSpot..
+  #   dependencies:
+  #     HUBSPOT_API_KEY: ${secrets.HUBSPOT_API_KEY}
+  #     contacts:
+  #       - email: ${each.email}
+  #         firstname: ${each.firstname}
+  #         lastname: ${each.lastname}
+  #         company_hubspot_id: ${create-companies-hubspot.result[each.index].company_id}
+  update-airtable:
+    foreach: ${send-message}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    dependencies:
+      method: PATCH
+      url: https://api.airtable.com/v0/${inputs.company_table_id}/${get-company-data.response.data.records[each.index].id}
+      headers:
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+        Content-Type: application/json
+      data:
+        fields:
+          processed: true

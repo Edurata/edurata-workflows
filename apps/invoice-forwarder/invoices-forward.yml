@@ -42,7 +42,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      url: https://gmail.googleapis.com/v1/users/me/messages
+      url: https://www.googleapis.com/gmail/v1/users/me/messages
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:

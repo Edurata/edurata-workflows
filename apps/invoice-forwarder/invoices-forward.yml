@@ -64,7 +64,7 @@ steps:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:
         format: "full"
-        fields: "payload"
+        fields: "id,payload"
   filter-attachments:
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"

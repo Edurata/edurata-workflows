@@ -18,13 +18,18 @@ interface:
               The email address to forward the invoices to
           success_tag:
             type: string
-            default: "Processed"
+            default: "to-datev/processed"
           fail_tag:
             type: string
-            default: "Failed"
+            default: "to-datev/failed"
           skip_tag:
             type: string
-            default: "Skipped"
+            default: "to-datev/skipped"
+          additional_query:
+            type: string
+            description: |
+              Additional query to filter the emails
+            default: ""
           sender_email:
             type: string
             description: |
@@ -46,7 +51,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:
-        q: "is:unread after:2021/01/01 -label:${inputs.config.success_tag} -label:${inputs.config.fail_tag} -label:${inputs.config.skip_tag} has:attachment filename:pdf" 
+        q: "is:unread after:2021/01/01 label:${inputs.config.include_tag} -label:${inputs.config.success_tag} -label:${inputs.config.fail_tag} -label:${inputs.config.skip_tag} has:attachment filename:pdf" 
         maxResults: 10
   get-mails-info:
     foreach: ${get-new-mails-without-tag.response.data.messages}

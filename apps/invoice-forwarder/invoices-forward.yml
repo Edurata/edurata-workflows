@@ -18,13 +18,13 @@ interface:
               The email address to forward the invoices to
           success_tag:
             type: string
-            default: "to-datev/processed"
+            default: "to-datev-processed"
           fail_tag:
             type: string
-            default: "to-datev/failed"
+            default: "to-datev-failed"
           skip_tag:
             type: string
-            default: "to-datev/skipped"
+            default: "to-datev-skipped"
           additional_query:
             type: string
             description: |
@@ -81,8 +81,29 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       streamToFile: true
-  forward-pdf:
+  rename-attachments:
     foreach: ${download-attachments[*].response.file}
+    code: |
+      import os
+      import shutil
+
+      def handler(inputs):
+          new_file = os.path.join(os.path.dirname(inputs["file"]), f"{inputs['file'].split('/')[-1]}.pdf")
+          shutil.move(inputs["file"], new_file)
+          return new_file
+    interface:
+      inputs:
+        properties:
+          file:
+            type: file
+      outputs:
+        properties:
+          new_file:
+            type: file
+    dependencies:
+      file: ${each}
+  forward-pdf:
+    foreach: ${rename-attachments[*].new_file}
     if: ${inputs.config.forward_email} !== undefined
     description: |
       Forward the PDF attachments to the specified email address

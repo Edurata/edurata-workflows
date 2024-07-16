@@ -51,7 +51,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:
-        q: "is:unread after:2021/01/01 label:${inputs.config.include_tag} -label:${inputs.config.success_tag} -label:${inputs.config.fail_tag} -label:${inputs.config.skip_tag} has:attachment filename:pdf" 
+        q: "after:2021/01/01 label:${inputs.config.include_tag} -label:${inputs.config.success_tag} -label:${inputs.config.fail_tag} -label:${inputs.config.skip_tag} has:attachment filename:pdf" 
         maxResults: 10
   get-mails-info:
     foreach: ${get-new-mails-without-tag.response.data.messages}

@@ -93,7 +93,7 @@ steps:
       sender: ${inputs.config.sender_email}
       to: ${inputs.config.forward_email}
       subject: "Invoice"
-      body: "Please find the attached invoice"
+      html_body: "Please find the attached invoice"
       attachments: 
         - ${each}
       AWS_REGION: "eu-central-1"
@@ -132,7 +132,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      method: PATCH
+      method: POST
       url: "https://gmail.googleapis.com/gmail/v1/users/me/threads/${each.threadId}/modify"
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"

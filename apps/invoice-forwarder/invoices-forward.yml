@@ -54,7 +54,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      url: https://gmail.googleapis.com/v1/users/me/messages/${each.id}
+      url: https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.id}
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:
@@ -128,7 +128,7 @@ steps:
       path: general/axios
     dependencies:
       method: PATCH
-      url: "https://gmail.googleapis.com/v1/users/me/messages/${each.threadId}/modify"
+      url: "https://gmail.googleapis.com/gmail/v1/users/me/threads/${each.threadId}/modify"
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       data:

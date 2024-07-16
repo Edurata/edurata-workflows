@@ -48,7 +48,6 @@ steps:
       params:
         q: "is:unread after:2021/01/01 -label:${inputs.config.success_tag} -label:${inputs.config.fail_tag} -label:${inputs.config.skip_tag}" 
         maxResults: 10
-        fields: "id,threadId,labelIds"
   get-mails-info:
     foreach: ${get-new-mails-without-tag.response.data.messages}
     source:

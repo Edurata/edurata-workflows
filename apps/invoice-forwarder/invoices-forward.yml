@@ -82,6 +82,7 @@ steps:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       streamToFile: true
   rename-attachments:
+    runtime: python3_10
     foreach: ${download-attachments[*].response.file}
     code: |
       import os

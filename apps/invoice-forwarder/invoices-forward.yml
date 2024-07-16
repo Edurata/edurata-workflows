@@ -82,8 +82,8 @@ steps:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       streamToFile: true
   forward-pdf:
-    foreach: ${filter-attachments.download-attachments[*].response.file}
-    if: ${inputs.config.forward_email}
+    foreach: ${download-attachments[*].response.file}
+    if: ${inputs.config.forward_email} !== undefined
     description: |
       Forward the PDF attachments to the specified email address
     source:

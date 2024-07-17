@@ -18,13 +18,13 @@ interface:
               The email address to forward the invoices to
           success_tag:
             type: string
-            default: "to-datev-processed"
+            default: "to-datev/processed"
           fail_tag:
             type: string
-            default: "to-datev-failed"
+            default: "to-datev/failed"
           skip_tag:
             type: string
-            default: "to-datev-skipped"
+            default: "to-datev/skipped"
           additional_query:
             type: string
             description: |
@@ -41,6 +41,27 @@ interface:
 inputs:
   config: ${variables.invoices_forward_config}
 steps:
+  get-label-ids:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: https://gmail.googleapis.com/gmail/v1/users/me/labels
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+  transform-tags-to-label-ids:
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          label_ids = {}
+          for label in inputs["get-label-ids"]["response"]["data"]["labels"]:
+              label_ids[label["name"]] = label["id"]
+          return label_ids
+    dependencies:
+      get-label-ids: ${get-label-ids}
+      success_tag: ${inputs.config.success_tag}
+      fail_tag: ${inputs.config.fail_tag}
+      skip_tag: ${inputs.config.skip_tag}
   # filter people for interval and today's day
   get-new-mails-without-tag:
     source:
@@ -91,7 +112,8 @@ steps:
       def handler(inputs):
           new_file = os.path.join(os.path.dirname(inputs["file"]), f"{inputs['file'].split('/')[-1]}.pdf")
           shutil.move(inputs["file"], new_file)
-          return new_file
+          # return object
+          return {"new_file": new_file}
     interface:
       inputs:
         properties:

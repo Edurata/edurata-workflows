@@ -71,11 +71,11 @@ steps:
       def handler(inputs):
           label_ids = {}
           for label in inputs["get-label-ids"]["response"]["data"]["labels"]:
-            if label["name"] is inputs["success_tag"]:
+            if label["name"] == inputs["success_tag"]:
               label_ids["success_tag"] = label["id"]
-            elif label["name"] is inputs["fail_tag"]:
+            elif label["name"] == inputs["fail_tag"]:
               label_ids["fail_tag"] = label["id"]
-            elif label["name"] is inputs["skip_tag"]:
+            elif label["name"] == inputs["skip_tag"]:
               label_ids["skip_tag"] = label["id"]
           return {"label_ids": label_ids}
     dependencies:
@@ -95,6 +95,7 @@ steps:
       params:
         q: "after:2021/01/01 ${inputs.config.additional_query} -label:${inputs.config.success_tag} -label:${inputs.config.fail_tag} -label:${inputs.config.skip_tag} has:attachment filename:pdf" 
         maxResults: 10
+      __create-labels: ${create-labels}
   get-mails-info:
     foreach: ${get-new-mails-without-tag.response.data.messages}
     source:
@@ -188,9 +189,9 @@ steps:
     dependencies:
       all_messages: ${get-new-mails-without-tag.response.data.messages}
       filtered_attachments: ${filter-attachments.filtered_attachments} 
-      success_tag: ${inputs.config.success_tag}
-      fail_tag: ${inputs.config.fail_tag}
-      skip_tag: ${inputs.config.skip_tag}
+      success_tag: ${transform-tags-to-label-ids.label_ids.success_tag}
+      fail_tag: ${transform-tags-to-label-ids.label_ids.fail_tag}
+      skip_tag: ${transform-tags-to-label-ids.label_ids.skip_tag}
   tag-emails:
     foreach: ${map-tags-to-threads}
     source:

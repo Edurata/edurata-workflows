@@ -41,6 +41,21 @@ interface:
 inputs:
   config: ${variables.invoices_forward_config}
 steps:
+  create-labels:
+    foreach: 
+      - ${inputs.config.success_tag}
+      - ${inputs.config.fail_tag}
+      - ${inputs.config.skip_tag}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: https://gmail.googleapis.com/gmail/v1/users/me/labels
+      method: POST
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      data:
+        name: ${each}
   get-label-ids:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -49,14 +64,20 @@ steps:
       url: https://gmail.googleapis.com/gmail/v1/users/me/labels
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      __create-labels: ${create-labels}
   transform-tags-to-label-ids:
     runtime: python3_10
     code: |
       def handler(inputs):
           label_ids = {}
           for label in inputs["get-label-ids"]["response"]["data"]["labels"]:
-              label_ids[label["name"]] = label["id"]
-          return label_ids
+            if label["name"] is inputs["success_tag"]:
+              label_ids["success_tag"] = label["id"]
+            elif label["name"] is inputs["fail_tag"]:
+              label_ids["fail_tag"] = label["id"]
+            elif label["name"] is inputs["skip_tag"]:
+              label_ids["skip_tag"] = label["id"]
+          return {"label_ids": label_ids}
     dependencies:
       get-label-ids: ${get-label-ids}
       success_tag: ${inputs.config.success_tag}

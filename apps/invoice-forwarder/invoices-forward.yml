@@ -152,7 +152,6 @@ steps:
               description: |
                 The new file name
     code: |
-      // write the data to a file and return
       def handler(inputs):
           new_files = []
           for attachment_data in inputs["attachments_data"]:

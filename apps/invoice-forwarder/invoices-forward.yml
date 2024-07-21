@@ -124,6 +124,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
   save-attachments:
+    runtime: python3_10
     dependencies:
       attachments_data: ${download-attachments[*].response.data}
     interface:
@@ -160,7 +161,6 @@ steps:
                   f.write(base64.b64decode(attachment_data["data"]))
               new_files.append(new_file)
           return {"new_files": new_files}
-
   forward-pdf:
     foreach: ${save-attachments.new_files}
     if: ${inputs.config.forward_email} !== undefined

@@ -169,7 +169,7 @@ steps:
                   # Correct the base64url padding
                   corrected_data = correct_base64url_padding(attachment_data["data"])
                   random_id = str(uuid.uuid4())
-                  new_file = f"/tmp/{random_id}"
+                  new_file = f"/tmp/{random_id}.pdf"
                   with open(new_file, "wb") as f:
                       f.write(base64.urlsafe_b64decode(corrected_data))
                   new_files.append(new_file)

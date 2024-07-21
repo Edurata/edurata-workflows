@@ -152,10 +152,14 @@ steps:
               description: |
                 The new file name
     code: |
+      import base64
+      import uuid
+
       def handler(inputs):
           new_files = []
           for attachment_data in inputs["attachments_data"]:
-              new_file = f"/tmp/{attachment_data['attachmentId']}"
+              random_id = str(uuid.uuid4())
+              new_file = f"/tmp/{random_id}"
               with open(new_file, "wb") as f:
                   f.write(base64.b64decode(attachment_data["data"]))
               new_files.append(new_file)

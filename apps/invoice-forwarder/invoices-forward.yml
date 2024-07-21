@@ -123,32 +123,46 @@ steps:
       url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.message_id}/attachments/${each.attachment_id}"
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
-      streamToFile: true
-  rename-attachments:
-    runtime: python3_10
-    foreach: ${download-attachments[*].response.file}
-    code: |
-      import os
-      import shutil
-
-      def handler(inputs):
-          new_file = os.path.join(os.path.dirname(inputs["file"]), f"{inputs['file'].split('/')[-1]}.pdf")
-          shutil.move(inputs["file"], new_file)
-          # return object
-          return {"new_file": new_file}
+  save-attachments:
+    dependencies:
+      attachments_data: ${download-attachments[*].response.data}
     interface:
       inputs:
         properties:
-          file:
-            type: file
+          attachments_data:
+            type: array
+            items: 
+              type: object
+              properties:
+                attachmentId:
+                  type: string
+                  description: |
+                    The name of the attachment
+                data:
+                  type: string
+            description: |
+              The data of the attachments
       outputs:
         properties:
-          new_file:
-            type: file
-    dependencies:
-      file: ${each}
+          new_files:
+            type: array
+            items:
+              type: file
+              description: |
+                The new file name
+    code: |
+      // write the data to a file and return
+      def handler(inputs):
+          new_files = []
+          for attachment_data in inputs["attachments_data"]:
+              new_file = f"/tmp/{attachment_data['attachmentId']}"
+              with open(new_file, "wb") as f:
+                  f.write(base64.b64decode(attachment_data["data"]))
+              new_files.append(new_file)
+          return {"new_files": new_files}
+
   forward-pdf:
-    foreach: ${rename-attachments[*].new_file}
+    foreach: ${save-attachments.new_files}
     if: ${inputs.config.forward_email} !== undefined
     description: |
       Forward the PDF attachments to the specified email address

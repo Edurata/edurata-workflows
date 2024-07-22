@@ -2,50 +2,60 @@ import re
 import base64
 
 def handler(inputs):
-    def filter_attachments(message):
-        def is_invoice_or_receipt(filename):
-            invoice_keywords = ['invoice', 'inv', 'bill']
-            receipt_keywords = ['receipt', 'rcpt']
-            lower_filename = filename.lower()
-            
-            for keyword in invoice_keywords:
-                if keyword in lower_filename:
-                    return 'invoice'
-            for keyword in receipt_keywords:
-                if keyword in lower_filename:
-                    return 'receipt'
-            return None
+    def is_invoice_or_receipt(filename):
+        invoice_keywords = ['invoice', 'inv', 'bill', "Rechnung", "Faktura"]
+        receipt_keywords = ['receipt', "Quittung", "Beleg"]
+        lower_filename = filename.lower()
+        
+        for keyword in invoice_keywords:
+            if keyword in lower_filename:
+                return 'invoice'
+        for keyword in receipt_keywords:
+            if keyword in lower_filename:
+                return 'receipt'
+        return None
 
-        def search_keywords_in_text(text):
-            keywords = ['invoice', 'inv', 'bill', 'receipt', 'rcpt']
-            text = text.lower()
-            for keyword in keywords:
-                if re.search(r'\b' + re.escape(keyword) + r'\b', text):
-                    return True
-            return False
+    def search_keywords_in_text(text):
+        keywords = ['invoice', 'inv', 'bill', 'receipt', 'rcpt']
+        text = text.lower()
+        for keyword in keywords:
+            if re.search(r'\b' + re.escape(keyword) + r'\b', text):
+                return True
+        return False
 
-        # Check if the body or header contains relevant keywords
-        body = base64.urlsafe_b64decode(message['payload'].get('body', {}).get('data', '')).decode('utf-8', errors='ignore')
-        headers = ' '.join([header['value'] for header in message['payload'].get('headers', [])])
+    def extract_body_and_headers(message):
+        body_data = message.get('body', {}).get('data', '')
+        body = base64.urlsafe_b64decode(body_data).decode('utf-8', errors='ignore') if body_data else ''
+        headers = ' '.join([header['value'] for header in message.get('headers', [])])
+        return body, headers
 
-        print("Body:", body)
-        print("Headers:", headers)
-
-        relevant_content = body + ' ' + headers
-        content_has_keywords = search_keywords_in_text(relevant_content)
-
-        parts = message['payload'].get('parts', [])
-        pdf_attachments = []
-
+    def extract_content_recursive(parts, content_accumulator):
         for part in parts:
-            if part['filename'].endswith('.pdf'):
+            if 'parts' in part:
+                extract_content_recursive(part['parts'], content_accumulator)
+            if 'body' in part and 'data' in part['body']:
+                part_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
+                content_accumulator.append(part_body)
+            if 'filename' in part and part['filename'].endswith('.pdf'):
                 attachment_id = part['body'].get('attachmentId')
                 if attachment_id:
                     attachment_type = is_invoice_or_receipt(part['filename'])
                     if attachment_type:
-                        pdf_attachments.append((attachment_id, attachment_type))
-                    elif content_has_keywords:
-                        pdf_attachments.append((attachment_id, 'unknown'))
+                        content_accumulator.append((attachment_id, attachment_type))
+                    else:
+                        content_accumulator.append((attachment_id, 'unknown'))
+
+    def filter_attachments(message):
+        body, headers = extract_body_and_headers(message['payload'])
+        content_accumulator = [body, headers]
+
+        parts = message['payload'].get('parts', [])
+        extract_content_recursive(parts, content_accumulator)
+
+        relevant_content = ' '.join([content for content in content_accumulator if isinstance(content, str)])
+        content_has_keywords = search_keywords_in_text(relevant_content)
+
+        pdf_attachments = [content for content in content_accumulator if isinstance(content, tuple)]
 
         # Filter out receipts if there are invoices
         invoices = [att for att in pdf_attachments if att[1] == 'invoice']
@@ -61,7 +71,7 @@ def handler(inputs):
         elif receipts:
             return [att[0] for att in receipts]
         else:
-            return [att[0] for att in unknowns]
+            return [att[0] for att in unknowns if content_has_keywords]
 
     messages = inputs['messages']
     filtered_attachments = []

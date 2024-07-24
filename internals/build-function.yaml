@@ -120,8 +120,8 @@ steps:
     runtime: nodejs20
     dependencies:
       results:
-        - ${build-nodejs20}
-        - ${build-python3_10}
+        - ${build-nodejs20?}
+        - ${build-python3_10?}
     interface:
       inputs:
         type: object

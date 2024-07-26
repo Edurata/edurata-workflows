@@ -7,45 +7,71 @@ description: |
 interface:
   inputs:
     properties:
+      people_table_id:
+        type: string
+        description: |
+          The base id + table_id from which to take the people
+      user_email:
+        type: string
+        description: |
+          The email address of the user
       config:
         type: object
         description: |
           The configuration of the invoice processor
         properties:
-          forward_email:
+          gdriveFolderId:
+            type: string
+            description: |
+              The Google Drive folder ID to save the invoices to
+          forwardEmail:
             type: string
             description: |
               The email address to forward the invoices to
-          success_tag:
+          successTag:
             type: string
             default: "to-datev/processed"
-          fail_tag:
+          failTag:
             type: string
             default: "to-datev/failed"
-          skip_tag:
+          skipTag:
             type: string
             default: "to-datev/skipped"
-          additional_query:
+          additionalQuery:
             type: string
             description: |
               Additional query to filter the emails
             default: ""
-          sender_email:
-            type: string
-            description: |
-              The email address to send the invoices from
-        required:
-          - gdrive_folder_id
     required:
       - config
 inputs:
   config: ${variables.invoices_forward_config}
 steps:
+  get-people-data:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: 'https://api.airtable.com/v0/${inputs.people_table_id}?filterByFormula=AND(NOT(disabled),{email}="${inputs.user_email}")'
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  merge-config:
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          user_config = inputs["user_config"]
+          base_config = inputs["base_config"]
+          # merge both together
+          merged = {**base_config, **user_config}
+          return  {"config": merged}
+    dependencies:
+      user_config: ${get-people-data.response.data.records[0].fields}
+      base_config: ${inputs.config}
   create-labels:
     foreach: 
-      - ${inputs.config.success_tag}
-      - ${inputs.config.fail_tag}
-      - ${inputs.config.skip_tag}
+      - ${merge-config.config.successTag}
+      - ${merge-config.config.failTag}
+      - ${merge-config.config.skipTag}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -71,18 +97,18 @@ steps:
       def handler(inputs):
           label_ids = {}
           for label in inputs["get-label-ids"]["response"]["data"]["labels"]:
-            if label["name"] == inputs["success_tag"]:
-              label_ids["success_tag"] = label["id"]
-            elif label["name"] == inputs["fail_tag"]:
-              label_ids["fail_tag"] = label["id"]
-            elif label["name"] == inputs["skip_tag"]:
-              label_ids["skip_tag"] = label["id"]
+            if label["name"] == inputs["successTag"]:
+              label_ids["successTag"] = label["id"]
+            elif label["name"] == inputs["failTag"]:
+              label_ids["failTag"] = label["id"]
+            elif label["name"] == inputs["skipTag"]:
+              label_ids["skipTag"] = label["id"]
           return {"label_ids": label_ids}
     dependencies:
       get-label-ids: ${get-label-ids}
-      success_tag: ${inputs.config.success_tag}
-      fail_tag: ${inputs.config.fail_tag}
-      skip_tag: ${inputs.config.skip_tag}
+      successTag: ${merge-config.config.successTag}
+      failTag: ${merge-config.config.failTag}
+      skipTag: ${merge-config.config.skipTag}
   # filter people for interval and today's day
   get-new-mails-without-tag:
     source:
@@ -93,7 +119,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:
-        q: "after:2021/01/01 ${inputs.config.additional_query} -label:${inputs.config.success_tag} -label:${inputs.config.fail_tag} -label:${inputs.config.skip_tag} has:attachment filename:pdf" 
+        q: "after:2021/01/01 ${merge-config.config.additionalQuery} -label:${merge-config.config.successTag} -label:${merge-config.config.failTag} -label:${merge-config.config.skipTag} has:attachment filename:pdf" 
         maxResults: 10
       __create-labels: ${create-labels}
   get-mails-info:
@@ -179,15 +205,15 @@ steps:
           return {"new_files": new_files}
   forward-pdf:
     foreach: ${save-attachments.new_files}
-    if: ${inputs.config.forward_email} !== undefined
+    if: ${merge-config.config.forwardEmail} !== undefined
     description: |
       Forward the PDF attachments to the specified email address
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     dependencies:
-      sender: ${inputs.config.sender_email}
-      to: ${inputs.config.forward_email}
+      sender: ${merge-config.config.sender_email}
+      to: ${merge-config.config.forwardEmail}
       subject: "Invoice"
       html_body: "Please find the attached invoice"
       attachments: 
@@ -195,6 +221,63 @@ steps:
       AWS_REGION: "eu-central-1"
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
+  get-folder-id:
+    if: ${merge-config.config.gdriveFolderId} !== undefined
+    code: |
+      def handler(inputs):
+          # today date like 2021-01-01
+          today = datetime.datetime.now().strftime("%Y-%m-%d")
+          return {"folder_name": today}
+  create-folder-in-gdrive:
+    if: ${merge-config.config.gdriveFolderId} !== undefined
+    description: |
+      Archive the PDF attachments in the specified Google Drive folder
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: POST
+      url: "https://www.googleapis.com/drive/v3/files"
+      headers:
+        Content-type: "application/pdf"
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      data:
+        name: "${get-folder-id.folder_name}"
+        mimeType: "application/vnd.google-apps.folder"
+        parents: ["${merge-config.config.gdriveFolderId}"]
+  create-files-in-gdrive:
+    foreach: ${filter-attachments.filtered_attachments}
+    if: ${merge-config.config.gdriveFolderId} !== undefined
+    description: |
+      Archive the PDF attachments in the specified Google Drive folder
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: POST
+      url: "https://www.googleapis.com/drive/v3/files"
+      headers:
+        Content-type: "application/pdf"
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      data:
+        name: "${each.attachment_id}"
+        mimeType: "application/vnd.google-apps.file"
+        parents: ["${create-folder-in-gdrive.response.data.id}"]
+  upload-files-in-gdrive:
+    foreach: ${save-attachments.new_files}
+    if: ${merge-config.config.gdriveFolderId} !== undefined
+    description: |
+      Archive the PDF attachments in the specified Google Drive folder
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: POST
+      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=media"
+      headers:
+        Content-type: "application/pdf"
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      dataFromFile: ${each}
   map-tags-to-threads:
     runtime: python3_10
     code: |
@@ -212,16 +295,16 @@ steps:
                   if attachment["message_id"] == message["id"]:
                       is_in_filtered_attachments = True
                       break
-              thread_to_tags[thread_id] = inputs["success_tag"] if is_in_filtered_attachments else inputs["skip_tag"]
+              thread_to_tags[thread_id] = inputs["successTag"] if is_in_filtered_attachments else inputs["skipTag"]
           
           # make into list of objects
           return [{"threadId": thread_id, "tag": tag} for thread_id, tag in thread_to_tags.items()]
     dependencies:
       all_messages: ${get-new-mails-without-tag.response.data.messages}
       filtered_attachments: ${filter-attachments.filtered_attachments} 
-      success_tag: ${transform-tags-to-label-ids.label_ids.success_tag}
-      fail_tag: ${transform-tags-to-label-ids.label_ids.fail_tag}
-      skip_tag: ${transform-tags-to-label-ids.label_ids.skip_tag}
+      successTag: ${transform-tags-to-label-ids.label_ids.successTag}
+      failTag: ${transform-tags-to-label-ids.label_ids.failTag}
+      skipTag: ${transform-tags-to-label-ids.label_ids.skipTag}
   tag-emails:
     foreach: ${map-tags-to-threads}
     source:

@@ -1,0 +1,71 @@
+apiRevision: edurata.io/v1
+name: setup-invoices-bot
+title: Setup Bot
+description: |
+  Setup the bot
+interface:
+  inputs:
+    properties:
+      user_email: 
+        type: string
+        description: |
+          The email address to forward the invoices to
+      people_table_id:
+        type: string
+        description: |
+          The base id + table_id from which to take the people
+inputs:
+  people_table_id: ${variables.people_table_id}
+steps:
+  get-people-data:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: 'https://api.airtable.com/v0/${inputs.people_table_id}?filterByFormula=AND(NOT(disabled),{email}="${inputs.user_email}")'
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  # Create deployment for the user via edurata api
+  create-environment:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: ${meta.apiUrl}/environment
+      method: POST
+      headers:
+        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+      body:
+        name: "${inputs.email}"
+  create-deployment:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: ${meta.apiUrl}/deployment
+      method: POST
+      headers:
+        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+      body:
+        name: "Accounting bot for ${inputs.email}"
+        source: 
+          repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+          path: apps/invoice-forwarder/invoices-forward.yml
+  send-oauth-email:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-ses
+    dependencies:
+      sender: accountingbot@edurata.com
+      to: ${inputs.email}
+      subject: "Accounting-bot: Authorization needed for sending invoices"
+      html_body: >
+        Hey ${get-people-data[0].fields.name}!,
+        <br><br>
+        We need permissions to gmail and gdrive to process and save the invoices. Please click <a href="https://api.dev.edurata.com/v1/oauth/google?secretName=GMAIL_API_KEY&userId=9b68adb4-9166-4882-b4dc-a02c9cce5911&env=${inputs.email}">here</a> to authorize us.
+        You will be redirected to a page where you can authorize us to send invoices on your behalf.
+
+        Important: The emails will be forwarded not from your email but accountingbot@edurata.com so make sure to whitelist it at the recipient.
+        <br><br>
+      AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
+      AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

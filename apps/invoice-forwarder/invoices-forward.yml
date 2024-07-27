@@ -44,8 +44,11 @@ interface:
             default: ""
     required:
       - config
+      - user_email
+      - people_table_id
 inputs:
   config: ${variables.invoices_forward_config}
+  people_table_id: ${variables.accountingbot_people_table_id}
 steps:
   get-people-data:
     source:

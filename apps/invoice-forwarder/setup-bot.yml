@@ -14,8 +14,11 @@ interface:
         type: string
         description: |
           The base id + table_id from which to take the people
+    required:
+      - user_email
+      - people_table_id
 inputs:
-  people_table_id: ${variables.people_table_id}
+  people_table_id: ${variables.accountingbot_people_table_id}
 steps:
   get-people-data:
     source:

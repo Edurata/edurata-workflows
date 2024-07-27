@@ -2,33 +2,36 @@ apiRevision: edurata.io/v1
 name: setup-invoices-bot
 title: Setup Bot
 description: |
-  Setup the bot
+  Setup the bot after a webhook call from tally.
 interface:
   inputs:
     properties:
-      user_email: 
-        type: string
-        description: |
-          The email address to forward the invoices to
-      people_table_id:
-        type: string
-        description: |
-          The base id + table_id from which to take the people
-    required:
-      - user_email
-      - people_table_id
-inputs:
-  people_table_id: ${variables.accountingbot_people_table_id}
+      data:
+        type: object
+        properties:
+          fields:
+            type: array
+            items:
+              type: object
+              properties:
+                label:
+                  type: string
+                value:
+                  type: string
 steps:
-  get-people-data:
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
+  extract-data-from-event:
+    runtime: python3_10
+    code: |
+      import urllib.parse
+      def handler(inputs):
+          uriEncodedEmail = urllib.parse.quote(inputs.data.fields[1].value)
+          return {
+              "name": inputs.data.fields[0].value
+              "email": inputs.data.fields[1].value
+              "uriEncodedEmail": uriEncodedEmail
+          }
     dependencies:
-      url: 'https://api.airtable.com/v0/${inputs.people_table_id}?filterByFormula=AND(NOT(disabled),{email}="${inputs.user_email}")'
-      headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
-  # Create deployment for the user via edurata api
+      data: ${inputs.data}
   create-environment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -39,7 +42,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       body:
-        name: "${inputs.user_email}"
+        name: "${extract-data-from-event.email}"
   create-deployment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -50,7 +53,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       body:
-        name: "Accounting bot for ${inputs.user_email}"
+        name: "Accounting bot for ${extract-data-from-event.email}"
         source: 
           repoUrl: "https://github.com/Edurata/edurata-workflows.git"
           path: apps/invoice-forwarder/invoices-forward.yml
@@ -60,16 +63,15 @@ steps:
       path: etl/load/send-ses
     dependencies:
       sender: accountingbot@edurata.com
-      to: ${inputs.user_email}
+      to: ${extract-data-from-event.email}
       subject: "Accounting-bot: Authorization needed for sending invoices"
       html_body: >
-        Hey ${get-people-data.response.data.records[0].fields.name}!,
+        Hey ${extract-data-from-event.name}!,
         <br><br>
-        We need permissions to gmail and gdrive to process and save the invoices. Please click <a href="${get-people-data.response.data.records[0].fields.oauthUrl}">here</a> to authorize us.
+        We need permissions to gmail and gdrive to process and save the invoices. Please click <a href="https://api.dev.edurata.com/v1/oauth/google?s=GMAIL_API_KEY&u=9b68adb4-9166-4882-b4dc-a02c9cce5911&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
         You will be redirected to a page where you can authorize us to send invoices on your behalf.
 
         Important: The emails will be forwarded not from your email but accountingbot@edurata.com so make sure to whitelist it at the recipient.
         <br><br>
-        <a href="${get-people-data.response.data.records[0].fields.updateUrl}">Update your information</a>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

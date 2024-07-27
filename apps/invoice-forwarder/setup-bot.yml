@@ -63,12 +63,13 @@ steps:
       to: ${inputs.user_email}
       subject: "Accounting-bot: Authorization needed for sending invoices"
       html_body: >
-        Hey ${get-people-data[0].fields.name}!,
+        Hey ${get-people-data.response.data.records[0].fields.name}!,
         <br><br>
-        We need permissions to gmail and gdrive to process and save the invoices. Please click <a href="https://api.dev.edurata.com/v1/oauth/google?secretName=GMAIL_API_KEY&userId=9b68adb4-9166-4882-b4dc-a02c9cce5911&env=${inputs.user_email}">here</a> to authorize us.
+        We need permissions to gmail and gdrive to process and save the invoices. Please click <a href="${get-people-data.response.data.records[0].fields.oauthUrl}">here</a> to authorize us.
         You will be redirected to a page where you can authorize us to send invoices on your behalf.
 
         Important: The emails will be forwarded not from your email but accountingbot@edurata.com so make sure to whitelist it at the recipient.
         <br><br>
+        <a href="${get-people-data.response.data.records[0].fields.updateUrl}">Update your information</a>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

@@ -228,6 +228,7 @@ steps:
     runtime: python3_10
     if: ${merge-config.config.gdriveFolderId} !== undefined
     code: |
+      import datetime
       def handler(inputs):
           # today date like 2021-01-01
           today = datetime.datetime.now().strftime("%Y-%m-%d")

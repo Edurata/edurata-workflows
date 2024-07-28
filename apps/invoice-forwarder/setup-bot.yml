@@ -59,6 +59,7 @@ steps:
         source: 
           repoUrl: "https://github.com/Edurata/edurata-workflows.git"
           path: apps/invoice-forwarder/invoices-forward.yml
+        environmentId: ${create-environment.response.data.id}
   deploy-deployment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

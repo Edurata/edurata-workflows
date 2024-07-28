@@ -25,14 +25,14 @@ steps:
       import urllib.parse
 
       def handler(inputs):
-          uri_encoded_email = urllib.parse.quote(inputs.data.fields[1].value)
+          uri_encoded_email = urllib.parse.quote(inputs[1].value)
           return {
-              "name": inputs.data.fields[0].value,
-              "email": inputs.data.fields[1].value,
+              "name": inputs[0].value,
+              "email": inputs[1].value,
               "uriEncodedEmail": uri_encoded_email
           }
     dependencies:
-      data: ${inputs.data}
+      data: ${inputs.data.fields}
   create-environment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

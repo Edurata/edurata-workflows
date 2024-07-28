@@ -59,6 +59,15 @@ steps:
         source: 
           repoUrl: "https://github.com/Edurata/edurata-workflows.git"
           path: apps/invoice-forwarder/invoices-forward.yml
+  deploy-deployment:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: ${meta.apiUrl}/deployment/${create-deployment.response.data.id}/deploy
+      method: POST
+      headers:
+        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
   send-oauth-email:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

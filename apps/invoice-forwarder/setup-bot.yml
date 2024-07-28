@@ -41,7 +41,7 @@ steps:
       method: POST
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-      body:
+      data:
         name: "${extract-data-from-event.email}"
   create-deployment:
     source:
@@ -52,7 +52,7 @@ steps:
       method: POST
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-      body:
+      data:
         name: "Accounting bot for ${extract-data-from-event.email}"
         source: 
           repoUrl: "https://github.com/Edurata/edurata-workflows.git"

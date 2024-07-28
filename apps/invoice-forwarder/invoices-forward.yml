@@ -48,7 +48,7 @@ interface:
       - peopleTableId
 inputs:
   config: ${variables.invoices_forward_config}
-  peopleTableId: ${variables.accountingbot_peopleTableId}
+  peopleTableId: ${variables.accountingbot_people_table_id}
 steps:
   get-people-data:
     source:

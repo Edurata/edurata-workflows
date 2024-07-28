@@ -25,10 +25,10 @@ steps:
       import urllib.parse
 
       def handler(inputs):
-          uri_encoded_email = urllib.parse.quote(inputs[1].value)
+          uri_encoded_email = urllib.parse.quote(inputs.data[1].value)
           return {
-              "name": inputs[0].value,
-              "email": inputs[1].value,
+              "name": inputs.data[0].value,
+              "email": inputs.data[1].value,
               "uriEncodedEmail": uri_encoded_email
           }
     dependencies:

@@ -48,3 +48,5 @@ steps:
       url: 'https://api.twitter.com/2/users/${inputs.user_id}/tweets'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  delete-tweets:
+  

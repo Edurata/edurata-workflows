@@ -125,8 +125,17 @@ steps:
         q: "after:2021/01/01 ${merge-config.config.additionalQuery} -label:${merge-config.config.successTag} -label:${merge-config.config.failTag} -label:${merge-config.config.skipTag} has:attachment filename:pdf" 
         maxResults: 10
       __create-labels: ${create-labels}
+  continue-if-new-mails:
+    if: ${get-new-mails-without-tag.response.data.resultSizeEstimate > 0}
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          return {"mails": inputs["get-new-mails-without-tag"]["response"]["data"]["messages"]}
+    dependencies:
+      get-new-mails-without-tag: ${get-new-mails-without-tag}
   get-mails-info:
-    foreach: ${get-new-mails-without-tag.response.data.messages}
+    foreach: ${continue-if-new-mails.mails}
+    if: resultSizeEstimate
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

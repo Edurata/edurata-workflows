@@ -216,7 +216,7 @@ steps:
           return {"new_files": new_files}
   forward-pdf:
     foreach: ${save-attachments.new_files}
-    if: ${merge-config.config.forwardEmail} !== undefined
+    if: ${merge-config.config.forwardEmail}
     description: |
       Forward the PDF attachments to the specified email address
     source:
@@ -234,7 +234,7 @@ steps:
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   get-folder-id:
     runtime: python3_10
-    if: \"${merge-config.config.gdriveFolderId}\" !== undefined
+    if: ${merge-config.config.gdriveFolderId}
     code: |
       import datetime
       def handler(inputs):
@@ -242,7 +242,6 @@ steps:
           today = datetime.datetime.now().strftime("%Y-%m-%d")
           return {"folder_name": today}
   create-folder-in-gdrive:
-    if: \"${merge-config.config.gdriveFolderId}\" !== undefined
     description: |
       Archive the PDF attachments in the specified Google Drive folder
     source:
@@ -260,7 +259,6 @@ steps:
         parents: ["${merge-config.config.gdriveFolderId}"]
   create-files-in-gdrive:
     foreach: ${filter-attachments.filtered_attachments}
-    if: ${merge-config.config.gdriveFolderId} !== undefined
     description: |
       Archive the PDF attachments in the specified Google Drive folder
     source:
@@ -278,7 +276,6 @@ steps:
         parents: ["${create-folder-in-gdrive.response.data.id}"]
   upload-files-in-gdrive:
     foreach: ${save-attachments.new_files}
-    if: ${merge-config.config.gdriveFolderId} !== undefined
     description: |
       Archive the PDF attachments in the specified Google Drive folder
     source:

@@ -6,7 +6,6 @@ description: |
 interface:
   inputs:
     properties:
-
       vocabulary_table_id:
         type: string
         description: |

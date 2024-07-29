@@ -135,7 +135,6 @@ steps:
       get-new-mails-without-tag: ${get-new-mails-without-tag}
   get-mails-info:
     foreach: ${continue-if-new-mails.mails}
-    if: resultSizeEstimate
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

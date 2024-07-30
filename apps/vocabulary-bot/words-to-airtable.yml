@@ -10,7 +10,7 @@ interface:
         type: string
         description: |
           The base id + table_id in which to save the vocabulary
-      vocabulary_document_name:
+      vocabulary_document_id:
         type: string
         description: |
           The ID of the document to retrieve vocabulary from
@@ -20,7 +20,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/diff-google-docs
     dependencies:
-      documentId: ${variables.vocabulary_document_id}
+      documentId: ${inputs.vocabulary_document_id}
       API_TOKEN: ${secrets.GOOGLE_DOCS_API_KEY}
   extract-vocabulary:
     foreach: ${get-unique-combinations.combinations}

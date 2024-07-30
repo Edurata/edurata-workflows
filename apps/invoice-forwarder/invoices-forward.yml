@@ -20,10 +20,10 @@ interface:
         description: |
           The configuration of the invoice processor
         properties:
-          gdriveFolderId:
+          gdriveFolderName:
             type: string
             description: |
-              The Google Drive folder ID to save the invoices to
+              The Google Drive folder Name to save the invoices to
           forwardEmail:
             type: string
             description: |
@@ -241,6 +241,36 @@ steps:
           # today date like 2021-01-01
           today = datetime.datetime.now().strftime("%Y-%m-%d")
           return {"folder_name": today}
+  create-parent-folder-in-gdrive-lazily:
+    if: ('${merge-config.config.gdriveFolderId}').length > 0
+    description: |
+      Archive the PDF attachments in the specified Google Drive folder
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: POST
+      url: "https://www.googleapis.com/drive/v3/files"
+      headers:
+        Content-type: "application/pdf"
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      data:
+        name: "${merge-config.config.gdriveFolderName}"
+        mimeType: "application/vnd.google-apps.folder"
+  get-parent-folder-id:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: POST
+      url: "https://www.googleapis.com/drive/v3/files"
+      headers:
+        Content-type: "application/pdf"
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      params:
+        q: "name='${merge-config.config.gdriveFolderName}' and mimeType='application/vnd.google-apps.folder'"
+        fields: 'files(id, name)'
+      __create-parent-folder-in-gdrive-lazily: ${create-parent-folder-in-gdrive-lazily}
   create-folder-in-gdrive:
     description: |
       Archive the PDF attachments in the specified Google Drive folder
@@ -256,7 +286,7 @@ steps:
       data:
         name: "${get-folder-id.folder_name}"
         mimeType: "application/vnd.google-apps.folder"
-        parents: ["${merge-config.config.gdriveFolderId}"]
+        parents: ["${get-parent-folder-id.response.data.files[0].id}"]
   create-files-in-gdrive:
     foreach: ${filter-attachments.filtered_attachments}
     description: |

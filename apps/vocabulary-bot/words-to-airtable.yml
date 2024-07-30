@@ -23,7 +23,6 @@ steps:
       documentId: ${inputs.vocabulary_document_id}
       API_TOKEN: ${secrets.GOOGLE_DOCS_API_KEY}
   extract-vocabulary:
-    foreach: ${get-unique-combinations.combinations}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt

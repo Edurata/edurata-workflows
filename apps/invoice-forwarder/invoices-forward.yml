@@ -216,7 +216,7 @@ steps:
           return {"new_files": new_files}
   forward-pdf:
     foreach: ${save-attachments.new_files}
-    if: '${merge-config.config.forwardEmail}'
+    if: ('${merge-config.config.forwardEmail}').length > 0
     description: |
       Forward the PDF attachments to the specified email address
     source:
@@ -234,7 +234,7 @@ steps:
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   get-folder-id:
     runtime: python3_10
-    if: '${merge-config.config.gdriveFolderId}'
+    if: ('${merge-config.config.gdriveFolderId}').length > 0
     code: |
       import datetime
       def handler(inputs):

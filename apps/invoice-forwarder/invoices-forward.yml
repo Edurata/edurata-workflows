@@ -286,7 +286,7 @@ steps:
       data:
         name: "${get-folder-id.folder_name}"
         mimeType: "application/vnd.google-apps.folder"
-        parents: ["${get-parent-folder-id.response.data.files[0].id}"]
+        parents: ["${get-parent-folder-id.response.data.id}"]
   create-files-in-gdrive:
     foreach: ${filter-attachments.filtered_attachments}
     description: |

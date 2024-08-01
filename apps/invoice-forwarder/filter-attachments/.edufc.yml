@@ -4,6 +4,11 @@ description: A function that filters PDF attachments in a list of messages to fi
 interface:
   inputs:
     properties:
+      additional_keywords:
+        type: array
+        items:
+          type: string
+        description: A list of additional keywords to search for in the attachment names.
       messages:
         type: array
         items:

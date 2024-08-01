@@ -2,6 +2,7 @@ import re
 import base64
 
 def handler(inputs):
+    additional_keywords = inputs.get('additional_keywords', [])
     def is_invoice_or_receipt(filename):
         invoice_keywords = ['invoice', 'inv', 'bill', "Rechnung", "Faktura"]
         receipt_keywords = ['receipt', "Quittung", "Beleg"]
@@ -16,7 +17,8 @@ def handler(inputs):
         return None
 
     def search_keywords_in_text(text):
-        keywords = ['invoice', 'inv', 'bill', 'receipt', 'rcpt']
+        # merge with additional_keywords
+        keywords = ['invoice', 'inv', 'bill', "Rechnung", "Faktura", 'receipt', "Quittung", "Beleg"] + additional_keywords
         text = text.lower()
         for keyword in keywords:
             if re.search(r'\b' + re.escape(keyword) + r'\b', text):
@@ -66,6 +68,7 @@ def handler(inputs):
         print("Invoices:", invoices)
         print("Receipts:", receipts)
         print("Unknowns:", unknowns)
+        print("Content has keywords:", content_has_keywords)
         if invoices:
             return [att[0] for att in invoices]
         elif receipts:

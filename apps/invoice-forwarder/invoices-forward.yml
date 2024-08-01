@@ -250,7 +250,7 @@ steps:
       path: general/axios
     dependencies:
       method: POST
-      url: "https://www.googleapis.com/drive/v4/files"
+      url: "https://www.googleapis.com/drive/v3/files"
       headers:
         Content-type: "application/pdf"
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
@@ -263,7 +263,7 @@ steps:
       path: general/axios
     dependencies:
       method: POST
-      url: "https://www.googleapis.com/drive/v4/files"
+      url: "https://www.googleapis.com/drive/v3/files"
       headers:
         Content-type: "application/pdf"
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
@@ -279,7 +279,7 @@ steps:
       path: general/axios
     dependencies:
       method: POST
-      url: "https://www.googleapis.com/drive/v4/files"
+      url: "https://www.googleapis.com/drive/v3/files"
       headers:
         Content-type: "application/pdf"
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
@@ -296,7 +296,7 @@ steps:
       path: general/axios
     dependencies:
       method: POST
-      url: "https://www.googleapis.com/drive/v4/files"
+      url: "https://www.googleapis.com/drive/v3/files"
       headers:
         Content-type: "application/pdf"
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
@@ -313,7 +313,7 @@ steps:
       path: general/axios
     dependencies:
       method: POST
-      url: "https://www.googleapis.com/upload/drive/v4/files?uploadType=media"
+      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=media"
       headers:
         Content-type: "application/pdf"
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"

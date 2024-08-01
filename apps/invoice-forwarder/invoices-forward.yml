@@ -234,7 +234,7 @@ steps:
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   get-folder-id:
     runtime: python3_10
-    if: ('${merge-config.config.gdriveFolderId}').length > 0
+    if: ('${merge-config.config.gdriveFolderName}').length > 0
     code: |
       import datetime
       def handler(inputs):
@@ -242,7 +242,7 @@ steps:
           today = datetime.datetime.now().strftime("%Y-%m-%d")
           return {"folder_name": today}
   create-parent-folder:
-    if: ('${merge-config.config.gdriveFolderId}').length > 0
+    if: ('${merge-config.config.gdriveFolderName}').length > 0
     description: |
       Archive the PDF attachments in the specified Google Drive folder
     source:

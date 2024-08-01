@@ -269,7 +269,7 @@ steps:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:
         q: "name='${merge-config.config.gdriveFolderName}' and mimeType='application/vnd.google-apps.folder'"
-        fields: 'files(id, name)'
+        # fields: 'id, name'
       __create-parent-folder: ${create-parent-folder}
   create-folder-in-gdrive:
     description: |

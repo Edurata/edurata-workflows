@@ -224,7 +224,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     dependencies:
-      sender: ${merge-config.config.sender_email}
+      sender: accountingbot@edurata.com
       to: ${merge-config.config.forwardEmail}
       subject: "Invoice"
       html_body: "Please find the attached invoice"

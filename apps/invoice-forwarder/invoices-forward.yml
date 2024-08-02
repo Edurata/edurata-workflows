@@ -261,6 +261,7 @@ steps:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:
         q: name='${get-folder-id.folder_name}' and mimeType='application/vnd.google-apps.folder'
+      __create-folderpath: ${create-folderpath}
   # create-files-in-gdrive:
   #   foreach: ${filter-attachments.filtered_attachments}
   #   description: |

@@ -286,11 +286,6 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: clients/gdrive
     dependencies:
-      method: POST
-      url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=media"
-      headers:
-        Content-type: "application/pdf"
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       OAUTH_TOKEN: ${secrets.GOOGLE_DRIVE_OAUTH_TOKEN}
       action: "upload"
       upload_file_name: "${each}"

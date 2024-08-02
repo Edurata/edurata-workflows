@@ -286,7 +286,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: clients/gdrive
     dependencies:
-      OAUTH_TOKEN: ${secrets.GOOGLE_DRIVE_OAUTH_TOKEN}
+      OAUTH_TOKEN: ${secrets.GMAIL_API_KEY}
       action: "upload"
       upload_file_name: "${each}"
       parent_folder_id: "${get-parent-folder-id.response.data.files[0].id}"

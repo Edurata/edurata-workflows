@@ -247,7 +247,7 @@ steps:
       Create the folder path like invoices/2021-01-01 in Google Drive
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/create-gdrive-folderpath/
+      path: etl/load/create-gdrive-folderpath
     dependencies:
       folder_path: ${merge-config.config.gdriveFolderName}/${get-folder-id.folder_name}
   get-parent-folder-id:

@@ -249,6 +249,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/create-gdrive-folderpath
     dependencies:
+      OAUTH_TOKEN: ${secrets.GMAIL_API_KEY}
       folder_path: ${merge-config.config.gdriveFolderName}/${get-folder-id.folder_name}
   get-parent-folder-id:
     source:

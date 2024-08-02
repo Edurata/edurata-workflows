@@ -151,7 +151,7 @@ steps:
       path: apps/invoice-forwarder/filter-attachments
     dependencies:
       messages: ${get-mails-info[*].response.data}
-      additional_keywords: merge-config.config.additionalKeywords
+      # additional_keywords: ${merge-config.config.additionalKeywords}
   download-attachments:
     foreach: ${filter-attachments.filtered_attachments}
     source:

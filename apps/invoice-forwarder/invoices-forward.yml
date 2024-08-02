@@ -290,7 +290,7 @@ steps:
     dependencies:
       OAUTH_TOKEN: ${secrets.GMAIL_API_KEY}
       action: "upload"
-      upload_file_name: "${each}"
+      upload_file_name: "${filter-attachments.filtered_attachments[each.index].attachment_id}"
       parent_folder_id: "${get-parent-folder-id.response.data.files[0].id}"
       file_path: "${each}"
   map-tags-to-threads:

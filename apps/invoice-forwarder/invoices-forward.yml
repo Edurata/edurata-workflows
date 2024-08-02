@@ -242,83 +242,60 @@ steps:
           # today date like 2021-01-01
           today = datetime.datetime.now().strftime("%Y-%m-%d")
           return {"folder_name": today}
-  create-parent-folder:
-    if: ('${merge-config.config.gdriveFolderName}').length > 0
+  create-folderpath:
     description: |
-      Archive the PDF attachments in the specified Google Drive folder
+      Create the folder path like invoices/2021-01-01 in Google Drive
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
+      path: etl/load/create-gdrive-folderpath/
     dependencies:
-      method: POST
-      url: "https://www.googleapis.com/drive/v3/files"
-      headers:
-        Content-type: "application/pdf"
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
-      data:
-        name: "${merge-config.config.gdriveFolderName}"
-        mimeType: "application/vnd.google-apps.folder"
+      folder_path: ${merge-config.config.gdriveFolderName}/${get-folder-id.folder_name}
   get-parent-folder-id:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      method: POST
+      method: GET
       url: "https://www.googleapis.com/drive/v3/files"
       headers:
-        Content-type: "application/pdf"
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:
-        q: "name='${merge-config.config.gdriveFolderName}' and mimeType='application/vnd.google-apps.folder'"
-        # fields: 'id, name'
-      __create-parent-folder: ${create-parent-folder}
-  create-folder-in-gdrive:
-    description: |
-      Archive the PDF attachments in the specified Google Drive folder
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    dependencies:
-      method: POST
-      url: "https://www.googleapis.com/drive/v3/files"
-      headers:
-        Content-type: "application/pdf"
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
-      data:
-        name: "${get-folder-id.folder_name}"
-        mimeType: "application/vnd.google-apps.folder"
-        parents: ["${get-parent-folder-id.response.data.id}"]
-  create-files-in-gdrive:
-    foreach: ${filter-attachments.filtered_attachments}
-    description: |
-      Archive the PDF attachments in the specified Google Drive folder
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    dependencies:
-      method: POST
-      url: "https://www.googleapis.com/drive/v3/files"
-      headers:
-        Content-type: "application/pdf"
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
-      data:
-        name: "${each.attachment_id}"
-        mimeType: "application/vnd.google-apps.file"
-        parents: ["${create-folder-in-gdrive.response.data.id}"]
+        q: name='${get-folder-id.folder_name}' and mimeType='application/vnd.google-apps.folder'
+  # create-files-in-gdrive:
+  #   foreach: ${filter-attachments.filtered_attachments}
+  #   description: |
+  #     Archive the PDF attachments in the specified Google Drive folder
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: general/axios
+  #   dependencies:
+  #     method: POST
+  #     url: "https://www.googleapis.com/drive/v3/files"
+  #     headers:
+  #       Content-type: "application/pdf"
+  #       Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+  #     data:
+  #       name: "${each.attachment_id}"
+  #       mimeType: "application/vnd.google-apps.file"
+  #       parents: ["${get-parent-folder-id.response.data.files[0].id}"]
   upload-files-in-gdrive:
     foreach: ${save-attachments.new_files}
     description: |
       Archive the PDF attachments in the specified Google Drive folder
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
+      path: clients/gdrive
     dependencies:
       method: POST
       url: "https://www.googleapis.com/upload/drive/v3/files?uploadType=media"
       headers:
         Content-type: "application/pdf"
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
-      dataFromFile: ${each}
+      OAUTH_TOKEN: ${secrets.GOOGLE_DRIVE_OAUTH_TOKEN}
+      action: "upload"
+      upload_file_name: "${each}"
+      parent_folder_id: "${get-parent-folder-id.response.data.files[0].id}"
+      file_path: "${each}"
   map-tags-to-threads:
     runtime: python3_10
     code: |

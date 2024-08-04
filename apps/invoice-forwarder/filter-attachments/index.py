@@ -21,7 +21,8 @@ def handler(inputs):
         keywords = ['invoice', 'inv', 'bill', "Rechnung", "Faktura", 'receipt', "Quittung", "Beleg"] + additional_keywords
         text = text.lower()
         for keyword in keywords:
-            if re.search(r'\b' + re.escape(keyword) + r'\b', text):
+            lowered_keyword = keyword.lower()
+            if re.search(r'\b' + re.escape(lowered_keyword) + r'\b', text):
                 return True
         return False
 

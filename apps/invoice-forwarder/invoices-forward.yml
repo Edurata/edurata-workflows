@@ -243,6 +243,7 @@ steps:
           today = datetime.datetime.now().strftime("%Y-%m-%d")
           return {"folder_name": today}
   create-folderpath:
+    if: ${filter-attachments.filtered_attachments}.length > 0
     description: |
       Create the folder path like invoices/2021-01-01 in Google Drive
     source:

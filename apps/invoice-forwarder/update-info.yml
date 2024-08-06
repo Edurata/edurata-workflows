@@ -6,6 +6,10 @@ description: |
 interface:
   inputs:
     properties:
+      peopleTableId:
+        type: string
+        description: |
+          The base id + table_id from which to take the people
       data:
         type: object
         properties:
@@ -18,6 +22,8 @@ interface:
                   type: string
                 value:
                   type: string
+inputs:
+  peopleTableId: ${variables.accountingbot_people_table_id}
 steps:
   extract-data-from-event:
     runtime: python3_10

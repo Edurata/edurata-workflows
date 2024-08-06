@@ -60,8 +60,7 @@ steps:
           repoUrl: "https://github.com/Edurata/edurata-workflows.git"
           path: apps/invoice-forwarder/invoices-forward.yml
         environmentId: ${create-environment.response.data.id}
-        variables:
-          userEmail: '"${extract-data-from-event.email}"'
+        variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
   deploy-deployment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

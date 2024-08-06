@@ -82,7 +82,7 @@ steps:
       html_body: >
         Hey ${extract-data-from-event.name}!,
         <br><br>
-        We need permissions to gmail and gdrive to process and save the invoices. Please click <a href="https://api.dev.edurata.com/v1/oauth/google?s=GMAIL_API_KEY&u=9b68adb4-9166-4882-b4dc-a02c9cce5911&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
+        We need permissions to gmail and gdrive to process and save the invoices. Please click <a href="${meta.apiUrl}/oauth/google?s=GMAIL_API_KEY&u=${meta.userId}&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
         You will be redirected to a page where you can authorize us to send invoices on your behalf.
 
         Important: The emails will be forwarded not from your email but accountingbot@edurata.com so make sure to whitelist it at the recipient.

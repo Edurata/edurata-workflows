@@ -26,9 +26,9 @@ steps:
 
       def handler(inputs):
           # Assuming 'inputs' is a dictionary and 'inputs["data"]' is a list of dictionaries
-          uri_encoded_email = urllib.parse.quote(inputs["data"][1]["value"])
+          uri_encoded_email = urllib.parse.quote(inputs["data"][0]["value"])
           return {
-              "email": inputs["data"][1]["value"],
+              "email": inputs["data"][0]["value"],
               "uriEncodedEmail": uri_encoded_email
           }
     dependencies:

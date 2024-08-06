@@ -1,0 +1,61 @@
+apiRevision: edurata.io/v1
+name: update-invoices-bot-info
+title: Update Bot Info
+description: |
+  Takes an email and sends an update link.
+interface:
+  inputs:
+    properties:
+      data:
+        type: object
+        properties:
+          fields:
+            type: array
+            items:
+              type: object
+              properties:
+                label:
+                  type: string
+                value:
+                  type: string
+steps:
+  extract-data-from-event:
+    runtime: python3_10
+    code: |
+      import urllib.parse
+
+      def handler(inputs):
+          # Assuming 'inputs' is a dictionary and 'inputs["data"]' is a list of dictionaries
+          uri_encoded_email = urllib.parse.quote(inputs["data"][1]["value"])
+          return {
+              "email": inputs["data"][1]["value"],
+              "uriEncodedEmail": uri_encoded_email
+          }
+    dependencies:
+      data: ${inputs.data.fields}
+  find-in-airtable:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: 'https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.uriEncodedEmail}")'
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  send-oauth-email:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-ses
+    dependencies:
+      sender: accountingbot@edurata.com
+      to: ${extract-data-from-event.email}
+      subject: "Accounting-bot: Update link"
+      html_body: >
+        Hey ${find-in-airtable.response.data.fields.name}!,
+        <br><br>
+        You requested a link to update your information.
+        Please click <a href="${find-in-airtable.response.data.fields.updateUrl}">here</a> to do this.
+        You will be redirected to an airtable form where you can update your information.
+
+        <br><br>
+      AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
+      AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

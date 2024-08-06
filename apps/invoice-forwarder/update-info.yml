@@ -48,6 +48,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-oauth-email:
+    if: ${find-in-airtable.response.data.records}.length === 1
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
@@ -56,10 +57,10 @@ steps:
       to: ${extract-data-from-event.email}
       subject: "Accounting-bot: Update link"
       html_body: >
-        Hey ${find-in-airtable.response.data.fields.name}!,
+        Hey ${find-in-airtable.response.data.records[0].fields.name}!,
         <br><br>
         You requested a link to update your information.
-        Please click <a href="${find-in-airtable.response.data.fields.updateUrl}">here</a> to do this.
+        Please click <a href="${find-in-airtable.response.data.records[0].fields.updateUrl}">here</a> to do this.
         You will be redirected to an airtable form where you can update your information.
 
         <br><br>

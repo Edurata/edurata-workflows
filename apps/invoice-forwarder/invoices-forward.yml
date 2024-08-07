@@ -122,7 +122,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       params:
-        q: "after:2021/01/01 ${merge-config.config.additionalQuery} -label:${merge-config.config.successTag} -label:${merge-config.config.failTag} -label:${merge-config.config.skipTag} has:attachment filename:pdf" 
+        q: "after:2021/01/01 ${merge-config.config.addFilter} -label:${merge-config.config.successTag} -label:${merge-config.config.failTag} -label:${merge-config.config.skipTag} has:attachment filename:pdf" 
         maxResults: 10
       __create-labels: ${create-labels}
   continue-if-new-mails:

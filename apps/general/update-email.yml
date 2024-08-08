@@ -1,0 +1,78 @@
+apiRevision: edurata.io/v1
+name: update-bot-info
+title: Update Bot Info
+description: |
+  Takes an email and sends an update link.
+interface:
+  inputs:
+    properties:
+      senderEmail:
+        type: string
+        description: |
+          The email address from which the email will be sent
+      emailSubject:
+        type: string
+        description: |
+          The subject of the email
+      peopleTableId:
+        type: string
+        description: |
+          The base id + table_id from which to take the people
+      data:
+        type: object
+        properties:
+          fields:
+            type: array
+            items:
+              type: object
+              properties:
+                label:
+                  type: string
+                value:
+                  type: string
+    required:
+      - emailSubject
+      - peopleTableId
+      - data
+steps:
+  extract-data-from-event:
+    runtime: python3_10
+    code: |
+      import urllib.parse
+
+      def handler(inputs):
+          # Assuming 'inputs' is a dictionary and 'inputs["data"]' is a list of dictionaries
+          uri_encoded_email = urllib.parse.quote(inputs["data"][0]["value"])
+          return {
+              "email": inputs["data"][0]["value"],
+              "uriEncodedEmail": uri_encoded_email
+          }
+    dependencies:
+      data: ${inputs.data.fields}
+  find-in-airtable:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      url: 'https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  send-oauth-email:
+    if: ${find-in-airtable.response.data.records}.length === 1
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-ses
+    dependencies:
+      sender: ${inputs.senderEmail}
+      to: ${extract-data-from-event.email}
+      subject: ${inputs.emailSubject}
+      html_body: >
+        Hey ${find-in-airtable.response.data.records[0].fields.name}!,
+        <br><br>
+        You requested a link to update your information.
+        Please click <a href="${find-in-airtable.response.data.records[0].fields.updateUrl}">here</a> to do this.
+        You will be redirected to an airtable form where you can update your information.
+
+        <br><br>
+      AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
+      AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

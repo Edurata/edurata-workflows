@@ -1,5 +1,5 @@
 apiRevision: edurata.io/v1
-name: update-invoices-bot-info
+name: update-bot-info
 title: Update Bot Info
 description: |
   Takes an email and sends an update link.
@@ -30,10 +30,10 @@ interface:
                   type: string
                 value:
                   type: string
-      required:
-        - emailSubject
-        - peopleTableId
-        - data
+    required:
+      - emailSubject
+      - peopleTableId
+      - data
 steps:
   extract-data-from-event:
     runtime: python3_10

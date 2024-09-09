@@ -1,0 +1,59 @@
+apiRevision: edurata.io/v1
+name: auto-block-bot-accounts
+title: 
+schedule: "0 8 * * *"
+description: |
+  Automatically blocks bot accounts from your followers
+interface:
+  inputs:
+    properties:
+      user_handle:
+        type: string
+        description: |
+          The user id of the account to check followers for
+      interval:
+        type: number
+        description: |
+          How old the tweets should be in days before deleting
+steps:
+  get-user-id:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: GET
+      url: 'https://api.twitter.com/2/users/by/username/${inputs.user_handle}'
+      headers:
+        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+  check-follower-count:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: GET
+      url: 'https://api.twitter.com/2/users/${get-user-id.response.data.data.id}?user.fields=public_metrics'
+      headers:
+        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+  get-new-followers:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: GET
+      url: 'https://api.twitter.com/2/users/${get-user-id.response.data.data.id}/followers?max_results=100&user.fields=created_at,public_metrics'
+      headers:
+        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+  block-user:
+    foreach: ${get-new-followers.response.data.data}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: POST
+      url: 'https://api.twitter.com/2/users/${inputs.your_user_id}/blocking'
+      headers:
+        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+      data:
+        target_user_id: '${inputs.user_id}'
+  delete-tweets:
+

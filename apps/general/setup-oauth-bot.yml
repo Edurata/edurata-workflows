@@ -2,11 +2,40 @@ apiRevision: edurata.io/v1
 name: setup-invoices-bot
 title: Setup Bot
 description: |
-  Setup the bot after a webhook call from tally.
+  Setup a bot that uses oauth after a webhook call from tally.
+  The first two fields in tally must be name and email.
+  The fields except data should be filled on the deployment as variables or in the webhook.
 interface:
   inputs:
     properties:
+      app_name:
+        type: string
+        description: |
+          The name of the app.
+        example: "Accounting bot"
+      app_purpose_description:
+        type: string
+        description: |
+          The purpose of the app as a string for the email.
+        example: "forward invoices to your email"
+      oauth_secret_name:
+        type: string
+        description: |
+          The name of the secret that will be used to store the oauth secret.
+        example: "GMAIL_API_KEY"
+      sender:
+        type: string
+        description: |
+          The email address from which the oauth email will be sent.
+        example: "accountingbot@edurata.com"
+      deployment_repo_path:
+        type: string
+        description: |
+          The path to the deployment file in the repository.
+        example: apps/invoice-forwarder/invoices-forward.yml
       data:
+        description: |
+          The data from the webhook.
         type: object
         properties:
           fields:
@@ -55,10 +84,10 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
-        name: "Accounting bot for ${extract-data-from-event.email}"
+        name: "${inputs.app_name} for ${extract-data-from-event.email}"
         source: 
           repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-          path: apps/invoice-forwarder/invoices-forward.yml
+          path: ${inputs.deployment_repo_path} 
         environmentId: ${create-environment.response.data.id}
         variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
   deploy-deployment:
@@ -75,16 +104,17 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     dependencies:
-      sender: accountingbot@edurata.com
+      sender: ${inputs.sender}
       to: ${extract-data-from-event.email}
       subject: "Accounting-bot: Authorization needed for sending invoices"
       html_body: >
         Hey ${extract-data-from-event.name}!,
         <br><br>
-        We need permissions to gmail and gdrive to process and save the invoices. Please click <a href="${meta.apiUrl}/oauth/google?s=GMAIL_API_KEY&u=${meta.userId}&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
-        You will be redirected to a page where you can authorize us to send invoices on your behalf.
+        We need oauth permissions to ${inputs.app_purpose_description}. Please click <a href="${meta.apiUrl}/oauth/google?s=${inputs.oauth_secret_name}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
+        You will be redirected to a page where you can authorize the third party app.
 
-        Important: The emails will be forwarded not from your email but accountingbot@edurata.com so make sure to whitelist it at the recipient.
+        Best wishes,
+        Edurata Team
         <br><br>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

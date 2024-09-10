@@ -106,7 +106,7 @@ steps:
     dependencies:
       sender: ${inputs.sender}
       to: ${extract-data-from-event.email}
-      subject: "Accounting-bot: Authorization needed for sending invoices"
+      subject: "${inputs.app_name}: Authorization needed for sending invoices"
       html_body: >
         Hey ${extract-data-from-event.name}!,
         <br><br>

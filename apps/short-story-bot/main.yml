@@ -3,7 +3,7 @@ name: short-story-bot
 title: Short story bot
 schedule: "0 8 * * *"
 description: |
-  Generates short stories based on things.
+  Generates short stories based on things. More info on https://contact.edurata.com/short-story-bot
 interface:
   inputs:
     properties:

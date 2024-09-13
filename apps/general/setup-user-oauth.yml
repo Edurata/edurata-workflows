@@ -56,13 +56,16 @@ steps:
       def handler(inputs):
           # Assuming 'inputs' is a dictionary and 'inputs["data"]' is a list of dictionaries
           uri_encoded_email = urllib.parse.quote(inputs["data"][1]["value"])
+          uri_encoded_name = urllib.parse.quote(inputs["name"])
           return {
               "name": inputs["data"][0]["value"],
               "email": inputs["data"][1]["value"],
-              "uriEncodedEmail": uri_encoded_email
+              "uriEncodedEmail": uri_encoded_email,
+              "uriEncodedId": uri_encoded_name + "-" + uri_encoded_email
           }
     dependencies:
       data: ${inputs.data.fields}
+      name: ${inputs.app_name}
   create-environment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -73,7 +76,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
-        name: "${extract-data-from-event.email}"
+        name: "${extract-data-from-event.uriEncodedId}"
   create-deployment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -84,7 +87,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
-        name: "${inputs.app_name} for ${extract-data-from-event.email}"
+        name: "${extract-data-from-event.uriEncodedId}"
         source: 
           repoUrl: "https://github.com/Edurata/edurata-workflows.git"
           path: ${inputs.deployment_repo_path} 

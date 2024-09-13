@@ -3,7 +3,7 @@ name: invoice-processor
 title: Invoice Processor
 schedule: "0 9 * * *"
 description: |
-  Searches through the inbox and saves, tags and forwards invoices
+  Searches through the inbox and saves, tags and forwards invoices. More info on https://contact.edurata.com/accountingbot
 interface:
   inputs:
     properties:
@@ -335,4 +335,3 @@ steps:
         addLabelIds: 
           - ${each.tag}
         removeLabelIds: []
-        

@@ -1,2 +1,31 @@
+apiRevision: edurata.io/v1
+name: create-vocab-test
+title: Creates a test for vocabulary.
 description: |
   Takes vocabulary from an airtable and creates a form for the user to test themselves on the vocabulary.
+interface:
+  inputs:
+    properties:
+      vocabulary_table_id:
+        type: string
+        description: |
+          The base id + table_id in which to save the vocabulary
+      user_email:
+        type: string
+        description: |
+          The email of the user who is taking the test
+steps:
+  get-random-vocabulary:
+    source:
+      repoUrl: ""
+      path: ""
+    dependencies:
+      url: 'https://api.airtable.com/v0/${inputs.vocabulary_table_id}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")'
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  create-test:
+    source:
+      repoUrl: ""
+    dependencies:
+      # google form post
+      url: ""

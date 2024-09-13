@@ -1,11 +1,30 @@
 apiRevision: edurata.io/v1
-name: delete-invoices-bot
-title: Delete invoices Bot
+name: delete-microapp-user
+title: Deletes a user from a microapp
 description: |
-  Setup the bot after a webhook call from tally.
+  Deletes a user from several systems after a webhook call from tally.
 interface:
   inputs:
     properties:
+      app_name:
+        type: string
+        description: |
+          The name of the app.
+        example: "Accounting bot"
+      app_resub_link:
+        type: string
+        description: |
+          The link to resubscribe to the app.
+        example: "https://contact.edurata.com/accountingbot"
+      sender:
+        type: string
+        description: |
+          The email address from which the oauth email will be sent.
+        example: "accountingbot@edurata.com"
+      peopleTableId:
+        type: string
+        description: |
+          The base id + table_id from which to take the people
       data:
         type: object
         properties:
@@ -27,19 +46,22 @@ steps:
       def handler(inputs):
           # Assuming 'inputs' is a dictionary and 'inputs["data"]' is a list of dictionaries
           uri_encoded_email = urllib.parse.quote(inputs["data"][1]["value"])
+          uri_encoded_name = urllib.parse.quote(inputs["name"])
           return {
               "name": inputs["data"][0]["value"],
               "email": inputs["data"][1]["value"],
-              "uriEncodedEmail": uri_encoded_email
+              "uriEncodedEmail": uri_encoded_email,
+              "uriEncodedId": uri_encoded_name + "-" + uri_encoded_email
           }
     dependencies:
       data: ${inputs.data.fields}
+      name: ${inputs.app_name}
   delete-environment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.email}
+      url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.uriEncodedId}
       method: DELETE
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
@@ -48,7 +70,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     dependencies:
-      url: ${meta.apiUrl}/deployment/byname/Accounting%20bot%20for%20${extract-data-from-event.uriEncodedEmail}
+      url: ${meta.apiUrl}/deployment/byname/${extract-data-from-event.uriEncodedId}
       method: DELETE
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
@@ -76,15 +98,15 @@ steps:
       _delete-deployment: ${delete-deployment}
       _delete-environment: ${delete-environment}
       _delete-airtable-record: ${delete-airtable-record}
-      sender: accountingbot@edurata.com
+      sender: ${inputs.sender}
       to: ${extract-data-from-event.email}
-      subject: "Accounting-bot: All resources for your subscription were deleted"
+      subject: "${inputs.app_name}: All resources for your subscription were deleted"
       html_body: >
         Hey ${extract-data-from-event.name}!,
         <br><br>
         We have deleted all resources related to your subscription.
 
-        If you want to start a new subscription visit [this link](https://contact.edurata.com/accountingbot).
+        If you want to start a new subscription visit [this link](${inputs.app_resub_link}).
 
         All the best,
         The Edurata team

@@ -19,13 +19,13 @@ steps:
     source:
       repoUrl: ""
       path: ""
-    dependencies:
+    props:
       url: 'https://api.airtable.com/v0/${inputs.vocabulary_table_id}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   create-test:
     source:
       repoUrl: ""
-    dependencies:
+    props:
       # google form post
       url: ""

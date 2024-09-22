@@ -47,13 +47,13 @@ steps:
               "email": inputs["data"][0]["value"],
               "uriEncodedEmail": uri_encoded_email
           }
-    dependencies:
+    props:
       data: ${inputs.data.fields}
   find-in-airtable:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: 'https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
@@ -62,7 +62,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
-    dependencies:
+    props:
       sender: ${inputs.senderEmail}
       to: ${extract-data-from-event.email}
       subject: ${inputs.emailSubject}

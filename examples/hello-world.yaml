@@ -29,20 +29,20 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/join
-    dependencies:
+    props:
       array: ${inputs.messages}
       joinString: " "
   test-python:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/python
-    dependencies:
+    props:
       message: ${construct-message.string}
   test-node:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/node
-    dependencies:
+    props:
       message: ${construct-message.string}
   test-docker-upstream:
     description: |
@@ -50,7 +50,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/whalesay.edufc.yml
-    dependencies:
+    props:
       cmd:
         - cowsay
         - ${construct-message.string}
@@ -60,5 +60,5 @@ steps:
   #   source:
   #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
   #     path: tests/whalesay.edufc.yml
-  #   dependencies:
+  #   props:
   #     message: ${construct-message.string}

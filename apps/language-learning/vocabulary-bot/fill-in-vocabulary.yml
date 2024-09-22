@@ -15,7 +15,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: 'https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
@@ -23,7 +23,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: 'https://api.airtable.com/v0/${inputs.vocabulary_table_id}?filterByFormula=NOT(processed)'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
@@ -32,7 +32,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    dependencies:
+    props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         You get a json object that has keys that represent languages in a language code and values that are the words in that language. You should fill in the missing translations for the words in the other languages. Return the original object with the filled in translations. Return only a json object directly. 
@@ -43,7 +43,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
-    dependencies:
+    props:
       method: POST
       url: https://api.airtable.com/v0/${inputs.vocabulary_table_id}/${each.id}
       headers:

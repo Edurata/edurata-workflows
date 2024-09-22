@@ -21,7 +21,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/download-s3
-    dependencies:
+    props:
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
       bucket_name: test-images
@@ -34,7 +34,7 @@ steps:
       repoUrl: https://github.com/juliandm/penetratethecabinet.git
       path: functions/scrape-images
       ref: master
-    dependencies:
+    props:
       limit: ${inputs.limit}
       people: ${get-config.files[0].path}
       processed: ${get-config.files[1].path}
@@ -46,7 +46,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/upload-s3
-    dependencies:
+    props:
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
       bucket_name: test-images

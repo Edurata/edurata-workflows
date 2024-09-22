@@ -30,7 +30,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/clone-git
-    dependencies:
+    props:
       repoUrl: ${each.source.repoUrl}
       path: ${each.source.path}
       ref: ${each.source.ref}
@@ -92,7 +92,7 @@ steps:
                   type: string
                 repoCode:
                   type: file
-    dependencies:
+    props:
       files: ${git-clone[*].repoCode}
       rest: ${inputs.functionsToBuild}
   build-nodejs20:
@@ -103,7 +103,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: internals/build-nodejs20
-    dependencies:
+    props:
       code: ${each.repoCode}
   build-python3_10:
     foreach: ${get-runtime.runtime_and_files}
@@ -113,12 +113,12 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: internals/build-python3_10
-    dependencies:
+    props:
       code: ${each.repoCode}
   merge-results:
     description: Merging the information again so that we can upload the code in an array. Interface only necessary bc of files integration.
     runtime: nodejs20
-    dependencies:
+    props:
       results:
         - ${build-nodejs20?}
         - ${build-python3_10?}
@@ -160,7 +160,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: "${meta.apiUrl}/function/${each.name}/upload-url"
       headers:
         Authorization: "Bearer ${meta.executionToken}"
@@ -171,7 +171,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/zip
-    dependencies:
+    props:
       file: ${each.code}
   upload-code:
     foreach: ${merge-results.results}
@@ -180,7 +180,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       method: "PUT"
       url: ${get-upload-url[each.index].response.data.uploadUrl}
       dataFromFile: ${zip-code[each.index].zipped}

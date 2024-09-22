@@ -19,14 +19,14 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/diff-google-docs
-    dependencies:
+    props:
       documentId: ${inputs.vocabulary_document_id}
       API_TOKEN: ${secrets.GOOGLE_DOCS_API_KEY}
   extract-vocabulary:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    dependencies:
+    props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       # model: gpt-4o
       systemMessage: |
@@ -43,14 +43,14 @@ steps:
           return {
               "words": parsed
           }
-    dependencies:
+    props:
       extract-vocabulary: ${extract-vocabulary}
   update-airtable:
     foreach: ${parse-from-chatgpt-response.words}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
-    dependencies:
+    props:
       method: POST
       url: https://api.airtable.com/v0/${inputs.vocabulary_table_id}/
       headers:

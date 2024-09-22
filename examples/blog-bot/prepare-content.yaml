@@ -37,7 +37,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: "https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)"
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
@@ -45,7 +45,7 @@ steps:
   #   source:
   #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
   #     path: general/eval-nodejs
-  #   dependencies:
+  #   props:
   #     code: |
   #       return input.map(record => record.fields.Type === "Blog" ? {
   #         ...record,
@@ -62,7 +62,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    dependencies:
+    props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: You are an assistant that sums up news messages.
       message: >
@@ -76,7 +76,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/text-to-image
-    dependencies:
+    props:
       text: ${each.response}
       type: story
   upload-image-s3:
@@ -84,7 +84,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/upload-s3
-    dependencies:
+    props:
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
       bucket_name:
@@ -96,7 +96,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: "https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)"
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"

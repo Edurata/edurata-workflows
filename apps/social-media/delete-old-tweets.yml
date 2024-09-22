@@ -1,0 +1,156 @@
+name: delete-old-tweets-with-email
+apiRevision: edurata.io/v1
+description: |
+  This workflow takes a Twitter archive file, extracts it, filters out tweets older than a certain date, deletes them using the Twitter API, and sends an email update with the number of deleted tweets.
+interface:
+  inputs:
+    type: object
+    properties:
+      archive_file:
+        type: file
+        description: "The Twitter archive file (ZIP format) containing the tweets."
+      cutoff_date:
+        type: string
+        format: date
+        description: "The date in YYYY-MM-DD format. Tweets older than this date will be deleted."
+      email_address:
+        type: string
+        description: "The email address to send the update to."
+    required:
+      - archive_file
+      - cutoff_date
+      - email_address
+  outputs:
+    type: object
+    properties:
+      deleted_tweets_count:
+        type: integer
+        description: "The number of deleted tweets."
+steps:
+  extract-archive:
+    description: "Extract the contents of the Twitter archive file."
+    runtime: python3_10
+    interface:
+      inputs:
+        archive_file:
+          type: file
+      outputs:
+        extracted_file:
+          type: string
+          description: "The path to the extracted file with tweets in JSON format."
+    code: |
+      import zipfile
+      import os
+
+      def handler(inputs):
+          archive_path = inputs["archive_file"]
+          output_dir = '/mnt/data/extracted_twitter_archive'
+          os.makedirs(output_dir, exist_ok=True)
+
+          with zipfile.ZipFile(archive_path, 'r') as archive:
+              archive.extractall(output_dir)
+
+          tweet_file_path = os.path.join(output_dir, 'data', 'tweets.json')  # Assuming tweets are stored in this file
+
+          return {
+              "extracted_file": tweet_file_path
+          }
+
+  filter-old-tweets:
+    description: "Filter tweets that are older than the specified cutoff date."
+    runtime: python3_10
+    interface:
+      inputs:
+        extracted_file:
+          type: string
+        cutoff_date:
+          type: string
+      outputs:
+        old_tweets:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              text:
+                type: string
+              created_at:
+                type: string
+    code: |
+      import json
+      from datetime import datetime
+
+      def handler(inputs):
+          extracted_file = inputs['extracted_file']
+          cutoff_date = datetime.strptime(inputs['cutoff_date'], '%Y-%m-%d')
+
+          # Load tweet data from the extracted file
+          with open(extracted_file, 'r') as f:
+              tweet_data = json.load(f)
+
+          old_tweets = []
+
+          for tweet in tweet_data['tweets']:
+              tweet_date = datetime.strptime(tweet['created_at'], '%Y-%m-%dT%H:%M:%S.%fZ')
+              if tweet_date < cutoff_date:
+                  old_tweets.append({
+                      "id": tweet['id'],
+                      "text": tweet['text'],
+                      "created_at": tweet['created_at']
+                  })
+
+          return {
+              "old_tweets": old_tweets
+          }
+
+  delete-tweets:
+    description: "Delete the filtered tweets using the Twitter API."
+    foreach: ${filter-old-tweets.old_tweets}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: DELETE
+      url: 'https://api.twitter.com/2/tweets/${each.id}'
+      headers:
+        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+    outputs:
+      deleted_tweets_count:
+        type: integer
+        description: "The number of tweets deleted."
+
+  summarize:
+    description: "Summarize the result of the deleted tweets."
+    runtime: python3_10
+    interface:
+      inputs:
+        deleted_tweets:
+          type: array
+      outputs:
+        deleted_tweets_count:
+          type: integer
+    code: |
+      def handler(inputs):
+          deleted_tweets = inputs['deleted_tweets']
+          return {
+              "deleted_tweets_count": len(deleted_tweets)
+          }
+
+  send-email-update:
+    description: "Send an email update with the number of deleted tweets."
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-ses  # You can replace this with any email-sending service
+    props:
+      sender: "noreply@yourdomain.com"
+      to: ${inputs.email_address}
+      subject: "Twitter Archive Cleanup Results"
+      html_body: |
+        <p>Hello,</p>
+        <p>The Twitter archive cleanup process has completed successfully.</p>
+        <p>Number of tweets deleted: ${summarize.deleted_tweets_count}</p>
+        <p>Regards,<br/>Your Service</p>
+      AWS_REGION: "us-east-1"
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}

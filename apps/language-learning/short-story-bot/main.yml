@@ -37,13 +37,13 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: 'https://api.airtable.com/v0/${inputs.people_table_id}?filterByFormula=AND(NOT(disabled),FIND("${get-current-day.day}",{interval}))'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   get-unique-combinations:
     runtime: python3_10
-    dependencies:
+    props:
       objects: ${get-people-data.response.data.records}
     code: |
       import logging
@@ -112,7 +112,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: https://api.api-ninjas.com/v1/randomword
       headers:
         X-Api-Key: ${secrets.API_NINJAS_API_KEY}
@@ -121,7 +121,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    dependencies:
+    props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       model: gpt-4o
       systemMessage: |
@@ -173,7 +173,7 @@ steps:
                   short_story['level'] == person.get('fields', {}).get('level')):
                   return i
           return -1  # If no matching short story is found.
-    dependencies:
+    props:
       people: ${get-people-data.response.data.records}
       combinations: ${get-unique-combinations.combinations}
       stories: ${generate-short-stories[*].response}
@@ -182,7 +182,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
-    dependencies:
+    props:
       sender: storybot@edurata.com
       to: ${each.fields.email}
       subject: Short story

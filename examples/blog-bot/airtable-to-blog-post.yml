@@ -30,7 +30,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: "https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)"
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
@@ -38,7 +38,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/eval-nodejs
-    dependencies:
+    props:
       code: |
         const today = new Date();
         return input.filter(record => {
@@ -53,7 +53,7 @@ steps:
   #   source:
   #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
   #     path: general/axios
-  #   dependencies:
+  #   props:
   #     url: "${variables.INSTA_BUSINESS_ACC_ID}/media?image_url=${upload-image-s3}&media_type=STORIES"
   #     headers:
   #       Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
@@ -61,7 +61,7 @@ steps:
   #   source:
   #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
   #     path: general/axios
-  #   dependencies:
+  #   props:
   #     url: "${variables.INSTA_BUSINESS_ACC_ID}/media_publish?creation_id=${upload-image-container-insta.response.data.id}"
   #     headers:
   #       Authorization: "Bearer ${secrets.INSTAGRAM_TOKEN}"
@@ -72,7 +72,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/tweet
-    dependencies:
+    props:
       API_KEY: ${secrets.TWITTER_API_KEY}
       API_SECRET: ${secrets.TWITTER_API_SECRET}
       ACCESS_TOKEN: ${secrets.TWITTER_ACCESS_TOKEN}
@@ -88,7 +88,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-linkedin
-    dependencies:
+    props:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
       text: ${each.response}
       author: urn:li:organization:30718435
@@ -100,7 +100,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-linkedin
-    dependencies:
+    props:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
       text: ${each.response}
       author: urn:li:organization:30718435

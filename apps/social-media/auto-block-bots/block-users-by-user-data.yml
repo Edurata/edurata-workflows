@@ -1,9 +1,9 @@
 apiRevision: edurata.io/v1
-name: auto-block-bot-accounts
+name: block-x-bots-by-archive
 title: 
 schedule: "0 8 * * *"
 description: |
-  Automatically blocks bot accounts from your followers
+  Expects an archive of user data and goes through it to block bots
 interface:
   inputs:
     properties:
@@ -20,7 +20,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       method: GET
       url: 'https://api.twitter.com/2/users/by/username/${inputs.user_handle}'
       headers:
@@ -29,31 +29,58 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       method: GET
       url: 'https://api.twitter.com/2/users/${get-user-id.response.data.data.id}?user.fields=public_metrics'
       headers:
         Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+  cancel-if-too-many-followers:
+    code: |
+      def handler(inputs):
+        follower_count = inputs['follower_count']
+        if follower_count > 1000:
+            raise Exception("Too many followers")
+        return {
+            cancel: False
+        }
+    props:
+      follower_count: '${check-follower-count.response.data.data.public_metrics.followers_count}'
   get-new-followers:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       method: GET
       url: 'https://api.twitter.com/2/users/${get-user-id.response.data.data.id}/followers?max_results=100&user.fields=created_at,public_metrics'
       headers:
         Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
-  block-user:
+  find-bots:
     foreach: ${get-new-followers.response.data.data}
+    code: |
+      def handler(inputs):
+        followers = inputs['followers']
+        bot_followers = []
+        for user in followers:
+            follower_count = user['public_metrics']['followers_count']
+            following_count = user['public_metrics']['following_count']
+            # check if the follower count is 50x less than the following count
+            if follower_count < following_count / 50:
+                bot_followers.append(user)
+        return {
+            bot_followers: bot_followers
+        }
+    props:
+      followers: '${get-new-followers.response.data.data}'
+  block-user:
+    foreach: ${find-bots.bot_followers}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       method: POST
       url: 'https://api.twitter.com/2/users/${inputs.your_user_id}/blocking'
       headers:
         Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
       data:
-        target_user_id: '${inputs.user_id}'
-  delete-tweets:
-
+        target_user_id: '${each.id}'
+  send-email:

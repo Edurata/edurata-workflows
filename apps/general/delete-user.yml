@@ -53,14 +53,14 @@ steps:
               "uriEncodedEmail": uri_encoded_email,
               "uriEncodedId": uri_encoded_name + "-" + uri_encoded_email
           }
-    dependencies:
+    props:
       data: ${inputs.data.fields}
       name: ${inputs.app_name}
   delete-environment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.uriEncodedId}
       method: DELETE
       headers:
@@ -69,7 +69,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: ${meta.apiUrl}/deployment/byname/${extract-data-from-event.uriEncodedId}
       method: DELETE
       headers:
@@ -78,7 +78,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: 'https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
@@ -86,7 +86,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: https://api.airtable.com/v0/${inputs.peopleTableId}/${get-person-data.response.data.records[0].id}
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
@@ -94,7 +94,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
-    dependencies:
+    props:
       _delete-deployment: ${delete-deployment}
       _delete-environment: ${delete-environment}
       _delete-airtable-record: ${delete-airtable-record}

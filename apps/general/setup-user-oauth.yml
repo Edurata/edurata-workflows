@@ -63,14 +63,14 @@ steps:
               "uriEncodedEmail": uri_encoded_email,
               "uriEncodedId": uri_encoded_name + "-" + uri_encoded_email
           }
-    dependencies:
+    props:
       data: ${inputs.data.fields}
       name: ${inputs.app_name}
   create-environment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: ${meta.apiUrl}/environment
       method: POST
       headers:
@@ -81,7 +81,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: ${meta.apiUrl}/deployment
       method: POST
       headers:
@@ -97,7 +97,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    props:
       url: ${meta.apiUrl}/deployment/${create-deployment.response.data.id}/deploy
       method: POST
       headers:
@@ -106,7 +106,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
-    dependencies:
+    props:
       sender: ${inputs.sender}
       to: ${extract-data-from-event.email}
       subject: "${inputs.app_name}: Authorization needed for sending invoices"

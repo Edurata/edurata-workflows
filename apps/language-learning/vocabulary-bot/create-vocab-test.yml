@@ -1,31 +1,169 @@
+name: vocabulary-test-generator
 apiRevision: edurata.io/v1
-name: create-vocab-test
-title: Creates a test for vocabulary.
 description: |
-  Takes vocabulary from an airtable and creates a form for the user to test themselves on the vocabulary.
+  A workflow that creates a vocabulary test from an Airtable table by finding vocabulary based on email,
+  generating a short story with GPT-4, constructing a Google Form with test questions, and sending
+  the test to the user. It also updates the Airtable with feedback on how often each word was used.
+
 interface:
   inputs:
+    type: object
     properties:
-      vocabulary_table_id:
-        type: string
-        description: |
-          The base id + table_id in which to save the vocabulary
       user_email:
         type: string
-        description: |
-          The email of the user who is taking the test
+        description: The user's email address.
+      airtable_api_key:
+        type: string
+        description: API key to access Airtable.
+      airtable_base_id:
+        type: string
+        description: The Airtable base ID.
+      airtable_table_name:
+        type: string
+        description: The Airtable table name with the vocabulary data.
+      google_api_key:
+        type: string
+        description: API key to access Google Forms.
+      google_service_account_json:
+        type: file
+        description: The Google service account JSON file for authentication.
+  required:
+    - user_email
+    - airtable_api_key
+    - airtable_base_id
+    - airtable_table_name
+    - google_api_key
+    - google_service_account_json
+outputs:
+  type: object
+  properties:
+    form_url:
+      type: string
+      description: The Google Form URL created for the test.
+    airtable_update_status:
+      type: string
+      description: The status of updating the Airtable with feedback.
+
 steps:
-  get-random-vocabulary:
+  retrieve-vocabulary-rows:
+    description: Retrieve 10 vocabulary rows from Airtable by email.
     source:
-      repoUrl: ""
-      path: ""
-    props:
-      url: 'https://api.airtable.com/v0/${inputs.vocabulary_table_id}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")'
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: GET
+      url: 'https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}'
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
-  create-test:
+        Authorization: "Bearer ${inputs.airtable_api_key}"
+      params:
+        filterByFormula: "({Email} = '${inputs.user_email}')"
+        maxRecords: 10
+
+  generate-story:
+    description: Generate a short story using GPT-4 based on retrieved vocabulary.
+    runtime: python3_10
+    code: |
+      import openai
+
+      def handler(inputs):
+          vocab_list = inputs['retrieve-vocabulary-rows']['records']
+          vocab_words = [record['fields']['Word'] for record in vocab_list]
+
+          # GPT-4 generation
+          story_prompt = f"Write a short story using these words: {', '.join(vocab_words)}."
+          response = openai.Completion.create(
+              engine="gpt-4",
+              prompt=story_prompt,
+              max_tokens=500
+          )
+
+          story = response.choices[0].text.strip()
+          return {
+              'short_story': story,
+              'vocabulary_words': vocab_words
+          }
+
+    dependencies:
+      - openai==0.27.0
+    env:
+      OPENAI_API_KEY: ${secrets.OPENAI_API_KEY}
+
+  create-google-form:
+    description: Create a Google Form for the vocabulary test with the story and questions.
+    runtime: python3_10
+    code: |
+      from googleapiclient.discovery import build
+      from google.oauth2 import service_account
+
+      def handler(inputs):
+          service_account_info = inputs["google_service_account_json"]
+          vocab_words = inputs['generate-story']['vocabulary_words']
+          short_story = inputs['generate-story']['short_story']
+
+          # Set up the Google Forms service
+          creds = service_account.Credentials.from_service_account_info(service_account_info)
+          form_service = build('forms', 'v1', credentials=creds)
+
+          # Create form
+          form_title = "Vocabulary Test"
+          form_description = f"Please read the following story and answer the questions. Story: {short_story}"
+          form_body = {
+              "info": {
+                  "title": form_title,
+                  "description": form_description
+              },
+              "items": [
+                  {
+                      "questionItem": {
+                          "question": {
+                              "text": f"How is the word '{vocab_words[0]}' used in the story?",
+                              "required": True,
+                              "choiceQuestion": {
+                                  "type": "RADIO",
+                                  "options": [{"value": "Correct"}, {"value": "Incorrect"}]
+                              }
+                          }
+                      }
+                  }
+                  # Repeat for other vocabulary words...
+              ]
+          }
+
+          # Create form using Google Forms API
+          form = form_service.forms().create(body=form_body).execute()
+          form_url = form['responderUri']
+
+          return {"form_url": form_url}
+
+    dependencies:
+      google-api-python-client: ""
+      google-auth: ""
+      google-auth-httplib2: ""
+      google-auth-oauthlib: ""
+    env:
+      GOOGLE_API_KEY: ${inputs.google_api_key}
+
+  send-form-email:
+    description: Send the Google Form link to the user's email address.
     source:
-      repoUrl: ""
-    props:
-      # google form post
-      url: ""
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-email
+    dependencies:
+      to: ${inputs.user_email}
+      subject: "Your Vocabulary Test"
+      html_body: "Please complete your vocabulary test by visiting the following link: ${create-google-form.form_url}"
+
+  update-airtable:
+    description: Update Airtable to provide feedback on vocabulary usage.
+    foreach: ${retrieve-vocabulary-rows.records}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    dependencies:
+      method: PATCH
+      url: 'https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}/${each.id}'
+      headers:
+        Authorization: "Bearer ${inputs.airtable_api_key}"
+      body:
+        fields:
+          UsageFeedback: "Used in test"

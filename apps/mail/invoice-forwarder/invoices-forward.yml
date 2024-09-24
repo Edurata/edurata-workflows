@@ -148,7 +148,7 @@ steps:
   filter-attachments:
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-      path: apps/invoice-forwarder/filter-attachments
+      path: apps/mail/invoice-forwarder/filter-attachments
     props:
       messages: ${get-mails-info[*].response.data}
       # additional_keywords: ${merge-config.config.additionalKeywords}
@@ -216,23 +216,98 @@ steps:
                   # Handle the error as needed, e.g., skip the file or return an error response
           return {"new_files": new_files}
   forward-pdf:
-    foreach: ${save-attachments.new_files}
-    if: ('${merge-config.config.forwardEmail}').length > 0
     description: |
-      Forward the PDF attachments to the specified email address
+      Forward the PDF attachments to the specified email address using Gmail API.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/send-ses
+      path: general/axios
     props:
-      sender: accountingbot@edurata.com
-      to: ${merge-config.config.forwardEmail}
-      subject: "Invoice"
-      html_body: "Please find the attached invoice"
-      attachments: 
-        - ${each}
-      AWS_REGION: "eu-central-1"
-      AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
-      AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
+      method: POST
+      url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      data:
+        raw: ${encode_email_attachment.raw}
+  # Inline step to encode the email with attachment in base64 format
+  encode_email_attachments:
+    if: ('${merge-config.config.forwardEmail}').length > 0
+    else: 
+    runtime: python3_10
+    interface:
+      inputs:
+        properties:
+          forwardEmail:
+            type: string
+            description: The email address to forward the attachments to
+          attachments:
+            type: array
+            items:
+              type: file
+            description: A list of paths to the attachment files
+      outputs:
+        properties:
+          raw:
+            type: string
+            description: The base64 encoded email message with multiple attachments
+    code: |
+      import base64
+      import email
+      from email.mime.multipart import MIMEMultipart
+      from email.mime.text import MIMEText
+      from email.mime.base import MIMEBase
+      from email import encoders
+      import os
+
+      def handler(inputs):
+          sender = inputs["userEmail"]
+          to = inputs["forwardEmail"]
+          subject = "Invoice"
+          body = "Please find the attached invoices."
+
+          # Create email message
+          msg = MIMEMultipart()
+          msg['From'] = sender
+          msg['To'] = to
+          msg['Subject'] = subject
+          msg.attach(MIMEText(body, 'plain'))
+
+          # Iterate over attachments and encode each one
+          for attachment_path in inputs["attachments"]:
+              attachment_name = os.path.basename(attachment_path)
+              
+              with open(attachment_path, "rb") as attachment_file:
+                  part = MIMEBase('application', 'octet-stream')
+                  part.set_payload(attachment_file.read())
+                  encoders.encode_base64(part)
+                  part.add_header('Content-Disposition', f"attachment; filename= {attachment_name}")
+                  msg.attach(part)
+
+          # Encode the message in base64 and prepare it for Gmail API
+          raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+          return {"raw": raw_message}
+
+    props:
+      userEmail: ${inputs.userEmail}
+      forwardEmail: ${merge-config.config.forwardEmail}
+      attachments: ${save-attachments.new_files}
+  # forward-pdf:
+  #   foreach: ${save-attachments.new_files}
+  #   if: ('${merge-config.config.forwardEmail}').length > 0
+  #   description: |
+  #     Forward the PDF attachments to the specified email address
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: etl/load/send-ses
+  #   props:
+  #     sender: accountingbot@edurata.com
+  #     to: ${merge-config.config.forwardEmail}
+  #     subject: "Invoice"
+  #     html_body: "Please find the attached invoice"
+  #     attachments: 
+  #       - ${each}
+  #     AWS_REGION: "eu-central-1"
+  #     AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
+  #     AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   get-folder-id:
     runtime: python3_10
     if: ('${merge-config.config.gdriveFolderName}').length > 0
@@ -264,23 +339,6 @@ steps:
       params:
         q: name='${get-folder-id.folder_name}' and mimeType='application/vnd.google-apps.folder'
       __create-folderpath: ${create-folderpath}
-  # create-files-in-gdrive:
-  #   foreach: ${filter-attachments.filtered_attachments}
-  #   description: |
-  #     Archive the PDF attachments in the specified Google Drive folder
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: general/axios
-  #   props:
-  #     method: POST
-  #     url: "https://www.googleapis.com/drive/v3/files"
-  #     headers:
-  #       Content-type: "application/pdf"
-  #       Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
-  #     data:
-  #       name: "${each.attachment_id}"
-  #       mimeType: "application/vnd.google-apps.file"
-  #       parents: ["${get-parent-folder-id.response.data.files[0].id}"]
   upload-files-in-gdrive:
     foreach: ${save-attachments.new_files}
     description: |

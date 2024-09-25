@@ -227,7 +227,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       data:
-        raw: ${encode_email_attachment.raw}
+        raw: ${encode_email_attachments.raw}
   # Inline step to encode the email with attachment in base64 format
   encode_email_attachments:
     if: ('${merge-config.config.forwardEmail}').length > 0

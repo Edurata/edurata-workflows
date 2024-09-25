@@ -231,7 +231,7 @@ steps:
   # Inline step to encode the email with attachment in base64 format
   encode_email_attachments:
     if: ('${merge-config.config.forwardEmail}').length > 0
-    else: 
+    else: success
     runtime: python3_10
     interface:
       inputs:
@@ -285,7 +285,6 @@ steps:
           # Encode the message in base64 and prepare it for Gmail API
           raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
           return {"raw": raw_message}
-
     props:
       userEmail: ${inputs.userEmail}
       forwardEmail: ${merge-config.config.forwardEmail}

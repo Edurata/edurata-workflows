@@ -1,6 +1,6 @@
 name: filter_attachments_function
 runtime: python3_10
-description: A function that filters PDF attachments in a list of messages to find invoices and receipts..
+description: A function that filters PDF attachments in a list of messages to find invoices and receipts.
 interface:
   inputs:
     properties:

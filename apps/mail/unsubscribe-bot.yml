@@ -1,0 +1,131 @@
+name: email-unsubscribe-service
+apiRevision: edurata.io/v1
+description: |
+  Workflow scans all recent emails from the last three months, identifies subscription services with their unsubscribe links, and sends a single email containing those links.
+interface:
+  inputs:
+    type: object
+    properties:
+      email_account:
+        type: string
+        description: "Email account to scan"
+      email_query:
+        type: string
+        description: "Query for the email search, such as Gmail search query"
+      recipient_email:
+        type: string
+        description: "Recipient email to send unsubscribe links"
+    required:
+      - email_account
+      - recipient_email
+  outputs:
+    type: object
+    properties:
+      email_sent:
+        type: boolean
+        description: "Indicates if the summary email was successfully sent"
+
+steps:
+  get-recent-emails:
+    description: |
+      Retrieve all emails from the last three months.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: https://www.googleapis.com/gmail/v1/users/me/messages
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      params:
+        q: "after:3m ${inputs.email_query}"
+        maxResults: 100
+
+  extract-unsubscribe-links:
+    foreach: ${get-recent-emails.messages}
+    description: |
+      Scan the body of each email for unsubscribe links.
+    runtime: python3_10
+    code: |
+      import re
+      
+      def handler(inputs):
+          email_body = inputs["email_body"]
+          unsubscribe_links = re.findall(r'<a[^>]+href="([^"]+)"[^>]*>Unsubscribe</a>', email_body, re.IGNORECASE)
+          return {"unsubscribe_links": unsubscribe_links}
+    interface:
+      inputs:
+        email_body:
+          type: string
+          description: "HTML body of the email"
+      outputs:
+        unsubscribe_links:
+          type: array
+          items:
+            type: string
+            description: "List of unsubscribe links found in the email"
+
+  collect-all-links:
+    description: |
+      Collects all unsubscribe links from emails and consolidates them into one list.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          all_links = []
+          for email in inputs["emails"]:
+              all_links.extend(email["unsubscribe_links"])
+          unique_links = list(set(all_links))  # Remove duplicates
+          return {"all_unsubscribe_links": unique_links}
+    interface:
+      inputs:
+        emails:
+          type: array
+          items:
+            type: object
+            properties:
+              unsubscribe_links:
+                type: array
+                items:
+                  type: string
+      outputs:
+        all_unsubscribe_links:
+          type: array
+          items:
+            type: string
+
+  generate-html-body:
+    description: |
+      Generate an HTML body with the unsubscribe links for the email.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          links = inputs["all_unsubscribe_links"]
+          html_body = "<p>Here are all the unsubscribe links found in your emails from the past 3 months:</p><ul>"
+          for link in links:
+              html_body += f'<li><a href="{link}">{link}</a></li>'
+          html_body += "</ul>"
+          return {"html_body": html_body}
+    interface:
+      inputs:
+        all_unsubscribe_links:
+          type: array
+          items:
+            type: string
+      outputs:
+        html_body:
+          type: string
+          description: "HTML body with unsubscribe links"
+
+  send-summary-email:
+    description: |
+      Send an email to the recipient with all unsubscribe links.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-ses
+    props:
+      sender: no-reply@unsubscribe-bot.com
+      to: ${inputs.recipient_email}
+      subject: "Your Unsubscribe Links"
+      html_body: ${generate-html-body.html_body}
+      AWS_REGION: "eu-central-1"
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}

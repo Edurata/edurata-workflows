@@ -127,6 +127,7 @@ steps:
       __create-labels: ${create-labels}
   continue-if-new-mails:
     if: ${get-new-mails-without-tag.response.data.resultSizeEstimate} > 0
+    else: success
     runtime: python3_10
     code: |
       def handler(inputs):

@@ -1,0 +1,148 @@
+name: application-bot
+apiRevision: edurata.io/v1
+description: |
+  This workflow processes unprocessed entries in an Airtable. It checks if the customer has paid and sends an email reminder if they haven't. Otherwise, it extracts the recipient email from the rawText, processes the subject, email body, and sends the email to the recipient on behalf of the customer.
+interface:
+  inputs:
+    type: object
+    properties:
+      airtableApiKey:
+        type: string
+      airtableBaseId:
+        type: string
+      airtableTableId:
+        type: string
+      airtableCustomerTableId:
+        type: string
+    required:
+      - airtableApiKey
+      - airtableBaseId
+      - airtableTableId
+      - airtableCustomerTableId
+  outputs:
+    type: object
+    properties:
+      result:
+        type: string
+
+steps:
+  get-unprocessed-entries:
+    description: Retrieve unprocessed entries from Airtable.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.airtableTableId}"
+      headers:
+        Authorization: "Bearer ${inputs.airtableApiKey}"
+      params:
+        filterByFormula: "NOT({processed})"
+
+  check-payment-status:
+    description: Check if the customer has paid and whether more than one month has passed.
+    foreach: ${get-unprocessed-entries.response.data.records}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.airtableCustomerTableId}"
+      headers:
+        Authorization: "Bearer ${inputs.airtableApiKey}"
+      params:
+        filterByFormula: "{customerEmail} = '${each.fields.customerEmail}'"
+    then:
+      if: |
+        var now = new Date();
+        var lastPaymentDate = new Date(${check-payment-status.records[0].fields.lastPaymentDate});
+        var paid = ${check-payment-status.records[0].fields.paid};
+        var timeDiff = Math.abs(now.getTime() - lastPaymentDate.getTime());
+        var diffDays = Math.ceil(timeDiff / (1000 * 3600 * 24));
+        return diffDays > 30 && !paid;
+      then: send-reminder-email
+      else: extract-email-info
+
+  send-reminder-email:
+    if: ${check-payment-status} === false
+    description: Send a reminder email for the customer to pay.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: "https://api.mailgun.net/v3/your-domain.com/messages"
+      headers:
+        Authorization: "Bearer ${secrets.MAILGUN_API_KEY}"
+      body:
+        from: "noreply@yourdomain.com"
+        to: ${each.fields.customerEmail}
+        subject: "Payment Reminder"
+        text: "Dear customer, please sign up for our service to continue using it."
+
+  extract-email-info:
+    description: Extract email recipient, subject, and body from rawText.
+    runtime: python3_10
+    code: |
+      import re
+
+      def handler(inputs):
+          raw_text = inputs["rawText"]
+
+          # Extract recipient email using regex
+          email_match = re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', raw_text)
+          recipient_email = email_match.group(0) if email_match else None
+
+          # Split the rawText into subject and body assuming a certain structure
+          lines = raw_text.split('\n')
+          subject = lines[0] if lines else ''
+          body = '\n'.join(lines[1:])
+
+          return {
+              "recipient_email": recipient_email,
+              "subject": subject,
+              "body": body
+          }
+    interface:
+      inputs:
+        type: object
+        properties:
+          rawText:
+            type: string
+      outputs:
+        type: object
+        properties:
+          recipient_email:
+            type: string
+          subject:
+            type: string
+          body:
+            type: string
+
+  send-customer-email:
+    description: Send the email on behalf of the customer.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: "https://api.mailgun.net/v3/your-domain.com/messages"
+      headers:
+        Authorization: "Bearer ${secrets.MAILGUN_API_KEY}"
+      body:
+        from: ${each.fields.customerEmail}
+        to: ${extract-email-info.outputs.recipient_email}
+        subject: ${extract-email-info.outputs.subject}
+        text: ${extract-email-info.outputs.body}
+
+  mark-entry-as-processed:
+    description: Mark the entry as processed in Airtable.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: PATCH
+      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.airtableTableId}/${each.id}"
+      headers:
+        Authorization: "Bearer ${inputs.airtableApiKey}"
+      body:
+        fields:
+          processed: true

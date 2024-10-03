@@ -129,7 +129,7 @@ steps:
       path: etl/load/send-ses
     props:
       _delete-deployment: ${delete-deployment}
-      _delete-environment: ${delete-environment}
+      # _delete-environment: ${delete-environment}
       _delete-airtable-record: ${delete-airtable-record}
       sender: ${lookup-config-by-application-id.senderEmail}
       to: ${extract-data-from-event.email}

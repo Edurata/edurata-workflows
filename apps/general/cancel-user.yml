@@ -1,15 +1,12 @@
 apiRevision: edurata.io/v1
-name: setup-invoices-bot
-title: Setup Bot
+name: delete-microapp-user
+title: Deletes a user from a microapp
 description: |
-  Setup a bot that uses OAuth after a webhook call from Tally. The first two fields in Tally must be name and email. 
-  The fields except data should be filled on deployment as variables or in the webhook.
+  Deletes a user from several systems after a webhook call from Tally.
 interface:
   inputs:
     properties:
       data:
-        description: |
-          The data from the webhook.
         type: object
         properties:
           fields:
@@ -24,18 +21,18 @@ interface:
       applicationConfig:
         type: object
         description: |
-          A mapping of applicationId to appName, oauthPurposeDescription, oauthSecretName, senderEmail, and deploymentRepoPath.
-        properties:
-          appName:
-            type: string
-          oauthPurposeDescription:
-            type: string
-          oauthSecretName:
-            type: string
-          senderEmail:
-            type: string
-          deploymentRepoPath:
-            type: string
+          A mapping of applicationId to appName, appUrl, senderEmail, and peopleTableId.
+        additionalProperties:
+          type: object
+          properties:
+            appName:
+              type: string
+            appUrl:
+              type: string
+            senderEmail:
+              type: string
+            peopleTableId:
+              type: string
     required:
       - data
       - applicationConfig
@@ -84,66 +81,67 @@ steps:
           
           return {
               "appName": app_config["appName"],
-              "oauthPurposeDescription": app_config["oauthPurposeDescription"],
-              "oauthSecretName": app_config["oauthSecretName"],
+              "appUrl": app_config["appUrl"],
               "senderEmail": app_config["senderEmail"],
-              "deploymentRepoPath": app_config["deploymentRepoPath"]
+              "peopleTableId": app_config["peopleTableId"]
           }
     props:
       applicationId: ${extract-data-from-event.applicationId}
       applicationConfig: ${inputs.applicationConfig}
-  create-environment:
+  delete-environment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/environment
-      method: POST
+      url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.uriEncodedId}
+      method: DELETE
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-      data:
-        name: "${extract-data-from-event.uriEncodedId}"
-  create-deployment:
+  delete-deployment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/deployment
-      method: POST
+      url: ${meta.apiUrl}/deployment/byname/${extract-data-from-event.uriEncodedId}
+      method: DELETE
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-      data:
-        name: "${extract-data-from-event.uriEncodedId}"
-        source: 
-          repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-          path: ${lookup-config-by-application-id.deploymentRepoPath} 
-        environmentId: ${create-environment.response.data.id}
-        variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
-  deploy-deployment:
+  get-person-data:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/deployment/${create-deployment.response.data.id}/deploy
-      method: POST
+      url: 'https://api.airtable.com/v0/${lookup-config-by-application-id.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
       headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-  send-oauth-email:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  delete-airtable-record:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: https://api.airtable.com/v0/${lookup-config-by-application-id.peopleTableId}/${get-person-data.response.data.records[0].id}
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  send-delete-email:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     props:
+      _delete-deployment: ${delete-deployment}
+      _delete-environment: ${delete-environment}
+      _delete-airtable-record: ${delete-airtable-record}
       sender: ${lookup-config-by-application-id.senderEmail}
       to: ${extract-data-from-event.email}
-      subject: "${lookup-config-by-application-id.appName}: Authorization needed"
+      subject: "${lookup-config-by-application-id.appName}: All resources for your subscription were deleted"
       html_body: >
         Hey ${extract-data-from-event.name}!,
         <br><br>
-        We need OAuth permissions to ${lookup-config-by-application-id.oauthPurposeDescription}. Please click <a href="${meta.apiUrl}/oauth/google?s=${lookup-config-by-application-id.oauthSecretName}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
-        You will be redirected to a page where you can authorize the third-party app.
+        We have deleted all resources related to your subscription.
 
-        Best wishes,
-        Edurata Team
+        If you want to start a new subscription visit [this link](${lookup-config-by-application-id.appUrl}).
+
+        All the best,
+        The Edurata team
         <br><br>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

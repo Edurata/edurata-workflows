@@ -2,22 +2,10 @@ apiRevision: edurata.io/v1
 name: update-bot-info
 title: Update Bot Info
 description: |
-  Takes an email and sends an update link.
+  Takes an email and applicationId, looks up the corresponding configuration (sender email, subject, peopleTableId), and sends an update link.
 interface:
   inputs:
     properties:
-      senderEmail:
-        type: string
-        description: |
-          The email address from which the email will be sent
-      emailSubject:
-        type: string
-        description: |
-          The subject of the email
-      peopleTableId:
-        type: string
-        description: |
-          The base id + table_id from which to take the people
       data:
         type: object
         properties:
@@ -30,31 +18,75 @@ interface:
                   type: string
                 value:
                   type: string
+      applicationConfig:
+        type: object
+        description: |
+          A mapping of applicationId to senderEmail, emailSubject, and peopleTableId.
+        properties:
+          appName:
+            type: string
+          senderEmail:
+            type: string
+          emailSubject:
+            type: string
+          peopleTableId:
+            type: string
     required:
-      - emailSubject
-      - peopleTableId
       - data
+      - applicationConfig
+inputs:
+  applicationConfig: ${variables.applicationConfig}
 steps:
-  extract-data-from-event:
+  extract-application-id-and-data-from-event:
     runtime: python3_10
     code: |
       import urllib.parse
 
       def handler(inputs):
-          # Assuming 'inputs' is a dictionary and 'inputs["data"]' is a list of dictionaries
-          uri_encoded_email = urllib.parse.quote(inputs["data"][0]["value"])
+          # Assuming 'inputs["data"]' contains the relevant fields, including the applicationId
+          application_id = next((field["value"] for field in inputs["data"] if field["label"] == "applicationId"), None)
+          if not application_id:
+              raise ValueError("applicationId not found in event payload")
+
+          email = next((field["value"] for field in inputs["data"] if field["label"] == "email"), None)
+          if not email:
+              raise ValueError("Email not found in event payload")
+              
+          uri_encoded_email = urllib.parse.quote(email)
+
           return {
-              "email": inputs["data"][0]["value"],
+              "applicationId": application_id,
+              "email": email,
               "uriEncodedEmail": uri_encoded_email
           }
     props:
       data: ${inputs.data.fields}
+  lookup-config-by-application-id:
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          application_id = inputs["applicationId"]
+          
+          # Look up the configuration for the applicationId
+          app_config = inputs["applicationConfig"].get(application_id)
+          if not app_config:
+              raise ValueError(f"Configuration for applicationId {application_id} not found")
+          
+          return {
+              "appName": app_config["appName"],
+              "senderEmail": app_config["senderEmail"],
+              "emailSubject": app_config["emailSubject"],
+              "peopleTableId": app_config["peopleTableId"]
+          }
+    props:
+      applicationId: ${extract-application-id-and-data-from-event.applicationId}
+      applicationConfig: ${inputs.applicationConfig}
   find-in-airtable:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
+      url: 'https://api.airtable.com/v0/${lookup-config-by-application-id.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-application-id-and-data-from-event.email}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-oauth-email:
@@ -63,15 +95,15 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     props:
-      sender: ${inputs.senderEmail}
-      to: ${extract-data-from-event.email}
-      subject: ${inputs.emailSubject}
+      sender: ${lookup-config-by-application-id.senderEmail}
+      to: ${extract-application-id-and-data-from-event.email}
+      subject: "${lookup-config-by-application-id.appName}: Update your information"
       html_body: >
         Hey ${find-in-airtable.response.data.records[0].fields.name}!,
         <br><br>
         You requested a link to update your information.
         Please click <a href="${find-in-airtable.response.data.records[0].fields.updateUrl}">here</a> to do this.
-        You will be redirected to an airtable form where you can update your information.
+        You will be redirected to an Airtable form where you can update your information.
 
         <br><br>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}

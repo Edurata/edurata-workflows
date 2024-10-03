@@ -1,148 +1,128 @@
-name: application-bot
+name: airtable-job-applicator
 apiRevision: edurata.io/v1
 description: |
-  This workflow processes unprocessed entries in an Airtable. It checks if the customer has paid and sends an email reminder if they haven't. Otherwise, it extracts the recipient email from the rawText, processes the subject, email body, and sends the email to the recipient on behalf of the customer.
+  Workflow that scans an Airtable containing job postings in 'rawText', customer emails, and whether the entry is processed.
+  It generates personalized job applications for each customer based on their CV and sends the emails using Gmail.
 interface:
   inputs:
     type: object
     properties:
+      userEmail:
+        type: string
+        description: The email address of the user of the workflow
       airtableApiKey:
         type: string
       airtableBaseId:
         type: string
-      airtableTableId:
+      jobTableId:
         type: string
-      airtableCustomerTableId:
+        description: "The table name containing job postings and customer emails."
+      customerTableId:
         type: string
-    required:
-      - airtableApiKey
-      - airtableBaseId
-      - airtableTableId
-      - airtableCustomerTableId
+        description: "The table name containing customer information (email, CV)."
+    required: [airtableApiKey, airtableBaseId, jobTableId, customerTableId]
   outputs:
     type: object
     properties:
-      result:
+      status:
         type: string
-
+        description: "Status of the workflow execution."
+inputs:
+  airtableApiKey: ${secrets.AIRTABLE_API_KEY}
+  airtableBaseId: ${secrets.applicationConfig.applicationBot.airtableBaseId}
+  jobTableId: ${secrets.applicationConfig.applicationBot.jobTableId}
+  customerTableId: ${secrets.applicationConfig.applicationBot.peopleTableId}
 steps:
-  get-unprocessed-entries:
-    description: Retrieve unprocessed entries from Airtable.
+  get-job-postings:
+    description: "Retrieve job postings from Airtable where 'processed' is not true."
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.airtableTableId}"
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.jobTableId}"
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       params:
-        filterByFormula: "NOT({processed})"
-
-  check-payment-status:
-    description: Check if the customer has paid and whether more than one month has passed.
-    foreach: ${get-unprocessed-entries.response.data.records}
+        filterByFormula: "AND(NOT({processed}),email='${inputs.userEmail}')"
+  get-customer-details:
+    description: "Retrieve customer details (email and CV) from the second Airtable table."
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.airtableCustomerTableId}"
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.customerTableId}"
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       params:
-        filterByFormula: "{customerEmail} = '${each.fields.customerEmail}'"
-    then:
-      if: |
-        var now = new Date();
-        var lastPaymentDate = new Date(${check-payment-status.records[0].fields.lastPaymentDate});
-        var paid = ${check-payment-status.records[0].fields.paid};
-        var timeDiff = Math.abs(now.getTime() - lastPaymentDate.getTime());
-        var diffDays = Math.ceil(timeDiff / (1000 * 3600 * 24));
-        return diffDays > 30 && !paid;
-      then: send-reminder-email
-      else: extract-email-info
-
-  send-reminder-email:
-    if: ${check-payment-status} === false
-    description: Send a reminder email for the customer to pay.
+        filterByFormula: "email = '${inputs.userEmail}'"
+  extract-target-address:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    foreach: "${get-job-postings.response.data.records}"
+    props:
+      systemMessage: |
+        In the following text try to find the email address of the original author of the message.
+        Return only the email address. The ${inputs.userEmail} is of the recipient so can't be it.
+         Job Posting Details: ${each.fields.rawText} 
+      message: Find the address
+  generate-email-content:
+    description: "Generate a personalized job application email using ChatGPT."
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    foreach: "${get-job-postings.response.data.records}"
+    props:
+      model: "gpt-4"
+      systemMessage: |
+        "Using the following CV and job posting information, generate an email highlighting the applicant's skills and 
+         qualifications to apply for the job. The email should be professional and tailored to the job description. 
+         Only return the completed email without placeholders.
+         Job Posting Details: ${each.fields.rawText} 
+         Applicant CV: ${get-customer-details.response.data.records[0].fields.CV}."
+      message: "Create the email."
+  generate-email-subject:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    foreach: "${get-job-postings.response.data.records}"
+    props:
+      systemMessage: |
+        "Using the job posting information, generate an email subject that references the job opening.
+         Only return the completed subject.
+         Job Posting Details: ${each.fields.rawText} 
+      message: "Create the email subject."
+  send-email:
+    description: "Send the generated email using Gmail API."
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
+    foreach: "${generate-email-content}"
     props:
       method: POST
-      url: "https://api.mailgun.net/v3/your-domain.com/messages"
+      url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
       headers:
-        Authorization: "Bearer ${secrets.MAILGUN_API_KEY}"
-      body:
-        from: "noreply@yourdomain.com"
-        to: ${each.fields.customerEmail}
-        subject: "Payment Reminder"
-        text: "Dear customer, please sign up for our service to continue using it."
-
-  extract-email-info:
-    description: Extract email recipient, subject, and body from rawText.
-    runtime: python3_10
-    code: |
-      import re
-
-      def handler(inputs):
-          raw_text = inputs["rawText"]
-
-          # Extract recipient email using regex
-          email_match = re.search(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', raw_text)
-          recipient_email = email_match.group(0) if email_match else None
-
-          # Split the rawText into subject and body assuming a certain structure
-          lines = raw_text.split('\n')
-          subject = lines[0] if lines else ''
-          body = '\n'.join(lines[1:])
-
-          return {
-              "recipient_email": recipient_email,
-              "subject": subject,
-              "body": body
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      data:
+        raw: |
+          {
+            "to": "${extract-target-address[each.index].response}",
+            "subject": "${generate-email-subject[each.index].response}",
+            "html_body": "${each.response}"
           }
-    interface:
-      inputs:
-        type: object
-        properties:
-          rawText:
-            type: string
-      outputs:
-        type: object
-        properties:
-          recipient_email:
-            type: string
-          subject:
-            type: string
-          body:
-            type: string
-
-  send-customer-email:
-    description: Send the email on behalf of the customer.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: POST
-      url: "https://api.mailgun.net/v3/your-domain.com/messages"
-      headers:
-        Authorization: "Bearer ${secrets.MAILGUN_API_KEY}"
-      body:
-        from: ${each.fields.customerEmail}
-        to: ${extract-email-info.outputs.recipient_email}
-        subject: ${extract-email-info.outputs.subject}
-        text: ${extract-email-info.outputs.body}
-
-  mark-entry-as-processed:
-    description: Mark the entry as processed in Airtable.
+  mark-as-processed:
+    description: "Mark the processed records in Airtable to prevent duplicate applications."
+    foreach: "${get-job-postings.response.data.records}"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
       method: PATCH
-      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.airtableTableId}/${each.id}"
+      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.jobTableId}/${each.id}"
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"
-      body:
+      data:
         fields:
           processed: true

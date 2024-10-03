@@ -39,7 +39,6 @@ steps:
       params:
         q: "after:3m ${inputs.email_query}"
         maxResults: 100
-
   extract-unsubscribe-links:
     foreach: ${get-recent-emails.messages}
     description: |
@@ -63,7 +62,6 @@ steps:
           items:
             type: string
             description: "List of unsubscribe links found in the email"
-
   collect-all-links:
     description: |
       Collects all unsubscribe links from emails and consolidates them into one list.
@@ -91,7 +89,6 @@ steps:
           type: array
           items:
             type: string
-
   generate-html-body:
     description: |
       Generate an HTML body with the unsubscribe links for the email.
@@ -114,7 +111,6 @@ steps:
         html_body:
           type: string
           description: "HTML body with unsubscribe links"
-
   send-summary-email:
     description: |
       Send an email to the recipient with all unsubscribe links.

@@ -88,15 +88,16 @@ steps:
     props:
       applicationId: ${extract-data-from-event.applicationId}
       applicationConfig: ${inputs.applicationConfig}
-  delete-environment:
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.uriEncodedId}
-      method: DELETE
-      headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+  # Don't delete in case it is used by other apps
+  # delete-environment:
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: general/axios
+  #   props:
+  #     url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.uriEncodedId}
+  #     method: DELETE
+  #     headers:
+  #       Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
   delete-deployment:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

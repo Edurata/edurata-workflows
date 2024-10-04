@@ -70,7 +70,7 @@ steps:
       Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/linkedin-api-post
+      path: etl/load/post-blog-to-linkedin
     props:
       text: ${format-content.response}
       LINKEDIN_API_TOKEN: "Bearer ${secrets.LINKEDIN_API_KEY}"

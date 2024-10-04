@@ -72,8 +72,10 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/post-blog-to-linkedin
     props:
-      text: ${format-content.response}
-      LINKEDIN_API_TOKEN: "Bearer ${secrets.LINKEDIN_API_KEY}"
+      accessToken: "${secrets.LINKEDIN_API_KEY}"
+      author: ":"
+      title: ${generate-title.response}
+      content: ${format-content.response}
   post-to-medium:
     if: ${get-user-settings.response.data.records[0].fields.enabledTargets}.includes('mediumBlog')
     description: |

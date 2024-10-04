@@ -1,5 +1,5 @@
 apiRevision: edurata.io/v1
-name: setup-invoices-bot
+name: setup-microapp-user
 title: Setup Bot
 description: |
   Setup a bot that uses OAuth after a webhook call from Tally. The first two fields in Tally must be name and email. 

@@ -1,0 +1,101 @@
+name: airtable-blog-to-multiple-platforms
+apiRevision: edurata.io/v1
+description: |
+  This workflow retrieves the latest blog posts from an Airtable that have not been processed, checks the user settings to determine which platforms are enabled for publishing, formats the content if necessary through ChatGPT, and publishes to the platforms (e.g., LinkedIn, Medium). After successful publishing, it updates the Airtable with the URLs for each platform.
+# run schedule every day
+schedule: "0 0 * * *"
+interface:
+  inputs:
+    type: object
+    properties:
+      user_table_id:
+        type: string
+        description: "The Airtable ID in the format app/tbl for user"
+      blog_posts_table_id:
+        type: string
+        description: "The Airtable ID in the format app/tbl for blog posts"
+      user_email:
+        type: string
+        description: "The email of the current user"
+steps:
+  get-user-settings:
+    description: Fetch user settings from Airtable to determine enabled platforms.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.user_table_id}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      params:
+        filterByFormula: "{email}='${inputs.user_email}'"
+
+  get-latest-unprocessed-post:
+    description: Retrieve the latest unprocessed post from the Airtable.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.blog_posts_table_id}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      params:
+        filterByFormula: "AND({status}!='processed')"
+        limit: 1
+  format-content:
+    description: |
+      Format the content of each post using ChatGPT if necessary.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/chatgpt
+    props:
+      systemMessage: You are going to receive a blog post or a prompt about a blog post. Format it so it can be posted to social media.
+      message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
+  generate-title:
+    description: |
+      Format the content of each post using ChatGPT if necessary.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/chatgpt
+    props:
+      systemMessage: You are going to receive a blog post or a prompt about a blog post. Find a suitable title.
+      message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
+  post-to-linkedin:
+    if: ${get-user-settings.response.data.records[0].fields.enabledTargets}.includes('linkedinBlog')
+    description: |
+      Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/linkedin-api-post
+    props:
+      text: ${format-content.response}
+      LINKEDIN_API_TOKEN: "Bearer ${secrets.LINKEDIN_API_KEY}"
+  post-to-medium:
+    if: ${get-user-settings.response.data.records[0].fields.enabledTargets}.includes('mediumBlog')
+    description: |
+      Publish the post to Medium if the user has enabled Medium in their settings.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/post-to-medium
+    props:
+      title: ${generate-title.response}
+      content: ${format-content.response}
+      ACCESS_TOKEN: "Bearer ${secrets.MEDIUM_API_KEY}"
+  update-airtable:
+    description: |
+      Update the Airtable records with the published URLs for each platform and mark the post as processed.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: PATCH
+      url: "https://api.airtable.com/v0/${inputs.blog_posts_table_id}/${each.id}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      body:
+        fields:
+          linkedin_url: ${post-to-linkedin.response.url}
+          medium_url: ${post-to-medium.response.url}
+          status: "processed"

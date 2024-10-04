@@ -1,5 +1,5 @@
 apiRevision: edurata.io/v1
-name: update-bot-info
+name: update-microapp-user
 title: Update Bot Info
 description: |
   Takes an email and applicationId, looks up the corresponding configuration (sender email, subject, peopleTableId), and sends an update link.
@@ -89,7 +89,7 @@ steps:
       url: 'https://api.airtable.com/v0/${lookup-config-by-application-id.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-application-id-and-data-from-event.email}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
-  send-oauth-email:
+  send-email:
     if: ${find-in-airtable.response.data.records}.length === 1
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

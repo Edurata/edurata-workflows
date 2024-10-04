@@ -51,6 +51,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
     props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: You are going to receive a blog post or a prompt about a blog post. Format it so it can be posted to social media.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   generate-title:
@@ -60,6 +61,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
     props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: You are going to receive a blog post or a prompt about a blog post. Find a suitable title.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   post-to-linkedin:

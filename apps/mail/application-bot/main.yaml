@@ -75,6 +75,7 @@ steps:
       path: etl/transform/chatgpt
     foreach: "${get-job-postings.response.data.records}"
     props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
       model: "gpt-4"
       systemMessage: |
         "Using the following CV and job posting information, generate an email highlighting the applicant's skills and 
@@ -89,6 +90,7 @@ steps:
       path: etl/transform/chatgpt
     foreach: "${get-job-postings.response.data.records}"
     props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         "Using the job posting information, generate an email subject that references the job opening.
          Only return the completed subject.

@@ -63,6 +63,7 @@ steps:
       path: etl/transform/chatgpt
     foreach: "${get-job-postings.response.data.records}"
     props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         In the following text try to find the email address of the original author of the message.
         Return only the email address. The ${inputs.userEmail} is of the recipient so can't be it.

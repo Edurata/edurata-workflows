@@ -29,9 +29,9 @@ interface:
         description: "Status of the workflow execution."
 inputs:
   airtableApiKey: ${secrets.AIRTABLE_API_KEY}
-  airtableBaseId: ${secrets.applicationConfig.applicationBot.airtableBaseId}
-  jobTableId: ${secrets.applicationConfig.applicationBot.jobTableId}
-  customerTableId: ${secrets.applicationConfig.applicationBot.peopleTableId}
+  airtableBaseId: ${variables.applicationConfig.applicationBot.airtableBaseId}
+  jobTableId: ${variables.applicationConfig.applicationBot.jobTableId}
+  customerTableId: ${variables.applicationConfig.applicationBot.peopleTableId}
 steps:
   get-job-postings:
     description: "Retrieve job postings from Airtable where 'processed' is not true."

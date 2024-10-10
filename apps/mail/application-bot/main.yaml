@@ -12,15 +12,13 @@ interface:
         description: The email address of the user of the workflow
       airtableApiKey:
         type: string
-      airtableBaseId:
-        type: string
       jobTableId:
         type: string
         description: "The table name containing job postings and customer emails."
       customerTableId:
         type: string
         description: "The table name containing customer information (email, CV)."
-    required: [airtableApiKey, airtableBaseId, jobTableId, customerTableId]
+    required: [airtableApiKey, jobTableId, customerTableId]
   outputs:
     type: object
     properties:
@@ -29,7 +27,6 @@ interface:
         description: "Status of the workflow execution."
 inputs:
   airtableApiKey: ${secrets.AIRTABLE_API_KEY}
-  airtableBaseId: ${variables.applicationConfig.applicationBot.airtableBaseId}
   jobTableId: ${variables.applicationConfig.applicationBot.jobTableId}
   customerTableId: ${variables.applicationConfig.applicationBot.peopleTableId}
 steps:
@@ -40,7 +37,7 @@ steps:
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.jobTableId}"
+      url: "https://api.airtable.com/v0/${inputs.jobTableId}"
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       params:
@@ -52,7 +49,7 @@ steps:
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.customerTableId}"
+      url: "https://api.airtable.com/v0/${inputs.customerTableId}"
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       params:
@@ -123,7 +120,7 @@ steps:
       path: general/axios
     props:
       method: PATCH
-      url: "https://api.airtable.com/v0/${inputs.airtableBaseId}/${inputs.jobTableId}/${each.id}"
+      url: "https://api.airtable.com/v0/${inputs.jobTableId}/${each.id}"
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       data:

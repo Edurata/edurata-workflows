@@ -41,8 +41,9 @@ steps:
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       params:
-        filterByFormula: "AND(NOT({processed}),{customer.email}='${inputs.userEmail}')"
-        # filterByFormula: "NOT({processed})"
+        limit: 100
+        # filterByFormula: "AND(NOT({processed}),{customer.email}='${inputs.userEmail}')"
+        filterByFormula: "NOT({processed})"
   get-customer-details:
     description: "Retrieve customer details (email and CV) from the second Airtable table."
     source:

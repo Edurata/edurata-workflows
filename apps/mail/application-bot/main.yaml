@@ -1,7 +1,7 @@
 name: airtable-job-applicator
 apiRevision: edurata.io/v1
 description: |
-  Workflow that scans an Airtable containing job postings in 'rawText', customer emails, and whether the entry is processed.
+  Workflow that scans an Airtable containing job postings in 'raw', customer emails, and whether the entry is processed.
   It generates personalized job applications for each customer based on their CV and sends the emails using Gmail.
 interface:
   inputs:
@@ -66,7 +66,7 @@ steps:
       systemMessage: |
         In the following text try to find the email address of the original author of the message.
         Return only the email address. The ${inputs.userEmail} is of the recipient so can't be it.
-         Job Posting Details: ${each.fields.rawText} 
+         Job Posting Details: ${each.fields.raw} 
       message: Find the address
   generate-email-content:
     description: "Generate a personalized job application email using ChatGPT."
@@ -81,7 +81,7 @@ steps:
         "Using the following CV and job posting information, generate an email highlighting the applicant's skills and 
          qualifications to apply for the job. The email should be professional and tailored to the job description. 
          Only return the completed email without placeholders.
-         Job Posting Details: ${each.fields.rawText} 
+         Job Posting Details: ${each.fields.raw} 
          Applicant CV: ${get-customer-details.response.data.records[0].fields.CV}."
       message: "Create the email."
   generate-email-subject:
@@ -94,7 +94,7 @@ steps:
       systemMessage: |
         "Using the job posting information, generate an email subject that references the job opening.
          Only return the completed subject.
-         Job Posting Details: ${each.fields.rawText} 
+         Job Posting Details: ${each.fields.raw} 
       message: "Create the email subject."
   send-email:
     description: "Send the generated email using Gmail API."

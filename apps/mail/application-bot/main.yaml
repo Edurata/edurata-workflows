@@ -120,12 +120,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       data:
-        raw: >
-          {
-            "to": "${extract-target-address[each.index].response}",
-            "subject": "${generate-email-subject[each.index].response}",
-            "html_body": "${each.response}"
-          }
+        raw: '{"to": "${extract-target-address[each.index].response}","subject": "${generate-email-subject[each.index].response}","html_body": "${each.response}"}'
   mark-as-processed:
     description: "Mark the processed records in Airtable to prevent duplicate applications."
     foreach: "${filter-job-postings-by-user.filtered_jobs}"

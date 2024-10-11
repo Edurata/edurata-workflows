@@ -72,7 +72,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${filter-job-postings-by-user.response.data.records}"
+    foreach: "${filter-job-postings-by-user.filtered_jobs}"
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
@@ -85,7 +85,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${filter-job-postings-by-user.response.data.records}"
+    foreach: "${filter-job-postings-by-user.filtered_jobs}"
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       model: "gpt-4"
@@ -100,7 +100,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${filter-job-postings-by-user.response.data.records}"
+    foreach: "${filter-job-postings-by-user.filtered_jobs}"
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
@@ -128,7 +128,7 @@ steps:
           }
   mark-as-processed:
     description: "Mark the processed records in Airtable to prevent duplicate applications."
-    foreach: "${filter-job-postings-by-user.response.data.records}"
+    foreach: "${filter-job-postings-by-user.filtered_jobs}"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

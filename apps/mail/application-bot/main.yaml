@@ -44,6 +44,18 @@ steps:
         limit: 100
         # filterByFormula: "AND(NOT({processed}),{customer.email}='${inputs.userEmail}')"
         filterByFormula: "NOT({processed})"
+  filter-job-postings-by-user:
+    description: Filter job postings by user email on the created by field.
+    runtime: python3_10
+    props:
+      jobs: "${get-job-postings.response.data.records}"
+      userEmail: "${inputs.userEmail}"
+    code: |
+      def handler(inputs):
+          jobs = inputs['jobs']
+          userEmail = inputs['userEmail']
+          filtered_jobs = [job for job in jobs if job['fields']['customer']['email'] == userEmail]
+          return {'filtered_jobs': filtered_jobs}
   get-customer-details:
     description: "Retrieve customer details (email and CV) from the second Airtable table."
     source:
@@ -60,7 +72,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${get-job-postings.response.data.records}"
+    foreach: "${filter-job-postings-by-user.response.data.records}"
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
@@ -73,7 +85,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${get-job-postings.response.data.records}"
+    foreach: "${filter-job-postings-by-user.response.data.records}"
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       model: "gpt-4"
@@ -88,7 +100,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${get-job-postings.response.data.records}"
+    foreach: "${filter-job-postings-by-user.response.data.records}"
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
@@ -116,11 +128,12 @@ steps:
           }
   mark-as-processed:
     description: "Mark the processed records in Airtable to prevent duplicate applications."
-    foreach: "${get-job-postings.response.data.records}"
+    foreach: "${filter-job-postings-by-user.response.data.records}"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
+      _send-email: "${send-email}"
       method: PATCH
       url: "https://api.airtable.com/v0/${inputs.jobTableId}/${each.id}"
       headers:

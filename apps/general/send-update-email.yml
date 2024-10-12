@@ -101,7 +101,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${get-application-config-from-name.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${get-application-config-from-name.email}")'
+      url: 'https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${get-application-config-from-name.appConfig.email}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-email:
@@ -110,9 +110,9 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     props:
-      sender: ${get-application-config-from-name.senderEmail}
-      to: ${get-application-config-from-name.email}
-      subject: "${get-application-config-from-name.appName}: Update your information"
+      sender: ${get-application-config-from-name.appConfig.senderEmail}
+      to: ${get-application-config-from-name.appConfig.email}
+      subject: "${get-application-config-from-name.appConfig.appName}: Update your information"
       html_body: >
         Hey ${find-in-airtable.response.data.records[0].fields.name}!,
         <br><br>

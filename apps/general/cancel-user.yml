@@ -39,54 +39,64 @@ interface:
 inputs:
   applicationConfig: ${variables.applicationConfig}
 steps:
-  extract-data-from-event:
-    runtime: python3_10
+  extract-application-name-from-event:
+    runtime: nodejs20
+    interface:
+      inputs:
+        properties:
+          appNameField:
+            example:
+              {
+                "key": "question_0dDJAA",
+                "label": "Which microapp do you want to update?",
+                "type": "DROPDOWN",
+                "value": [
+                  "c426210f-e82e-4259-ac93-f1bf3951da32"
+                ],
+                "options": [
+                  {
+                    "id": "c09e221a-dbdb-4c04-a9cb-1b78e72e4a26",
+                    "text": "Short story bot"
+                  },
+                  {
+                    "id": "c426210f-e82e-4259-ac93-f1bf3951da32",
+                    "text": "Accounting bot"
+                  },
+                  {
+                    "id": "d45666ba-7026-4067-841a-5ba51bb04ffb",
+                    "text": "Application bot"
+                  }
+                ]
+              }
+            type: object
+        required:
+          - appNameField
     code: |
-      import urllib.parse
-
-      def handler(inputs):
-          # Extract applicationId from data fields
-          application_id = next((field["value"] for field in inputs["data"] if field["label"] == "applicationId"), None)
-          if not application_id:
-              raise ValueError("applicationId not found in webhook data")
-
-          name = next((field["value"] for field in inputs["data"] if field["label"] == "name"), None)
-          email = next((field["value"] for field in inputs["data"] if field["label"] == "email"), None)
-
-          if not name or not email:
-              raise ValueError("Name or email not found in webhook data")
-
-          uri_encoded_email = urllib.parse.quote(email)
-          uri_encoded_name = urllib.parse.quote(name)
-
-          return {
-              "applicationId": application_id,
-              "name": name,
-              "email": email,
-              "uriEncodedEmail": uri_encoded_email,
-              "uriEncodedId": uri_encoded_name + "-" + uri_encoded_email
-          }
+      exports.handler = async (inputs) => {
+        const appNameField = inputs.appNameField;
+        const appDropdownId = appNameField.value[0];
+        return {
+          applicationName: appNameField.options.find(option => option.id === appDropdownId).text
+        };
+      }
     props:
-      data: ${inputs.data.fields}
-  lookup-config-by-application-id:
-    runtime: python3_10
+      appNameField: ${inputs.data.fields[1]}
+  get-application-config-from-name:
+    runtime: nodejs20
     code: |
-      def handler(inputs):
-          application_id = inputs["applicationId"]
-          
-          # Look up the configuration for the applicationId
-          app_config = inputs["applicationConfig"].get(application_id)
-          if not app_config:
-              raise ValueError(f"Configuration for applicationId {application_id} not found")
-          
-          return {
-              "appName": app_config["appName"],
-              "appUrl": app_config["appUrl"],
-              "senderEmail": app_config["senderEmail"],
-              "peopleTableId": app_config["peopleTableId"]
-          }
+      exports.handler = async (inputs) => {
+        const applicationName = inputs.applicationName;
+        const applicationConfig = inputs.applicationConfig;
+        const applicationConfig = Object.entries(applicationConfig).find(([id, config]) => config.appName === applicationName)?.[1];
+        if (!applicationConfig) {
+          throw new Error(`No configuration found for applicationName ${applicationName}`);
+        }
+        return {
+          appConfig: applicationConfig,
+        }
+      }
     props:
-      applicationId: ${extract-data-from-event.applicationId}
+      applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}
   # Don't delete in case it is used by other apps
   # delete-environment:
@@ -112,7 +122,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${lookup-config-by-application-id.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
+      url: 'https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   delete-airtable-record:
@@ -120,7 +130,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: https://api.airtable.com/v0/${lookup-config-by-application-id.peopleTableId}/${get-person-data.response.data.records[0].id}
+      url: https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}/${get-person-data.response.data.records[0].id}
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-delete-email:
@@ -131,15 +141,15 @@ steps:
       _delete-deployment: ${delete-deployment}
       # _delete-environment: ${delete-environment}
       _delete-airtable-record: ${delete-airtable-record}
-      sender: ${lookup-config-by-application-id.senderEmail}
+      sender: ${get-application-config-from-name.appConfig.senderEmail}
       to: ${extract-data-from-event.email}
-      subject: "${lookup-config-by-application-id.appName}: All resources for your subscription were deleted"
+      subject: "${get-application-config-from-name.appConfig.appName}: All resources for your subscription were deleted"
       html_body: >
         Hey ${extract-data-from-event.name}!,
         <br><br>
         We have deleted all resources related to your subscription.
 
-        If you want to start a new subscription visit [this link](${lookup-config-by-application-id.appUrl}).
+        If you want to start a new subscription visit [this link](${get-application-config-from-name.appConfig.appUrl}).
 
         All the best,
         The Edurata team

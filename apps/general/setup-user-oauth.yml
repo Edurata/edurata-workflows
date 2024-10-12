@@ -42,55 +42,64 @@ interface:
 inputs:
   applicationConfig: ${variables.applicationConfig}
 steps:
-  extract-data-from-event:
-    runtime: python3_10
+  extract-application-name-from-event:
+    runtime: nodejs20
+    interface:
+      inputs:
+        properties:
+          appNameField:
+            example:
+              {
+                "key": "question_0dDJAA",
+                "label": "Which microapp do you want to update?",
+                "type": "DROPDOWN",
+                "value": [
+                  "c426210f-e82e-4259-ac93-f1bf3951da32"
+                ],
+                "options": [
+                  {
+                    "id": "c09e221a-dbdb-4c04-a9cb-1b78e72e4a26",
+                    "text": "Short story bot"
+                  },
+                  {
+                    "id": "c426210f-e82e-4259-ac93-f1bf3951da32",
+                    "text": "Accounting bot"
+                  },
+                  {
+                    "id": "d45666ba-7026-4067-841a-5ba51bb04ffb",
+                    "text": "Application bot"
+                  }
+                ]
+              }
+            type: object
+        required:
+          - appNameField
     code: |
-      import urllib.parse
-
-      def handler(inputs):
-          # Extract applicationId from data fields
-          application_id = next((field["value"] for field in inputs["data"] if field["label"] == "applicationId"), None)
-          if not application_id:
-              raise ValueError("applicationId not found in webhook data")
-
-          name = next((field["value"] for field in inputs["data"] if field["label"] == "name"), None)
-          email = next((field["value"] for field in inputs["data"] if field["label"] == "email"), None)
-
-          if not name or not email:
-              raise ValueError("Name or email not found in webhook data")
-
-          uri_encoded_email = urllib.parse.quote(email)
-          uri_encoded_name = urllib.parse.quote(name)
-
-          return {
-              "applicationId": application_id,
-              "name": name,
-              "email": email,
-              "uriEncodedEmail": uri_encoded_email,
-              "uriEncodedId": uri_encoded_name + "-" + uri_encoded_email
-          }
+      exports.handler = async (inputs) => {
+        const appNameField = inputs.appNameField;
+        const appDropdownId = appNameField.value[0];
+        return {
+          applicationName: appNameField.options.find(option => option.id === appDropdownId).text
+        };
+      }
     props:
-      data: ${inputs.data.fields}
-  lookup-config-by-application-id:
-    runtime: python3_10
+      appNameField: ${inputs.data.fields[1]}
+  get-application-config-from-name:
+    runtime: nodejs20
     code: |
-      def handler(inputs):
-          application_id = inputs["applicationId"]
-          
-          # Look up the configuration for the applicationId
-          app_config = inputs["applicationConfig"].get(application_id)
-          if not app_config:
-              raise ValueError(f"Configuration for applicationId {application_id} not found")
-          
-          return {
-              "appName": app_config["appName"],
-              "oauthPurposeDescription": app_config["oauthPurposeDescription"],
-              "oauthSecretName": app_config["oauthSecretName"],
-              "senderEmail": app_config["senderEmail"],
-              "deploymentRepoPath": app_config["deploymentRepoPath"]
-          }
+      exports.handler = async (inputs) => {
+        const applicationName = inputs.applicationName;
+        const applicationConfig = inputs.applicationConfig;
+        const applicationConfig = Object.entries(applicationConfig).find(([id, config]) => config.appName === applicationName)?.[1];
+        if (!applicationConfig) {
+          throw new Error(`No configuration found for applicationName ${applicationName}`);
+        }
+        return {
+          appConfig: applicationConfig,
+        }
+      }
     props:
-      applicationId: ${extract-data-from-event.applicationId}
+      applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}
   create-environment:
     source:
@@ -116,7 +125,7 @@ steps:
         name: "${extract-data-from-event.uriEncodedId}"
         source: 
           repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-          path: ${lookup-config-by-application-id.deploymentRepoPath} 
+          path: ${get-application-config-from-name.appConfig.deploymentRepoPath} 
         environmentId: ${create-environment.response.data.id}
         variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
   deploy-deployment:
@@ -133,13 +142,13 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     props:
-      sender: ${lookup-config-by-application-id.senderEmail}
+      sender: ${get-application-config-from-name.appConfig.senderEmail}
       to: ${extract-data-from-event.email}
-      subject: "${lookup-config-by-application-id.appName}: Authorization needed"
+      subject: "${get-application-config-from-name.appConfig.appName}: Authorization needed"
       html_body: >
         Hey ${extract-data-from-event.name}!,
         <br><br>
-        We need OAuth permissions to ${lookup-config-by-application-id.oauthPurposeDescription}. Please click <a href="${meta.apiUrl}/oauth/google?s=${lookup-config-by-application-id.oauthSecretName}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
+        We need OAuth permissions to ${get-application-config-from-name.appConfig.oauthPurposeDescription}. Please click <a href="${meta.apiUrl}/oauth/google?s=${get-application-config-from-name.appConfig.oauthSecretName}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
         You will be redirected to a page where you can authorize the third-party app.
 
         Best wishes,

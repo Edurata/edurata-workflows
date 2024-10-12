@@ -105,9 +105,10 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       model: "gpt-4"
       systemMessage: |
-        "Using the following CV and job posting information, generate an email highlighting the applicant's skills and 
+        "Using the following CV and job posting information, generate an email body highlighting the applicant's skills and 
          qualifications to apply for the job. The email should be professional and tailored to the job description. 
-         Only return the completed email without placeholders.
+         Only return the completed email body in html formatting and in the language of the job posting details.
+         Keep it concise and to the point.
          Job Posting Details: ${each.fields.raw} 
          Applicant CV: ${extract-CV-content.extracted_text}."
       message: "Create the email."
@@ -120,13 +121,32 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         "Using the job posting information, generate an email subject that references the job opening.
-         Only return the completed subject.
+         Only return the completed subject in the language of the job posting.
          Job Posting Details: ${each.fields.raw} 
       message: "Create the email subject."
   prepare-gmail-raw:
     foreach: "${generate-email-content}"
     description: "Prepare the base64 encoded raw email content for sending using Gmail API."
     runtime: python3_10
+    interface:
+      inputs:
+        type: object
+        properties:
+          html_body:
+            type: string
+          sender:
+            type: string
+          to:
+            type: string
+          subject:
+            type: string
+          CV:
+            type: file
+      outputs:
+        type: object
+        properties:
+          raw:
+            type: string
     code: |
       import base64
       import email
@@ -137,11 +157,20 @@ steps:
       import os
       def handler(inputs):
           message = inputs['html_body']
+          cv_filepath = inputs['cv_filepath']
           msg = MIMEMultipart()
           msg['From'] = inputs['sender']
           msg['To'] = inputs['to']
           msg['Subject'] = inputs['subject']
           msg.attach(MIMEText(message, 'html'))
+
+          attachment = open(cv_filepath, "rb")
+          part = MIMEBase('application', 'octet-stream')
+          part.set_payload(attachment.read())
+          encoders.encode_base64(part)
+          part.add_header('Content-Disposition', f"attachment; filename= {os.path.basename(cv_filepath)}")
+          msg.attach(part)
+          
           raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
           return {'raw': raw}
     props:
@@ -149,6 +178,7 @@ steps:
       to: "${extract-target-address[each.index].response}"
       subject: "${generate-email-subject[each.index].response}"
       html_body: "${each.response}"
+      cv_filepath: "${download-CV.response.file}"
   send-email:
     foreach: "${prepare-gmail-raw}"
     description: "Send the generated email using Gmail API."

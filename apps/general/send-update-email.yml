@@ -37,56 +37,71 @@ interface:
 inputs:
   applicationConfig: ${variables.applicationConfig}
 steps:
-  extract-application-id-and-data-from-event:
-    runtime: python3_10
+  extract-application-name-from-event:
+    runtime: nodejs20
+    interface:
+      inputs:
+        properties:
+          appNameField:
+            example:
+              {
+                "key": "question_0dDJAA",
+                "label": "Which microapp do you want to update?",
+                "type": "DROPDOWN",
+                "value": [
+                  "c426210f-e82e-4259-ac93-f1bf3951da32"
+                ],
+                "options": [
+                  {
+                    "id": "c09e221a-dbdb-4c04-a9cb-1b78e72e4a26",
+                    "text": "Short story bot"
+                  },
+                  {
+                    "id": "c426210f-e82e-4259-ac93-f1bf3951da32",
+                    "text": "Accounting bot"
+                  },
+                  {
+                    "id": "d45666ba-7026-4067-841a-5ba51bb04ffb",
+                    "text": "Application bot"
+                  }
+                ]
+              }
+            type: object
+        required:
+          - appNameField
     code: |
-      import urllib.parse
-
-      def handler(inputs):
-          # Assuming 'inputs["data"]' contains the relevant fields, including the applicationId
-          application_id = next((field["value"] for field in inputs["data"] if field["label"] == "applicationId"), None)
-          if not application_id:
-              raise ValueError("applicationId not found in event payload")
-
-          email = next((field["value"] for field in inputs["data"] if field["label"] == "email"), None)
-          if not email:
-              raise ValueError("Email not found in event payload")
-              
-          uri_encoded_email = urllib.parse.quote(email)
-
-          return {
-              "applicationId": application_id,
-              "email": email,
-              "uriEncodedEmail": uri_encoded_email
-          }
+      exports.handler = async (inputs) => {
+        const appNameField = inputs.appNameField;
+        const appDropdownId = appNameField.value[0];
+        return {
+          applicationName: appNameField.options.find(option => option.id === appDropdownId).text
+        };
+      }
     props:
-      data: ${inputs.data.fields}
-  lookup-config-by-application-id:
-    runtime: python3_10
+      appNameField: ${inputs.data.fields[1]}
+  get-application-config-from-name:
+    runtime: nodejs20
     code: |
-      def handler(inputs):
-          application_id = inputs["applicationId"]
-          
-          # Look up the configuration for the applicationId
-          app_config = inputs["applicationConfig"].get(application_id)
-          if not app_config:
-              raise ValueError(f"Configuration for applicationId {application_id} not found")
-          
-          return {
-              "appName": app_config["appName"],
-              "senderEmail": app_config["senderEmail"],
-              "emailSubject": app_config["emailSubject"],
-              "peopleTableId": app_config["peopleTableId"]
-          }
+      exports.handler = async (inputs) => {
+        const applicationName = inputs.applicationName;
+        const applicationConfig = inputs.applicationConfig;
+        const applicationConfig = Object.entries(applicationConfig).find(([id, config]) => config.appName === applicationName)?.[1];
+        if (!applicationConfig) {
+          throw new Error(`No configuration found for applicationName ${applicationName}`);
+        }
+        return {
+          appConfig: applicationConfig,
+        }
+      }
     props:
-      applicationId: ${extract-application-id-and-data-from-event.applicationId}
+      applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}
   find-in-airtable:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${lookup-config-by-application-id.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-application-id-and-data-from-event.email}")'
+      url: 'https://api.airtable.com/v0/${get-application-config-from-name.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-application-id-and-data-from-event.email}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-email:
@@ -95,9 +110,9 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     props:
-      sender: ${lookup-config-by-application-id.senderEmail}
+      sender: ${get-application-config-from-name.senderEmail}
       to: ${extract-application-id-and-data-from-event.email}
-      subject: "${lookup-config-by-application-id.appName}: Update your information"
+      subject: "${get-application-config-from-name.appName}: Update your information"
       html_body: >
         Hey ${find-in-airtable.response.data.records[0].fields.name}!,
         <br><br>

@@ -37,9 +37,11 @@ steps:
       auth: ${each.auth}
   get-runtime:
     runtime: python3_10
+    packages:
+      pyyaml: ""
     code: |
       import os
-      import json
+      import yaml  # Using yaml module for better YAML parsing
 
       def load_definition(filepath):
           runtime = ""
@@ -47,12 +49,11 @@ steps:
               definition_path = os.path.join(filepath, filename)
               if os.path.exists(definition_path):
                   with open(definition_path, "r") as file:
-                      definition = {}
-                      for line in file:
-                          if ":" in line:
-                              key, value = line.strip().split(":", 1)
-                              definition[key.strip()] = value.strip()
-                      runtime = definition.get("runtime", "")  # Handling case where 'runtime' key might not exist
+                      # Load the YAML content using the yaml module
+                      definition = yaml.safe_load(file)
+                      if definition and "runtime" in definition:
+                          # Get runtime and remove any upticks (`), single quotes ('), or double quotes (")
+                          runtime = definition.get("runtime", "").strip("`'\"")
                   break  # Stop iterating if a file is found
           return runtime
 
@@ -61,14 +62,15 @@ steps:
           
           for index, filepath in enumerate(event["files"]):
               # Accessing each dictionary in event["rest"] based on index
-              rest = event["rest"][index]  
-              # log ls on the filepath
+              rest = event["rest"][index]
+              # Log ls on the filepath
               print(os.listdir(filepath))
 
-              # try to open either .edufc.yaml or .edufc.yml
+              # Try to open either .edufc.yaml or .edufc.yml
               runtime = load_definition(filepath)
               runtime_and_files.append({"runtime": runtime, "repoCode": filepath, **rest})
 
+          # Sort files by runtime, ensuring 'python' comes first
           sorted_runtime_and_files = sorted(runtime_and_files, key=lambda x: (x["runtime"] != "python", x["runtime"]))
 
           return {"runtime_and_files": sorted_runtime_and_files}

@@ -108,19 +108,44 @@ steps:
          Only return the completed subject.
          Job Posting Details: ${each.fields.raw} 
       message: "Create the email subject."
+  prepare-gmail-raw:
+    foreach: "${generate-email-content}"
+    description: "Prepare the base64 encoded raw email content for sending using Gmail API."
+    runtime: python3_10
+    code: |
+      import base64
+      import email
+      from email.mime.multipart import MIMEMultipart
+      from email.mime.text import MIMEText
+      from email.mime.base import MIMEBase
+      from email import encoders
+      import os
+      def handler(inputs):
+          message = inputs['html_body']
+          msg = MIMEMultipart()
+          msg['From'] = inputs['sender']
+          msg['To'] = inputs['to']
+          msg['Subject'] = inputs['subject']
+          msg.attach(MIMEText(message, 'html'))
+          raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+          return {'raw': raw}
+    props:
+      sender: "${inputs.userEmail}"
+      to: "${extract-target-address[each.index].response}"
+      subject: "${generate-email-subject[each.index].response}"
+      html_body: "${each.response}"
   send-email:
     description: "Send the generated email using Gmail API."
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    foreach: "${generate-email-content}"
     props:
       method: POST
       url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       data:
-        raw: '{"to": "${extract-target-address[each.index].response}","subject": "${generate-email-subject[each.index].response}","html_body": "${each.response}"}'
+        raw: '{"to": "}","subject": "${generate-email-subject[each.index].response}","html_body": "${each.response}"}'
   mark-as-processed:
     description: "Mark the processed records in Airtable to prevent duplicate applications."
     foreach: "${filter-job-postings-by-user.filtered_jobs}"

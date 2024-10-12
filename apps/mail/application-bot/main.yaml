@@ -135,6 +135,7 @@ steps:
       subject: "${generate-email-subject[each.index].response}"
       html_body: "${each.response}"
   send-email:
+    foreach: "${prepare-gmail-raw}"
     description: "Send the generated email using Gmail API."
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -145,7 +146,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       data:
-        raw: '{"to": "}","subject": "${generate-email-subject[each.index].response}","html_body": "${each.response}"}'
+        raw: "${each.raw}"
   mark-as-processed:
     description: "Mark the processed records in Airtable to prevent duplicate applications."
     foreach: "${filter-job-postings-by-user.filtered_jobs}"

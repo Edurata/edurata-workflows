@@ -68,6 +68,21 @@ steps:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
+  download-CV:
+    description: "Download the CV of the user from the customer table."
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "${get-customer-details.response.data.records[0].fields.CV[0].url}"
+      streamToFile: true
+  extract-CV-content:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/extract/extract-text
+    props:
+      input_file: "${download-CV.response.file}"
   extract-target-address:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -94,7 +109,7 @@ steps:
          qualifications to apply for the job. The email should be professional and tailored to the job description. 
          Only return the completed email without placeholders.
          Job Posting Details: ${each.fields.raw} 
-         Applicant CV: ${get-customer-details.response.data.records[0].fields.CV}."
+         Applicant CV: ${extract-CV-content.extracted_text}."
       message: "Create the email."
   generate-email-subject:
     source:

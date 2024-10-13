@@ -37,40 +37,43 @@ steps:
       auth: ${each.auth}
   get-runtime:
     runtime: python3_10
-    packages:
-      pyyaml: ""
     code: |
       import os
-      import yaml  # Using yaml module for better YAML parsing
 
       def load_definition(filepath):
           runtime = ""
+          # Possible file names for the configuration
           for filename in (".edufc.yaml", ".edufc.yml"):
               definition_path = os.path.join(filepath, filename)
               if os.path.exists(definition_path):
                   with open(definition_path, "r") as file:
-                      # Load the YAML content using the yaml module
-                      definition = yaml.safe_load(file)
-                      if definition and "runtime" in definition:
-                          # Get runtime and remove any upticks (`), single quotes ('), or double quotes (")
-                          runtime = definition.get("runtime", "").strip("`'\"")
+                      # Load the YAML content manually, line by line
+                      for line in file:
+                          line = line.strip()
+                          # Look for the runtime declaration in the YAML file
+                          if line.startswith("runtime:"):
+                              # Extract the value after "runtime:" and clean up any quotes or backticks
+                              runtime = line.split(":", 1)[1].strip("`'\" ").strip()
+                              break  # Stop after finding the runtime
                   break  # Stop iterating if a file is found
           return runtime
 
       def handler(event):
           runtime_and_files = []
           
+          # Iterate over the files and associated rest properties
           for index, filepath in enumerate(event["files"]):
-              # Accessing each dictionary in event["rest"] based on index
+              # Access the corresponding "rest" element for the current file
               rest = event["rest"][index]
-              # Log ls on the filepath
+              # Log the contents of the directory for debugging
               print(os.listdir(filepath))
 
-              # Try to open either .edufc.yaml or .edufc.yml
+              # Try to open either .edufc.yaml or .edufc.yml and extract the runtime
               runtime = load_definition(filepath)
+              # Append the runtime and other details to the result
               runtime_and_files.append({"runtime": runtime, "repoCode": filepath, **rest})
 
-          # Sort files by runtime, ensuring 'python' comes first
+          # Sort the results to ensure Python-related files are prioritized
           sorted_runtime_and_files = sorted(runtime_and_files, key=lambda x: (x["runtime"] != "python", x["runtime"]))
 
           return {"runtime_and_files": sorted_runtime_and_files}

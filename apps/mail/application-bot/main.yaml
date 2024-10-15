@@ -105,9 +105,9 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       model: "gpt-4"
       systemMessage: |
-        "Using the following CV and job posting information, generate an email body highlighting the applicant's skills and 
+        "Using the following CV and job posting information, generate an email body in html without linebreaks highlighting the applicant's skills and 
          qualifications to apply for the job. The email should be professional and tailored to the job description. 
-         Only return the completed email body in html formatting and in the language of the job posting details.
+         Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
          Keep it concise and to the point.
          Job Posting Details: ${each.fields.raw} 
          Applicant CV: ${extract-CV-content.extracted_text}."

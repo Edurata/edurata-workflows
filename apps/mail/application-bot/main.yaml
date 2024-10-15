@@ -77,7 +77,6 @@ steps:
       method: GET
       url: "${get-customer-details.response.data.records[0].fields.CV[0].url}"
       streamToFile: true
-      streamToFileName: "CV.pdf"
   extract-CV-content:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

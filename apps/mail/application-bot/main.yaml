@@ -1,5 +1,6 @@
 name: airtable-job-applicator
 apiRevision: edurata.io/v1
+schedule: "0 0 * * *"
 description: |
   Workflow that scans an Airtable containing job postings in 'raw', customer emails, and whether the entry is processed.
   It generates personalized job applications for each customer based on their CV and sends the emails using Gmail.
@@ -110,6 +111,7 @@ steps:
          Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
          Keep it concise and to the point.
          Job Posting Details: ${each.fields.raw} 
+         Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.
          Applicant CV: ${extract-CV-content.extracted_text}."
       message: "Create the email."
   generate-email-subject:

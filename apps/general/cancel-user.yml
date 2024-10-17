@@ -146,14 +146,17 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
   delete-airtable-record:
+    if: ${delete-deployment.response.status} === 200
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
+      method: DELETE
       url: https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}/${find-in-airtable.response.data.records[0].id}
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-delete-email:
+    if: ${delete-airtable-record.response.status} === 200
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
@@ -169,7 +172,7 @@ steps:
         <br><br>
         We have deleted all resources related to your subscription.
 
-        If you want to start a new subscription visit [this link](${get-application-config-from-name.appConfig.appUrl}).
+        If you want to start a new subscription visit <a href="${get-application-config-from-name.appConfig.appUrl}">${get-application-config-from-name.appConfig.appName} online</a>.
 
         All the best,
         The Edurata team

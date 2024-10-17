@@ -25,7 +25,7 @@ interface:
         type: object
         description: |
           A mapping of applicationId to appName, oauthPurposeDescription, oauthSecretName, senderEmail, and deploymentRepoPath.
-        properties:
+        additionalProperties:
           appName:
             type: string
           oauthPurposeDescription:

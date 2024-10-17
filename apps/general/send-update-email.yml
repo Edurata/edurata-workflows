@@ -113,7 +113,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${get-application-config-from-name.appConfig.email}")'
+      url: 'https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-email:

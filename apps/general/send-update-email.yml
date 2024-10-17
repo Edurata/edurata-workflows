@@ -28,6 +28,22 @@ interface:
 inputs:
   applicationConfig: ${variables.applicationConfig}
 steps:
+  extract-data-from-event:
+    runtime: nodejs20
+    code: |
+      exports.handler = async (inputs) => {
+        const { data } = inputs;
+        const emailField = data.fields.find(field => field.label === 'Email');
+        const nameField = data.fields.find(field => field.label === 'Name');
+        const uriEncodedId = encodeURIComponent(emailField.value);
+        return {
+          email: emailField.value,
+          name: nameField.value,
+          uriEncodedId,
+        };
+      }
+    props:
+      data: ${inputs.data}
   extract-application-name-from-event:
     runtime: nodejs20
     interface:

@@ -167,7 +167,7 @@ steps:
       to: ${extract-data-from-event.email}
       subject: "${get-application-config-from-name.appConfig.appName}: All resources for your subscription were deleted"
       html_body: >
-        Hey ${extract-data-from-event.name}!,
+        Hey ${find-in-airtable.response.data.records[0].fields.name}!,
         <br><br>
         We have deleted all resources related to your subscription.
 

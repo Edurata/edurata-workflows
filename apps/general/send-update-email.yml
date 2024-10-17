@@ -22,15 +22,6 @@ interface:
         type: object
         description: |
           A mapping of applicationId to senderEmail, emailSubject, and peopleTableId.
-        properties:
-          appName:
-            type: string
-          senderEmail:
-            type: string
-          emailSubject:
-            type: string
-          peopleTableId:
-            type: string
     required:
       - data
       - applicationConfig

@@ -83,16 +83,22 @@ steps:
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
-        const applicationName = inputs.applicationName;
-        const applicationConfig = inputs.applicationConfig;
-        const applicationConfig = Object.entries(applicationConfig).find(([id, config]) => config.appName === applicationName)?.[1];
-        if (!applicationConfig) {
+        const { applicationName, applicationConfig } = inputs;
+
+        // Find the configuration for the given applicationName
+        const appConfig = Object.entries(applicationConfig)
+          .find(([id, config]) => config.appName === applicationName)?.[1];
+
+        // Throw an error if no configuration is found
+        if (!appConfig) {
           throw new Error(`No configuration found for applicationName ${applicationName}`);
         }
+
+        // Return the found configuration
         return {
-          appConfig: applicationConfig,
-        }
-      }
+          appConfig,
+        };
+      };
     props:
       applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}

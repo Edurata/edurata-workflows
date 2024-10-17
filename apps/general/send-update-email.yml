@@ -33,6 +33,7 @@ steps:
     code: |
       exports.handler = async (inputs) => {
         const { data } = inputs;
+        console.log(inputs)
         const emailField = data.fields[0]
         const uriEncodedId = encodeURIComponent(emailField.value);
         return {

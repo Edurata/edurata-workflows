@@ -117,7 +117,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-email:
-    if: ${find-in-airtable.response.data.records}.length === 1
+    if: (${find-in-airtable.response.data.records}).length === 1
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses

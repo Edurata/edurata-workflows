@@ -108,7 +108,7 @@ steps:
       path: etl/load/send-ses
     props:
       sender: ${get-application-config-from-name.appConfig.senderEmail}
-      to: ${get-application-config-from-name.appConfig.email}
+      to: ${extract-data-from-event.email}
       subject: "${get-application-config-from-name.appConfig.appName}: Update your information"
       html_body: >
         Hey ${find-in-airtable.response.data.records[0].fields.name}!,

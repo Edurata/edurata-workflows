@@ -85,19 +85,33 @@ steps:
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
-        const applicationName = inputs.applicationName;
-        const applicationConfig = inputs.applicationConfig;
-        const applicationConfig = Object.entries(applicationConfig).find(([id, config]) => config.appName === applicationName)?.[1];
-        if (!applicationConfig) {
+        const { applicationName, applicationConfig } = inputs;
+
+        // Find the configuration for the given applicationName
+        const appConfig = Object.entries(applicationConfig)
+          .find(([id, config]) => config.appName === applicationName)?.[1];
+
+        // Throw an error if no configuration is found
+        if (!appConfig) {
           throw new Error(`No configuration found for applicationName ${applicationName}`);
         }
+
+        // Return the found configuration
         return {
-          appConfig: applicationConfig,
-        }
-      }
+          appConfig,
+        };
+      };
     props:
       applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}
+  find-in-airtable:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: 'https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${get-application-config-from-name.appConfig.email}")'
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   # Don't delete in case it is used by other apps
   # delete-environment:
   #   source:
@@ -117,20 +131,12 @@ steps:
       method: DELETE
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-  get-person-data:
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      url: 'https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
-      headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   delete-airtable-record:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}/${get-person-data.response.data.records[0].id}
+      url: https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}/${find-in-airtable.response.data.records[0].id}
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-delete-email:

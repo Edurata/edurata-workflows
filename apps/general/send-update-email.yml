@@ -32,16 +32,16 @@ steps:
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
-        const { data } = inputs;
-        console.log(inputs)
+        const { data, appName } = inputs;
         const emailField = data.fields[0]
-        const uriEncodedId = encodeURIComponent(emailField.value);
+        const uriEncodedId = encodeURIComponent(appName + " for " +  emailField.value);
         return {
           email: emailField.value,
           uriEncodedId,
         };
       }
     props:
+      appName: ${extract-application-name-from-event.applicationName}
       data: ${inputs.data}
   extract-application-name-from-event:
     runtime: nodejs20

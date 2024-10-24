@@ -1,0 +1,63 @@
+name: wg-gesucht-listings-extractor
+runtime: python3_10
+interface:
+  description: Extracts new listings from WG-Gesucht after logging in using provided filters.
+  inputs:
+    properties:
+      filter:
+        type: object
+        description: Filters to apply to the search query.
+        properties:
+          city:
+            type: string
+            description: Name of the city.
+            required: true
+          rent_min:
+            type: number
+            description: Minimum rent.
+          rent_max:
+            type: number
+            description: Maximum rent.
+          room_size_min:
+            type: number
+            description: Minimum room size in square meters.
+          room_size_max:
+            type: number
+            description: Maximum room size in square meters.
+          available_from:
+            type: string
+            description: Available from date in YYYY-MM-DD format.
+          only_furnished:
+            type: boolean
+            description: Whether to only show furnished rooms (optional).
+      session_file:
+        type: file
+        description: Optional session cookie file to avoid logging in each time.
+  outputs:
+    properties:
+      listings:
+        type: object
+        description: A JSON object with the extracted listings.
+        properties:
+          data:
+            type: array
+            description: List of new WG-Gesucht entries matching the filter.
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                link:
+                  type: string
+                rent:
+                  type: number
+                room_size:
+                  type: number
+                available_from:
+                  type: string
+                description:
+                  type: string
+                furnished:
+                  type: boolean
+                location:
+                  type: string

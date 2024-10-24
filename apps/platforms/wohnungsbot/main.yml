@@ -1,0 +1,97 @@
+name: wg-gesucht-application-bot
+apiRevision: edurata.io/v1
+description: |
+  A bot that scans WG-Gesucht for new flat listings and automatically applies to them based on user-defined preferences.
+interface:
+  inputs:
+    properties:
+      search_params:
+        type: object
+        description: |
+          Parameters for searching flats, such as location, rent range, etc.
+        properties:
+          city: 
+            type: string
+          min_rent:
+            type: number
+          max_rent:
+            type: number
+          size_min:
+            type: number
+  outputs:
+    properties:
+      log_file:
+        type: file
+        description: A log file containing the applied listings.
+      status:
+        type: string
+        description: Status of the application process.
+steps:
+  fetch-flat-listings:
+    description: |
+      Fetch flat listings from WG-Gesucht using the specified search parameters.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: 'https://www.wg-gesucht.de/wohnungen-in-${inputs.search_params.city}.8.0.1.${inputs.search_params.city}.json'
+      params:
+        rent_from: ${inputs.search_params.min_rent}
+        rent_to: ${inputs.search_params.max_rent}
+        size_from: ${inputs.search_params.size_min}
+      headers:
+        User-Agent: Mozilla/5.0
+        Cookie: ${secrets.WG_GESUCHT_COOKIE}
+  filter-listings:
+    description: |
+      Filter the flat listings based on user-defined criteria.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          listings = inputs["fetch-flat-listings"]["response"]["data"]["listings"]
+          valid_listings = [
+              listing for listing in listings
+              if listing["rent"] <= inputs["search_params"]["max_rent"]
+              and listing["size"] >= inputs["search_params"]["size_min"]
+          ]
+          return {"valid_listings": valid_listings}
+  apply-to-listings:
+    description: |
+      Automatically apply to the filtered flat listings.
+    foreach: ${filter-listings.valid_listings}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: 'https://www.wg-gesucht.de/apply/${each.id}'
+      headers:
+        Cookie: ${secrets.WG_GESUCHT_COOKIE}
+      data:
+        message: |
+          Hello, 
+          I am very interested in your flat. Please let me know if it is still available. 
+          Best regards,
+          [Your Name]
+  log-applications:
+    description: |
+      Log the applied listings to a file to avoid duplicates.
+    runtime: python3_10
+    code: |
+      import json
+
+      def handler(inputs):
+          applied_listings = [{"id": listing["id"], "rent": listing["rent"]} for listing in inputs["filter-listings"]["valid_listings"]]
+          log_path = "/mnt/data/applied_listings.json"
+          with open(log_path, "w") as log_file:
+              json.dump(applied_listings, log_file)
+          return {"log_file": log_path}
+
+  final-status:
+    description: |
+      Return the final status of the application process.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          return {"status": "Applications submitted successfully."}

@@ -1,0 +1,38 @@
+name: freelancermap_job_filter
+runtime: python3_10
+description: A function that logs into Freelancermap, extracts job descriptions, and filters them based on keywords and date.
+interface:
+  inputs:
+    properties:
+      FREELANCERMAP_USERNAME:
+        type: env
+        description: The username for logging into Freelancermap.
+      FREELANCERMAP_PASSWORD:
+        type: env
+        description: The password for logging into Freelancermap.
+      positive_keywords:
+        type: string
+        description: List of comma separated positive keywords to filter jobs.
+      negative_keywords:
+        type: string
+        description: List of comma separated negative keywords to exclude jobs.
+      min_date:
+        type: string
+        description: Minimum date for job filtering in DD.MM.YYYY format.
+  outputs:
+    properties:
+      matching_jobs:
+        type: array
+        description: List of jobs that match the given criteria.
+        items:
+          type: object
+          properties:
+            title:
+              type: string
+              description: The job title.
+            content:
+              type: string
+              description: The full content of the job message.
+            date:
+              type: string
+              description: The posting date of the job in ISO format.

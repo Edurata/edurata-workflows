@@ -31,6 +31,34 @@ inputs:
   jobTableId: ${variables.applicationConfig.applicationBot.jobTableId}
   customerTableId: ${variables.applicationConfig.applicationBot.peopleTableId}
 steps:
+  extract-freelancermap-job-postings:
+    if: "${get-customer-details.response.data.records[0].fields.freelancermapUser}"
+    description: Extract job postings via html parsing and return a list of job postings.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
+      path: apps/mail/application-bot/extract-freelancermap
+    props:
+      FREELANCERMAP_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancermapUser}
+      FREELANCERMAP_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancermapPw}
+      positive_keywords: ${get-customer-details.response.data.records[0].fields.positiveKeywords}
+      negative_keywords: ${get-customer-details.response.data.records[0].fields.negativeKeywords}
+  add-new-jobs-to-airtable:
+    if: "${get-customer-details.response.data.records[0].fields.freelancermapUser}"
+    foreach: "${extract-freelancermap-job-postings.matching_jobs}"
+    description: Add new job postings to the Airtable.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: POST
+      url: "https://api.airtable.com/v0/${inputs.jobTableId}"
+      headers:
+        Authorization: "Bearer ${inputs.airtableApiKey}"
+      data:
+        fields:
+          raw: "${each}"
+          customer: "${get-customer-details.response.data.records[0].id}"
+          processed: false
   get-job-postings:
     description: "Retrieve job postings from Airtable where 'processed' is not true."
     source:

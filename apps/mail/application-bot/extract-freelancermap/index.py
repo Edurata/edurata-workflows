@@ -15,8 +15,8 @@ headers = {
 
 def login_to_freelancermap():
     """Logs into Freelancermap and returns a session object."""
-    username = os.getenv("FREELANCEMAP_USERNAME")
-    password = os.getenv("FREELANCEMAP_PASSWORD")
+    username = os.getenv("FREELANCERMAP_USERNAME")
+    password = os.getenv("FREELANCERMAP_PASSWORD")
 
     if not username or not password:
         raise ValueError("Environment variables FREELANCEMAP_USERNAME or FREELANCEMAP_PASSWORD not set.")
@@ -27,7 +27,7 @@ def login_to_freelancermap():
     payload = {
         "login": username,
         "password": password,
-        '_remember_me': '1',
+        '_remember_me': '0',
     }
 
     response = session.post(login_url, data=payload, headers=headers)

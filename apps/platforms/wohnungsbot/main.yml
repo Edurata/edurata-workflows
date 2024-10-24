@@ -27,11 +27,11 @@ interface:
         type: string
         description: Status of the application process.
 steps:
-  fetch-flat-listings:
+  search-flat-listings:
     description: |
       Fetch flat listings from WG-Gesucht using the specified search parameters.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: general/axios
     props:
       method: GET

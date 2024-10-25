@@ -1,76 +1,105 @@
+import re
+import json
+from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 import os
-import json
-import pickle
+from login import login_wg_gesucht  # Import the login function from login.py
 
-# WG-Gesucht URL
-BASE_URL = "https://www.wg-gesucht.de/"
+# WG-Gesucht base URL
+BASE_URL = "https://www.wg-gesucht.de"
 
-def login_wg_gesucht(username, password):
-    session = requests.Session()
-    login_url = BASE_URL + "ajax/logon.php"
+def parse_date(date_string):
+    if date_string:  
+        try:
+            return datetime.strptime(date_string.strip(), "%d.%m.%Y")
+        except ValueError:
+            return None
+    return None
 
-    response = session.post(login_url, data={
-        "login_email_username": username,
-        "login_password": password,
+def calculate_stay_length(start_date, end_date):
+    if start_date and end_date:
+        return (end_date - start_date).days
+    return None
+
+def search_listings(session, filters):
+    search_url = f"{BASE_URL}/wohnungen-in-Berlin.8.2.1.0.html"
+    response = session.get(search_url, params={
+        "offer_filter": 1,
+        "city_id": 8,
+        "sort_order": 0,
+        "noDeact": 1,
+        "categories[]": 2,
+        "sMin": filters.get("sMin", 0),
+        "rMax": filters.get("rMax", 10000),
+        "fur": 1 if filters.get("furnished") else 0,
+        "bal_or_ter": 1 if filters.get("balcony") else 0
     })
-
-    if "Erfolgreich eingeloggt" not in response.text:
-        raise Exception("Login failed. Check credentials.")
-    
-    return session
-
-def search_listings(session, filter):
-    city = filter.get("city", "")
-    rent_min = filter.get("rent_min", "")
-    rent_max = filter.get("rent_max", "")
-    room_size_min = filter.get("room_size_min", "")
-    room_size_max = filter.get("room_size_max", "")
-    available_from = filter.get("available_from", "")
-    only_furnished = filter.get("only_furnished", False)
-
-    search_url = f"{BASE_URL}wohnungsmarkt.html?city={city}"
-    response = session.get(search_url)
     soup = BeautifulSoup(response.text, 'html.parser')
 
     listings = []
 
     for listing in soup.find_all("div", class_="offer_list_item"):
-        title_element = listing.find("a", class_="headline")
-        title = title_element.text.strip()
-        link = BASE_URL + title_element["href"]
+        # Title and link
+        title_element = listing.find("h3", class_="truncate_title")
+        title = title_element.text.strip() if title_element else "No title"
+        link_element = title_element.find("a", href=True) if title_element else None
+        relative_link = link_element["href"] if link_element else None
+        link = BASE_URL + relative_link if relative_link else None
 
-        rent_text = listing.find("div", class_="offer_list_item_header").text
-        rent = int(''.join(filter(str.isdigit, rent_text)))
+        # Price
+        price_element = listing.find("div", class_="col-xs-3")
+        price_text = price_element.text.strip() if price_element else "0"
+        price = int(''.join(filter(str.isdigit, price_text)))
 
-        room_size_text = listing.find("span", class_="noprint").text
-        room_size = int(''.join(filter(str.isdigit, room_size_text)))
+        # Room size
+        room_size_element = listing.find("div", class_="col-xs-3 text-right")
+        room_size_text = room_size_element.text.strip() if room_size_element else "0"
+        room_size_match = re.search(r'\d+', room_size_text)
+        room_size = int(room_size_match.group()) if room_size_match else 0
 
-        location = listing.find("div", class_="col-xs-11").text.strip()
+        # Room count, city area, and street
+        location_element = listing.find("div", class_="col-xs-11")
+        location_text = location_element.text.replace("\n", " ").strip() if location_element else ""
+        location_text = re.sub(r'\s+', ' ', location_text)  # Remove excessive whitespace
+        room_count_match = re.search(r'(\d+)-Zimmer', location_text)
+        room_count = int(room_count_match.group(1)) if room_count_match else None
+
+        # Split location text on '|'
+        location_parts = [part.strip() for part in location_text.split('|') if part.strip()]
+        city_area = location_parts[1] if len(location_parts) > 1 else "Unknown"
+        street = location_parts[2] if len(location_parts) > 2 else "Unknown"
+
+        # Availability dates
+        availability_dates = listing.find("div", class_="col-xs-5 text-center").text.strip() if listing.find("div", class_="col-xs-5 text-center") else ""
+        start_date_text, end_date_text = availability_dates.split(" - ") if " - " in availability_dates else (availability_dates, None)
+        start_date_text = start_date_text.replace("\n", " ").strip() if start_date_text else None
+        end_date_text = end_date_text.replace("\n", " ").strip() if end_date_text else None
+        start_date = parse_date(start_date_text)
+        end_date = parse_date(end_date_text)
+        stay_length = calculate_stay_length(start_date, end_date)
+
+        # Furnished check
         furnished = "möbliert" in listing.text.lower()
 
-        available_element = listing.find("div", class_="col-xs-6")
-        available_from_text = available_element.text.strip() if available_element else ""
-        available_from_parsed = available_from_text.split(": ")[1] if ": " in available_from_text else ""
+        # Ad person name
+        ad_person_element = listing.find("span", class_="ml5")
+        ad_person = ad_person_element.text.strip() if ad_person_element else "Unknown"
 
-        description = listing.find("p", class_="text").text.strip() if listing.find("p", class_="text") else ""
-
-        # Apply filters to the extracted data
-        if (not rent_min or rent >= rent_min) and (not rent_max or rent <= rent_max):
-            if (not room_size_min or room_size >= room_size_min) and (not room_size_max or room_size <= room_size_max):
-                if not available_from or available_from in available_from_parsed:
-                    if not only_furnished or furnished:
-                        listings.append({
-                            "title": title,
-                            "link": link,
-                            "rent": rent,
-                            "room_size": room_size,
-                            "available_from": available_from_parsed,
-                            "description": description,
-                            "furnished": furnished,
-                            "location": location,
-                        })
+        listings.append({
+            "title": title,
+            "link": link,
+            "price": price,
+            "room_size": room_size,
+            "room_count": room_count,
+            "city_area": city_area,
+            "street": street,
+            "availability_start": start_date_text,
+            "availability_end": end_date_text,
+            "stay_length_days": stay_length,
+            "furnished": furnished,
+            "ad_person": ad_person
+        })
 
     return listings
 
@@ -81,30 +110,23 @@ def handler(inputs):
     if not username or not password:
         raise ValueError("WG_USERNAME and WG_PASSWORD must be set as environment variables.")
 
-    session_file = inputs.get("session_file")
-    filter = inputs.get("filter", {})
-
-    if session_file and os.path.exists(session_file):
-        with open(session_file, "rb") as f:
-            session = requests.Session()
-            session.cookies.update(pickle.load(f))
-    else:
-        session = login_wg_gesucht(username, password)
-
-    listings = search_listings(session, filter)
+    session, _ = login_wg_gesucht(username, password)
+    filters = inputs.get("filter", {})
+    listings = search_listings(session, filters)
 
     return {"listings": {"data": listings}}
 
-# Sample function call
-# inputs = {
-#     "filter": {
-#         "city": "Berlin",
-#         "rent_min": 300,
-#         "rent_max": 700,
-#         "room_size_min": 10,
-#         "room_size_max": 30,
-#         "available_from": "2024-11-01",
-#         "only_furnished": True
-#     }
-# }
-# print(handler(inputs))
+if __name__ == "__main__":
+    inputs = {
+        "filter": {
+            "sMin": 30,
+            "rMax": 1000,
+            "furnished": True,
+            "balcony": True
+        }
+    }
+    
+    results = handler(inputs)
+    with open("listings.json", "w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=4)
+    print("Listings saved to listings.json")

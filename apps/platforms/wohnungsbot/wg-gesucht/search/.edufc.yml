@@ -30,6 +30,19 @@ interface:
           only_furnished:
             type: boolean
             description: Whether to only show furnished rooms (optional).
+          max_online_time:
+            type: number
+            description: Maximum online time in hours.
+          move_in_earliest:
+            type: string
+            description: Earliest acceptable move-in date in YYYY-MM-DD format (optional).
+          move_in_latest:
+            type: string
+            description: Latest acceptable move-in date in YYYY-MM-DD format (optional).
+          min_stay_days:
+            type: number
+            description: Minimum stay duration in days (optional).
+        required: [city]
       session_file:
         type: file
         description: Optional session cookie file to avoid logging in each time.
@@ -47,17 +60,31 @@ interface:
               properties:
                 title:
                   type: string
+                  description: Title of the listing.
                 link:
                   type: string
+                  description: Direct link to the listing.
                 rent:
                   type: number
+                  description: Rent price in euros.
                 room_size:
                   type: number
-                available_from:
+                  description: Room size in square meters.
+                availability_start:
                   type: string
-                description:
+                  description: Start date of availability in DD.MM.YYYY format.
+                availability_end:
                   type: string
+                  description: End date of availability in DD.MM.YYYY format.
+                stay_days:
+                  type: number
+                  description: Calculated duration of stay in days.
+                online_time_hours:
+                  type: number
+                  description: Online time of the listing in hours.
                 furnished:
                   type: boolean
+                  description: Whether the listing is furnished.
                 location:
                   type: string
+                  description: Location details including area and street.

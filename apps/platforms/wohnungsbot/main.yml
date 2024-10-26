@@ -32,17 +32,11 @@ steps:
       Fetch flat listings from WG-Gesucht using the specified search parameters.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-      path: general/axios
+      path: platforms/wohnungsbot/wg-gesucht/search
     props:
-      method: GET
-      url: 'https://www.wg-gesucht.de/wohnungen-in-${inputs.search_params.city}.8.0.1.${inputs.search_params.city}.json'
-      params:
-        rent_from: ${inputs.search_params.min_rent}
-        rent_to: ${inputs.search_params.max_rent}
-        size_from: ${inputs.search_params.size_min}
-      headers:
-        User-Agent: Mozilla/5.0
-        Cookie: ${secrets.WG_GESUCHT_COOKIE}
+      filter: ${inputs.search_params}
+
+
   filter-listings:
     description: |
       Filter the flat listings based on user-defined criteria.

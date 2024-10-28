@@ -1,0 +1,33 @@
+name: "send_application_via_http_function"
+runtime: "python3_10"
+description: "Function to automate sending rental applications via WG-Gesucht by retrieving required CSRF tokens, user IDs, ad IDs, and ad types, and submitting applications with specified messages."
+
+interface:
+  inputs:
+    properties:
+      WG_USERNAME:
+        type: "env"
+        description: "Environment variable for the WG-Gesucht username."
+      WG_PASSWORD:
+        type: "env"
+        description: "Environment variable for the WG-Gesucht password."
+      application_list:
+        type: "array"
+        items:
+          type: "object"
+          properties:
+            listing_url:
+              type: "string"
+              description: "URL of the rental listing to apply for."
+            recipient_name:
+              type: "string"
+              description: "Name of the recipient to whom the application will be sent."
+            application:
+              type: "string"
+              description: "Text content of the application message to be sent."
+          required: ["listing_url", "recipient_name", "application"]
+  outputs:
+    properties:
+      status:
+        type: "string"
+        description: "Status of the application process for each message sent, including successes and failures."

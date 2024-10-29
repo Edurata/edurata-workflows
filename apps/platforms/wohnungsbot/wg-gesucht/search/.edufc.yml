@@ -18,16 +18,16 @@ interface:
             type: string
             description: "The city for the listing search, e.g., 'Berlin' or 'Munich'. Defaults to 'Berlin' if not provided."
           rent_max:
-            type: integer
+            type: number
             description: "Maximum rent price in EUR."
           room_size_min:
-            type: integer
+            type: number
             description: "Minimum room size in square meters."
           only_furnished:
             type: boolean
             description: "If true, only furnished rooms are listed."
           max_online_time:
-            type: integer
+            type: number
             description: "Maximum number of hours since the listing was posted."
           balcony:
             type: boolean
@@ -39,7 +39,7 @@ interface:
             type: string
             description: "Latest move-in date in YYYY-MM-DD format."
           min_stay_days:
-            type: integer
+            type: number
             description: "Minimum duration of stay in days."
         required: []
   outputs:
@@ -57,10 +57,10 @@ interface:
               type: string
               description: "Link to the listing on WG-gesucht."
             rent:
-              type: integer
+              type: number
               description: "Monthly rent price in EUR."
             room_size:
-              type: integer
+              type: number
               description: "Room size in square meters."
             availability_start:
               type: string
@@ -69,10 +69,10 @@ interface:
               type: string
               description: "End date of availability, in DD.MM.YYYY format."
             stay_days:
-              type: integer
+              type: number
               description: "Number of days the listing is available."
             room_count:
-              type: integer
+              type: number
               description: "Number of rooms in the listing."
             city_area:
               type: string

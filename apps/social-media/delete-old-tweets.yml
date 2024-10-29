@@ -24,7 +24,7 @@ interface:
     type: object
     properties:
       deleted_tweets_count:
-        type: integer
+        type: number
         description: "The number of deleted tweets."
 steps:
   extract-archive:
@@ -117,7 +117,7 @@ steps:
         Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
     outputs:
       deleted_tweets_count:
-        type: integer
+        type: number
         description: "The number of tweets deleted."
 
   summarize:
@@ -129,7 +129,7 @@ steps:
           type: array
       outputs:
         deleted_tweets_count:
-          type: integer
+          type: number
     code: |
       def handler(inputs):
           deleted_tweets = inputs['deleted_tweets']

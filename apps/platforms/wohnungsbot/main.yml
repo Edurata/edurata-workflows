@@ -87,7 +87,7 @@ steps:
       Fetch flat listings from WG-Gesucht using the specified search parameters.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-      path: platforms/wohnungsbot/wg-gesucht/search
+      path: apps/platforms/wohnungsbot/wg-gesucht/search
     props:
       filter: ${set-defaults-filter.filter}
       WG_USERNAME: ${get-customer-details.response.data.records[0].fields.wgUsername}
@@ -133,7 +133,7 @@ steps:
       Automatically apply to the filtered flat listings.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-      path: platforms/wohnungsbot/wg-gesucht/search
+      path: apps/platforms/wohnungsbot/wg-gesucht/search
     props:
       WG_USERNAME: ${get-customer-details.response.data.records[0].fields.wgUsername}
       WG_PASSWORD: ${get-customer-details.response.data.records[0].fields.wgPassword}

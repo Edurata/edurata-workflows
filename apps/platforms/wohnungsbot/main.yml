@@ -57,6 +57,7 @@ steps:
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
   set-defaults-filter:
+    runtime: python3_10
     description: |
       Set default values for the search filter.
     code: |
@@ -110,6 +111,7 @@ steps:
         - About the applicant: ${get-customer-details.response.data.records[0].fields.applicantDescription}
       message: "Create the message."
   merge-info:
+    runtime: python3_10
     description: |
       Merge the flat listings with the generated applications.
     code: |

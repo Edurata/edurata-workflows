@@ -117,8 +117,8 @@ steps:
       Merge the flat listings with the generated applications.
     code: |
       def handler(inputs):
-          listings = inputs['search-flat-listings.listings']
-          applications = inputs['generate-applications']
+          listings = inputs['listings']
+          applications = inputs['applications']
           merged_listings = []
           for listing, application in zip(listings, applications):
               merged_listings.append({
@@ -127,8 +127,8 @@ steps:
               })
           return {'merged_listings': merged_listings}
     props:
-      search-flat-listings: "${search-flat-listings.listings}"
-      generate-applications: "${generate-applications}"
+      listings: "${search-flat-listings.listings}"
+      applications: "${generate-applications}"
   apply-to-listings:  
     description: |
       Automatically apply to the filtered flat listings.

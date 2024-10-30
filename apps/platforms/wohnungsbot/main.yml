@@ -61,6 +61,7 @@ steps:
     description: |
       Set default values for the search filter.
     code: |
+      from datetime import datetime, timedelta
       def handler(inputs):
           search_params = inputs['search_params']
           today_date = datetime.now().strftime('%Y-%m-%d')

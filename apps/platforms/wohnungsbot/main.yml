@@ -71,7 +71,7 @@ steps:
               'rent_max': 1000,
               'room_size_min': 10,
               'only_furnished': False,
-              'max_online_time': 24,
+              'max_online_time': 1,
               'balcony': False,
               'move_in_earliest': today_date,
               'move_in_latest': in_three_months,

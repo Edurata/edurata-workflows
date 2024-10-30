@@ -1,7 +1,6 @@
 name: "send_application_via_http_function"
 runtime: "python3_10"
 description: "Function to automate sending rental applications via WG-Gesucht by retrieving required CSRF tokens, user IDs, ad IDs, and ad types, and submitting applications with specified messages."
-
 interface:
   inputs:
     properties:

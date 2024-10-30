@@ -122,7 +122,8 @@ steps:
           merged_listings = []
           for listing, application in zip(listings, applications):
               merged_listings.append({
-                  'lister_name': listing['lister_name'],
+                  'listing_url': listing['link'],
+                  'recipient_name': listing['lister_name'],
                   'application': application
               })
           return {'merged_listings': merged_listings}
@@ -134,7 +135,7 @@ steps:
       Automatically apply to the filtered flat listings.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-      path: apps/platforms/wohnungsbot/wg-gesucht/search
+      path: apps/platforms/wohnungsbot/wg-gesucht/apply
     props:
       WG_USERNAME: ${get-customer-details.response.data.records[0].fields.wgUsername}
       WG_PASSWORD: ${get-customer-details.response.data.records[0].fields.wgPassword}

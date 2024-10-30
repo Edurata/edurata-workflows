@@ -167,6 +167,7 @@ def search_listings(session, filters):
                 end_date = datetime.strptime(end_date_text, "%d.%m.%Y")
                 stay_days = (end_date - start_date).days
                 if stay_days < min_stay_days:
+                    print(f"Stay duration ({stay_days} days) is less than minimum required ({min_stay_days} days). Skipping listing.")
                     continue
             except ValueError:
                 continue
@@ -216,7 +217,7 @@ def handler(inputs):
 #         "only_furnished": False,
 #         "max_online_time": 48,
 #         "balcony": False,
-#         "move_in_earliest": "2025-02-01",
+#         "move_in_earliest": "2024-10-30",
 #         "move_in_latest": "2025-02-20",
 #         "min_stay_days": 100
 #     }

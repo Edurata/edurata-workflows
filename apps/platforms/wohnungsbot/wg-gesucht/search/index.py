@@ -139,6 +139,12 @@ def search_listings(session, filters):
     for listing in soup.find_all("div", class_="offer_list_item"):
         print("\n--- New Listing Found ---")
 
+        # Skip listings with "Verifiziertes Unternehmen" label
+        verified_label = listing.find("a", class_="label_verified")
+        if verified_label:
+            print("Skipping listing with 'Verifiziertes Unternehmen' label.")
+            continue
+
         title_element = listing.find("h3", class_="truncate_title")
         title = title_element.text.strip() if title_element else "No title"
         link_element = title_element.find("a", href=True) if title_element else None

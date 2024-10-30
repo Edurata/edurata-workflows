@@ -32,7 +32,7 @@ def fetch_csrf_token_and_data(session, message_url, application_text):
     return csrf_token_value, user_id_value, ad_id_value, ad_type_value, messages
 
 def send_application_via_http(application_list):
-    # Log in to the platform using requests
+    """Processes the application list by logging into the platform and sending each application."""
     username = os.getenv("WG_USERNAME")
     password = os.getenv("WG_PASSWORD")
     if not username or not password:
@@ -77,10 +77,22 @@ def send_application_via_http(application_list):
         print(f"Waiting for {delay:.2f} seconds before the next application...")
         time.sleep(delay)
 
-# Sample usage:
-# application_list = [
-#     {"listing_url": "https://www.wg-gesucht.de/wohnungen-in-Berlin-Friedrichshain.9860178.html", 
-#      "application": "Hello, I'm interested in renting your flat.", 
-#      "recipient_name": "Albian Mustafa"},
-# ]
-# send_application_via_http(application_list)
+def handler(inputs):
+    """Handler function to facilitate the structured interface for the send_application_via_http function."""
+    application_list = inputs.get("application_list")
+    if not application_list:
+        raise ValueError("application_list is required in inputs.")
+    
+    # Call the main function with the provided application list
+    send_application_via_http(application_list)
+    
+    return {"status": "Applications sent successfully"}
+
+# Sample function call (uncomment to use)
+# handler({
+#     "application_list": [
+#         {"listing_url": "https://www.wg-gesucht.de/wohnungen-in-Berlin-Friedrichshain.9860178.html", 
+#          "application": "Hello, I'm interested in renting your flat.", 
+#          "recipient_name": "Albian Mustafa"},
+#     ]
+# })

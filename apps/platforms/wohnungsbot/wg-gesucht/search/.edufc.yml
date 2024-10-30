@@ -12,7 +12,7 @@ interface:
         description: "Environment variable for the WG-Gesucht password."
       filter:
         type: object
-        description: "Filter options for the search query"
+        description: "Filter options for the search query."
         properties:
           city:
             type: string
@@ -41,6 +41,12 @@ interface:
           min_stay_days:
             type: number
             description: "Minimum duration of stay in days."
+          rm_min:
+            type: number
+            description: "Minimum number of rooms in the listing."
+          district_codes:
+            type: string
+            description: "Comma-separated list of district codes, e.g., '85076,116' for filtering by specific districts."
         required: []
   outputs:
     properties:

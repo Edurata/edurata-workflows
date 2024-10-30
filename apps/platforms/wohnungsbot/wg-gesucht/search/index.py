@@ -1,6 +1,6 @@
 import re
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
 import os
@@ -80,6 +80,8 @@ def search_listings(session, filters):
     move_in_earliest = filters.get("move_in_earliest")
     move_in_latest = filters.get("move_in_latest")
     min_stay_days = filters.get("min_stay_days", 0)
+    rm_min = filters.get("rm_min", 1)  # Minimum room count
+    max_online_time = filters.get("max_online_time", None)  # Maximum listing online time in hours
 
     dFr = int(datetime.strptime(move_in_earliest, "%Y-%m-%d").replace(hour=12).timestamp()) if move_in_earliest else None
     dTo = int(datetime.strptime(move_in_latest, "%Y-%m-%d").replace(hour=12).timestamp()) if move_in_latest else None
@@ -95,9 +97,17 @@ def search_listings(session, filters):
         "dTo": dTo,
         "exc": 2,
         "categories[]": 2,
+        "rent_types[]": [1, 2],  # Constant rent types
         "rMax": filters.get("rent_max", 1000),
-        "sMin": filters.get("room_size_min", 10)
+        "sMin": filters.get("room_size_min", 10),
+        "rmMin": rm_min  # Minimum room count filter
     }
+
+    # Comma-separated district codes to `ot[]` parameters
+    district_codes = filters.get("district_codes", "")
+    if district_codes:
+        for code in district_codes.split(","):
+            params[f"ot[{code.strip()}]"] = code.strip()
 
     if "only_furnished" in filters:
         params["fur"] = 1 if filters["only_furnished"] else 0
@@ -122,6 +132,9 @@ def search_listings(session, filters):
 
     soup = BeautifulSoup(response.text, 'html.parser')
     listings = []
+
+    max_online_delta = timedelta(hours=max_online_time) if max_online_time is not None else None
+    current_time = datetime.now()
 
     for listing in soup.find_all("div", class_="offer_list_item"):
         print("\n--- New Listing Found ---")
@@ -154,6 +167,20 @@ def search_listings(session, filters):
         city_area = location_parts[1] if len(location_parts) > 1 else None
         street = location_parts[2] if len(location_parts) > 2 else None
         print(f"Room Count: {room_count}, City Area: {city_area}, Street: {street}")
+
+        # Filter based on max_online_time
+        post_date_element = listing.find("span", class_="text-muted")  # Example element for post date
+        if post_date_element and max_online_delta:
+            post_time_str = post_date_element.text.strip()
+            try:
+                post_time = datetime.strptime(post_time_str, "%d.%m.%Y %H:%M")  # Expected date-time format
+                time_since_post = current_time - post_time
+                if time_since_post > max_online_delta:
+                    print(f"Listing exceeds max online time ({time_since_post} > {max_online_delta}). Skipping listing.")
+                    continue
+            except ValueError:
+                print(f"Could not parse posting time for filtering: {post_time_str}")
+                continue
 
         availability_dates = listing.find("div", class_="col-xs-5 text-center").text.strip() if listing.find("div", class_="col-xs-5 text-center") else ""
         start_date_text, end_date_text = availability_dates.split(" - ") if " - " in availability_dates else (availability_dates, None)
@@ -214,6 +241,8 @@ def handler(inputs):
 #         "city": "Munich",
 #         "rent_max": 1000,
 #         "room_size_min": 10,
+#         "rm_min": 2,
+#         "district_codes": "85076,116",
 #         "only_furnished": False,
 #         "max_online_time": 48,
 #         "balcony": False,

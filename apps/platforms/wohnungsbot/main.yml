@@ -73,6 +73,8 @@ steps:
               'only_furnished': False,
               'max_online_time': 1,
               'balcony': False,
+              'rm_min': 1,
+              'district_codes': '',
               'move_in_earliest': today_date,
               'move_in_latest': in_three_months,
               'min_stay_days': 30

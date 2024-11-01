@@ -115,21 +115,27 @@ def filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days):
 
 def handler(inputs):
     """Main handler function."""
-    print("Handler started with inputs:", inputs)
-    positive_keywords = inputs.get("positive_keywords", [])
-    negative_keywords = inputs.get("negative_keywords", [])
-    max_elapsed_days = inputs.get("max_elapsed_days", 30)  # Default to 30 days if not provided
+    try:
+        print("Handler started with inputs:", inputs)
+        positive_keywords = inputs.get("positive_keywords", [])
+        negative_keywords = inputs.get("negative_keywords", [])
+        max_elapsed_days = inputs.get("max_elapsed_days", 30)  # Default to 30 days if not provided
 
-    session = login_to_freelancermap()
+        session = login_to_freelancermap()
 
-    jobs = extract_job_descriptions(session)
+        jobs = extract_job_descriptions(session)
 
-    matching_jobs = filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days)
+        matching_jobs = filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days)
 
-    print("Handler finished, returning matching jobs")
-    return {
-        "matching_jobs": matching_jobs
-    }
+        print("Handler finished, returning matching jobs")
+        return {
+            "matching_jobs": matching_jobs
+        }
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return {
+            "error": str(e)
+        }
 
 # Sample call to the handler function (for testing)
 # inputs = {

@@ -76,16 +76,23 @@ def extract_job_descriptions(session):
     return jobs
 
 def filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days):
-    """Filters jobs based on positive/negative keywords and elapsed days since posting."""
+    """Filters jobs based on comma-separated positive/negative keywords and elapsed days since posting."""
+    # Convert keyword lists to lowercase for case-insensitive matching
+    positive_keywords = positive_keywords.lower().split(",") if isinstance(positive_keywords, str) else []
+    negative_keywords = negative_keywords.lower().split(",") if isinstance(negative_keywords, str) else []
+    
     today = datetime.today()
     matching_jobs = []
     for job in jobs:
-        job_text = f"{job['title']} {job['content']}"
+        job_text = f"{job['title']} {job['content']}".lower()
         days_elapsed = (today - job["date"]).days
-        if any(keyword.lower() in job_text.lower() for keyword in positive_keywords) and \
-           not any(keyword.lower() in job_text.lower() for keyword in negative_keywords) and \
+
+        # Check if any positive keyword is present and no negative keyword is present
+        if any(keyword.strip() in job_text for keyword in positive_keywords) and \
+           not any(keyword.strip() in job_text for keyword in negative_keywords) and \
            days_elapsed <= max_elapsed_days:
             matching_jobs.append(job)
+    
     return matching_jobs
 
 def handler(inputs):

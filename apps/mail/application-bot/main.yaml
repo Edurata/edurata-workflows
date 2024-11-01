@@ -1,6 +1,5 @@
 name: airtable-job-applicator
 apiRevision: edurata.io/v1
-schedule: "0 0 * * *"
 description: |
   Workflow that scans an Airtable containing job postings in 'raw', customer emails, and whether the entry is processed.
   It generates personalized job applications for each customer based on their CV and sends the emails using Gmail.

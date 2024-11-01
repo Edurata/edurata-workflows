@@ -105,9 +105,9 @@ def handler(inputs):
     }
 
 # Sample call to the handler function (for testing)
-inputs = {
-    "positive_keywords": ["Python", "Remote"],
-    "negative_keywords": ["Java", "On-site"],
-    "max_elapsed_days": 15  # Only jobs posted within the last 15 days
-}
-print(handler(inputs))
+# inputs = {
+#     "positive_keywords": ["Python", "Remote"],
+#     "negative_keywords": ["Java", "On-site"],
+#     "max_elapsed_days": 15  # Only jobs posted within the last 15 days
+# }
+# print(handler(inputs))

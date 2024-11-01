@@ -136,12 +136,34 @@ steps:
   #     method: DELETE
   #     headers:
   #       Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-  delete-deployment:
+  get-deployment-triggers:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/deployment/byname/${extract-data-from-event.uriEncodedId}
+      url: ${meta.apiUrl}/deployment/${get-application-config-from-name.appConfig.deploymentId}/trigger
+      method: GET
+      headers:
+        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+  find-trigger-id:
+    runtime: nodejs20
+    code: |
+      exports.handler = async (inputs) => {
+        const { getDeploymentTriggers } = inputs;
+        const triggerId = getDeploymentTriggers.response.data.items.find(trigger => trigger.name === inputs.uriEncodedId).id;
+        return {
+          triggerId,
+        };
+      };
+    props:
+      getDeploymentTriggers: ${get-deployment-triggers}
+      uriEncodedId: ${extract-data-from-event.uriEncodedId}
+  delete-trigger:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: ${meta.apiUrl}/deployments/${get-application-config-from-name.appConfig.deploymentId}/trigger/${find-trigger-id.triggerId}
       method: DELETE
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"

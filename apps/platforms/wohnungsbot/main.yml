@@ -43,6 +43,8 @@ interface:
           min_stay_days:
             type: number
             description: "Minimum duration of stay in days."
+inputs:
+  customerTableId: ${variables.applicationConfig.wohnungsbot.peopleTableId}
 steps:
   get-customer-details:
     description: "Retrieve customer details (email and CV) from the second Airtable table."

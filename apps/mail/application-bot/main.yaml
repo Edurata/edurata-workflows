@@ -30,6 +30,7 @@ inputs:
   airtableApiKey: ${secrets.AIRTABLE_API_KEY}
   jobTableId: ${variables.applicationConfig.applicationBot.jobTableId}
   customerTableId: ${variables.applicationConfig.applicationBot.peopleTableId}
+  maxElapsedDays: ${variables.applicationConfig.applicationBot.maxElapsedDays}
 steps:
   extract-freelancermap-job-postings:
     if: "\"${get-customer-details.response.data.records[0].fields.freelancermapUser}\""
@@ -42,6 +43,7 @@ steps:
       FREELANCERMAP_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancermapPw}
       positive_keywords: ${get-customer-details.response.data.records[0].fields.positiveKeywords}
       negative_keywords: ${get-customer-details.response.data.records[0].fields.negativeKeywords}
+      max_elapsed_days: ${inputs.maxElapsedDays}
   add-new-jobs-to-airtable:
     if: "\"${get-customer-details.response.data.records[0].fields.freelancermapUser}\""
     foreach: "${extract-freelancermap-job-postings.matching_jobs}"

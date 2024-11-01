@@ -1,6 +1,6 @@
 name: freelancermap_job_filter
 runtime: python3_10
-description: A function that logs into Freelancermap, extracts job descriptions, and filters them based on keywords and date.
+description: A function that logs into Freelancermap, extracts job descriptions, and filters them based on keywords and elapsed days since posting.
 interface:
   inputs:
     properties:
@@ -12,13 +12,14 @@ interface:
         description: The password for logging into Freelancermap.
       positive_keywords:
         type: string
-        description: List of comma separated positive keywords to filter jobs.
+        description: List of comma-separated positive keywords to filter jobs.
       negative_keywords:
         type: string
-        description: List of comma separated negative keywords to exclude jobs.
-      min_date:
-        type: string
-        description: Minimum date for job filtering in DD.MM.YYYY format.
+        description: List of comma-separated negative keywords to exclude jobs.
+      max_elapsed_days:
+        type: integer
+        description: Maximum number of days since the job was posted for it to be included in the results.
+    required: [FREELANCERMAP_USERNAME, FREELANCERMAP_PASSWORD, positive_keywords, max_elapsed_days]
   outputs:
     properties:
       matching_jobs:

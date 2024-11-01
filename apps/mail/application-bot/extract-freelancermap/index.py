@@ -1,7 +1,7 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:85.0) Gecko/20100101 Firefox/85.0',
@@ -19,7 +19,7 @@ def login_to_freelancermap():
     password = os.getenv("FREELANCERMAP_PASSWORD")
 
     if not username or not password:
-        raise ValueError("Environment variables FREELANCEMAP_USERNAME or FREELANCEMAP_PASSWORD not set.")
+        raise ValueError("Environment variables FREELANCERMAP_USERNAME or FREELANCERMAP_PASSWORD not set.")
 
     login_url = "https://www.freelancermap.com/login"
     session = requests.Session()
@@ -75,14 +75,16 @@ def extract_job_descriptions(session):
 
     return jobs
 
-def filter_jobs(jobs, positive_keywords, negative_keywords, min_date):
-    """Filters jobs based on positive/negative keywords and date."""
+def filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days):
+    """Filters jobs based on positive/negative keywords and elapsed days since posting."""
+    today = datetime.today()
     matching_jobs = []
     for job in jobs:
         job_text = f"{job['title']} {job['content']}"
+        days_elapsed = (today - job["date"]).days
         if any(keyword.lower() in job_text.lower() for keyword in positive_keywords) and \
            not any(keyword.lower() in job_text.lower() for keyword in negative_keywords) and \
-           job["date"] >= min_date:
+           days_elapsed <= max_elapsed_days:
             matching_jobs.append(job)
     return matching_jobs
 
@@ -90,16 +92,13 @@ def handler(inputs):
     """Main handler function."""
     positive_keywords = inputs.get("positive_keywords", [])
     negative_keywords = inputs.get("negative_keywords", [])
-
-    # Default to today's date if no min_date is provided
-    min_date_str = inputs.get("min_date")
-    min_date = datetime.strptime(min_date_str, "%d.%m.%Y") if min_date_str else datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
+    max_elapsed_days = inputs.get("max_elapsed_days", 30)  # Default to 30 days if not provided
 
     session = login_to_freelancermap()
 
     jobs = extract_job_descriptions(session)
 
-    matching_jobs = filter_jobs(jobs, positive_keywords, negative_keywords, min_date)
+    matching_jobs = filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days)
 
     return {
         "matching_jobs": matching_jobs
@@ -108,7 +107,7 @@ def handler(inputs):
 # Sample call to the handler function (for testing)
 inputs = {
     "positive_keywords": ["Python", "Remote"],
-    "negative_keywords": ["Java", "On-site"]
-    # No min_date specified, so it defaults to today's date
+    "negative_keywords": ["Java", "On-site"],
+    "max_elapsed_days": 15  # Only jobs posted within the last 15 days
 }
 print(handler(inputs))

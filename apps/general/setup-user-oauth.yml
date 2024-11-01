@@ -135,32 +135,22 @@ steps:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
         name: "${extract-data-from-event.uriEncodedId}"
-  create-deployment:
+  create-trigger:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/deployment
+      url: ${meta.apiUrl}/deployments/{get-application-config-from-name.appConfig.deploymentId}/trigger
       method: POST
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
-        name: "${extract-data-from-event.uriEncodedId}"
-        source: 
-          repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-          path: ${get-application-config-from-name.appConfig.deploymentRepoPath} 
+        name: "${extract-data-from-event.name}"
         environmentId: ${create-environment.response.data.id}
-        variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
-  deploy-deployment:
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      url: ${meta.apiUrl}/deployment/${create-deployment.response.data.id}/deploy
-      method: POST
-      headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+        deploymentId: ${get-application-config-from-name.appConfig.deploymentId}
+        variables: "{\"userEmail\": \"${extract-data-from-event.email}\", \"peopleTableId\": \"${get-application-config-from-name.appConfig.peopleTableId}\"}"
   send-oauth-email:
+    if: ${get-application-config-from-name.appConfig.oauthSecretName}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses

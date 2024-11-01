@@ -67,6 +67,7 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
+      _add-new-jobs-to-airtable: "${add-new-jobs-to-airtable}"
       method: GET
       url: "https://api.airtable.com/v0/${inputs.jobTableId}"
       headers:

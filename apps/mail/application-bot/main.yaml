@@ -126,7 +126,7 @@ steps:
         "Using the following CV and job posting information, generate an email body in html without linebreaks highlighting the applicant's skills and 
          qualifications to apply for the job. The email should be professional and tailored to the job description. 
          Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
-         Keep it concise and to the point.
+         Keep it very short and dry. Don't use flattering language.
          Job Posting Details: ${each.fields.raw} 
          Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.
          Applicant CV: ${extract-CV-content.extracted_text}."

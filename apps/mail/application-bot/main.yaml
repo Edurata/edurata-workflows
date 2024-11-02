@@ -57,8 +57,8 @@ steps:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       data:
         fields:
-          raw: "${each}"
-          customer: "${get-customer-details.response.data.records[0].id}"
+          raw: "${each.content}"
+          userEmail: "${inputs.userEmail}"
           processed: false
   get-job-postings:
     description: "Retrieve job postings from Airtable where 'processed' is not true."
@@ -73,20 +73,7 @@ steps:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       params:
         limit: 100
-        # filterByFormula: "AND(NOT({processed}),{customer.email}='${inputs.userEmail}')"
-        filterByFormula: "NOT({processed})"
-  filter-job-postings-by-user:
-    description: Filter job postings by user email on the created by field.
-    runtime: python3_10
-    props:
-      jobs: "${get-job-postings.response.data.records}"
-      userEmail: "${inputs.userEmail}"
-    code: |
-      def handler(inputs):
-          jobs = inputs['jobs']
-          userEmail = inputs['userEmail']
-          filtered_jobs = [job for job in jobs if job['fields']['customer']['email'] == userEmail]
-          return {'filtered_jobs': filtered_jobs}
+        filterByFormula: "AND(NOT({processed}),{userEmail}='${inputs.userEmail}')"
   get-customer-details:
     description: "Retrieve customer details (email and CV) from the second Airtable table."
     source:
@@ -118,7 +105,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${filter-job-postings-by-user.filtered_jobs}"
+    foreach: "${get-job-postings.response.data.records}"
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
@@ -131,7 +118,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${filter-job-postings-by-user.filtered_jobs}"
+    foreach: "${get-job-postings.response.data.records}"
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       model: "gpt-4"
@@ -148,7 +135,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${filter-job-postings-by-user.filtered_jobs}"
+    foreach: "${get-job-postings.response.data.records}"
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
@@ -226,7 +213,7 @@ steps:
         raw: "${each.raw}"
   mark-as-processed:
     description: "Mark the processed records in Airtable to prevent duplicate applications."
-    foreach: "${filter-job-postings-by-user.filtered_jobs}"
+    foreach: "${get-job-postings.response.data.records}"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

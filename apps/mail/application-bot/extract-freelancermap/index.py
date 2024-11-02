@@ -127,7 +127,11 @@ def handler(inputs):
 
         matching_jobs = filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days)
 
-        print("Handler finished, returning matching jobs")
+        print("Handler finished, returning matching jobs", len(matching_jobs))
+        print("Sample job:", matching_jobs[0] if matching_jobs else None)
+        # print mb size of the whole job list
+        print(f"Total size of jobs: {round(sum(len(job['content']) for job in jobs) / 1024, 2)} KB")
+
         return {
             "matching_jobs": matching_jobs
         }

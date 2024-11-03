@@ -11,38 +11,6 @@ interface:
       customerTableId:
         type: string
         description: The Airtable table containing customer information (email, CV).
-      search_params:
-        type: object
-        description: |
-          Parameters for searching flats, such as location, rent range, etc.
-        properties:
-          city:
-            type: string
-            description: "The city for the listing search, e.g., 'Berlin' or 'Munich'. Defaults to 'Berlin' if not provided."
-          rent_max:
-            type: number
-            description: "Maximum rent price in EUR."
-          room_size_min:
-            type: number
-            description: "Minimum room size in square meters."
-          only_furnished:
-            type: boolean
-            description: "If true, only furnished rooms are listed."
-          max_online_time:
-            type: number
-            description: "Maximum number of hours since the listing was posted."
-          balcony:
-            type: boolean
-            description: "If true, filters listings that have a balcony."
-          move_in_earliest:
-            type: string
-            description: "Earliest move-in date in YYYY-MM-DD format."
-          move_in_latest:
-            type: string
-            description: "Latest move-in date in YYYY-MM-DD format."
-          min_stay_days:
-            type: number
-            description: "Minimum duration of stay in days."
 inputs:
   customerTableId: ${variables.applicationConfig.wohnungsbot.peopleTableId}
 steps:
@@ -67,9 +35,8 @@ steps:
       def handler(inputs):
           search_params = inputs['search_params']
           today_date = datetime.now().strftime('%Y-%m-%d')
-          in_three_months = (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d')
           default_filter = {
-              'city': 'Berlin',
+              'city_id': 8,
               'rent_max': 1000,
               'room_size_min': 10,
               'only_furnished': False,
@@ -78,7 +45,6 @@ steps:
               'rm_min': 1,
               'district_codes': '',
               'move_in_earliest': today_date,
-              'move_in_latest': in_three_months,
               'min_stay_days': 30
           }
           for key, value in default_filter.items():

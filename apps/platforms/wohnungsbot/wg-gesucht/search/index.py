@@ -7,9 +7,8 @@ import os
 import time
 from login import login_wg_gesucht
 
-def build_base_url(city):
-    city_slug = city.lower().replace(" ", "-")
-    return f"https://www.wg-gesucht.de/wohnungen-in-{city_slug}.8.2.1.0.html"
+def build_base_url(city_id):
+    return f"https://www.wg-gesucht.de/wohnungen-in-Berlin.8.2.1.0.html"
 
 def fetch_csrf_token(session, base_url, max_retries=3, wait=2):
     csrf_token = None
@@ -67,8 +66,11 @@ def get_listing_text(session, link, base_url):
         return "Description not available"
 
 def search_listings(session, filters):
-    city = filters.get("city", "Berlin")  # Default to Berlin if no city is provided
-    base_url = build_base_url(city)
+    city_id = filters.get("city_id")  # Expect city_id in the filters
+    if not city_id:
+        raise ValueError("city_id must be specified in filters.")
+        
+    base_url = build_base_url(city_id)
     
     csrf_token = fetch_csrf_token(session, base_url)
     if not csrf_token:
@@ -78,23 +80,19 @@ def search_listings(session, filters):
     print(f"Requesting URL: {base_url} with filters: {filters}")
 
     move_in_earliest = filters.get("move_in_earliest")
-    move_in_latest = filters.get("move_in_latest")
     min_stay_days = filters.get("min_stay_days", 0)
     rm_min = filters.get("rm_min", 1)  # Minimum room count
     max_online_time = filters.get("max_online_time", None)  # Maximum listing online time in hours
 
     dFr = int(datetime.strptime(move_in_earliest, "%Y-%m-%d").replace(hour=12).timestamp()) if move_in_earliest else None
-    dTo = int(datetime.strptime(move_in_latest, "%Y-%m-%d").replace(hour=12).timestamp()) if move_in_latest else None
 
     params = {
+        "city_id": city_id,
         "csrf_token": csrf_token,
         "offer_filter": 1,
-        "city_id": 8,
         "sort_column": 0,
         "sort_order": 0,
         "noDeact": 1,
-        "dFr": dFr,
-        "dTo": dTo,
         "exc": 2,
         "categories[]": 2,
         "rent_types[]": [1, 2],  # Constant rent types
@@ -102,6 +100,10 @@ def search_listings(session, filters):
         "sMin": filters.get("room_size_min", 10),
         "rmMin": rm_min  # Minimum room count filter
     }
+
+    # Include dates only if they are defined
+    if dFr is not None:
+        params["dFr"] = dFr
 
     # Comma-separated district codes to `ot[]` parameters
     district_codes = filters.get("district_codes", "")
@@ -175,11 +177,11 @@ def search_listings(session, filters):
         print(f"Room Count: {room_count}, City Area: {city_area}, Street: {street}")
 
         # Filter based on max_online_time
-        post_date_element = listing.find("span", class_="text-muted")  # Example element for post date
+        post_date_element = listing.find("span", class_="text-muted")
         if post_date_element and max_online_delta:
             post_time_str = post_date_element.text.strip()
             try:
-                post_time = datetime.strptime(post_time_str, "%d.%m.%Y %H:%M")  # Expected date-time format
+                post_time = datetime.strptime(post_time_str, "%d.%m.%Y %H:%M")
                 time_since_post = current_time - post_time
                 if time_since_post > max_online_delta:
                     print(f"Listing exceeds max online time ({time_since_post} > {max_online_delta}). Skipping listing.")
@@ -244,16 +246,15 @@ def handler(inputs):
 # Sample usage:
 # inputs = {
 #     "filter": {
-#         "city": "Munich",
-#         "rent_max": 1000,
+#         "city_id": 8, 
+#         "rent_max": 2000,
 #         "room_size_min": 10,
 #         "rm_min": 2,
-#         "district_codes": "85076,116",
+#         "district_codes": "132, 85079, 163, 165, 170, 171, 189",
 #         "only_furnished": False,
 #         "max_online_time": 48,
 #         "balcony": False,
-#         "move_in_earliest": "2024-10-30",
-#         "move_in_latest": "2025-02-20",
+#         "move_in_earliest": "2025-01-01",
 #         "min_stay_days": 100
 #     }
 # }

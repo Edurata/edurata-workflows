@@ -10,6 +10,17 @@ from login import login_wg_gesucht
 def build_base_url(city_id):
     return f"https://www.wg-gesucht.de/wohnungen-in-Berlin.8.2.1.0.html"
 
+def parse_online_duration(noprint_text):
+    """Parse the noprint date field text to get the online duration in hours."""
+    if "Tag" in noprint_text:  # Handle days (e.g., "2 Tage" or "1 Tag")
+        days = int(re.search(r"(\d+)", noprint_text).group(1)) if re.search(r"(\d+)", noprint_text) else 1
+        return timedelta(hours=days * 24)
+    elif "Stunde" in noprint_text:  # Handle hours (e.g., "2 Stunden" or "1 Stunde")
+        hours = int(re.search(r"(\d+)", noprint_text).group(1)) if re.search(r"(\d+)", noprint_text) else 1
+        return timedelta(hours=hours)
+    else:
+        return timedelta(hours=0)
+
 def fetch_csrf_token(session, base_url, max_retries=3, wait=2):
     csrf_token = None
     for attempt in range(max_retries):
@@ -47,24 +58,6 @@ def fetch_csrf_token(session, base_url, max_retries=3, wait=2):
         print("Failed to retrieve CSRF token after multiple attempts.")
     return csrf_token
 
-def get_listing_text(session, link, base_url):
-    try:
-        response = session.get(link, headers={
-            "User-Agent": "Mozilla/5.0",
-            "Referer": base_url
-        })
-        if response.status_code != 200:
-            print(f"Failed to retrieve listing page at {link}")
-            return "Description not available"
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-        description_element = soup.find("div", {"id": "ad_description_text"})
-        description_text = description_element.get_text(separator=" ", strip=True) if description_element else "Description not available"
-        return description_text
-    except Exception as e:
-        print(f"Error retrieving listing description: {e}")
-        return "Description not available"
-
 def search_listings(session, filters):
     city_id = filters.get("city_id")  # Expect city_id in the filters
     if not city_id:
@@ -81,8 +74,8 @@ def search_listings(session, filters):
 
     move_in_earliest = filters.get("move_in_earliest")
     min_stay_days = filters.get("min_stay_days", 0)
-    rm_min = filters.get("room_number_min", 1)  # Minimum room count
-    max_online_time = filters.get("max_online_time", None)  # Maximum listing online time in hours
+    rm_min = filters.get("room_number_min", 1)
+    max_online_hours = filters.get("max_online_hours", None)
 
     dFr = int(datetime.strptime(move_in_earliest, "%Y-%m-%d").replace(hour=12).timestamp()) if move_in_earliest else None
 
@@ -95,17 +88,15 @@ def search_listings(session, filters):
         "noDeact": 1,
         "exc": 2,
         "categories[]": 2,
-        "rent_types[]": [1, 2],  # Constant rent types
+        "rent_types[]": [1, 2],
         "rMax": filters.get("rent_max", 1000),
         "sMin": filters.get("room_size_min", 10),
-        "rmMin": rm_min  # Minimum room count filter
+        "rmMin": rm_min
     }
 
-    # Include dates only if they are defined
     if dFr is not None:
         params["dFr"] = dFr
 
-    # Comma-separated district codes to `ot[]` parameters
     district_codes = filters.get("district_codes", "")
     if district_codes:
         for code in district_codes.split(","):
@@ -135,13 +126,11 @@ def search_listings(session, filters):
     soup = BeautifulSoup(response.text, 'html.parser')
     listings = []
 
-    max_online_delta = timedelta(hours=max_online_time) if max_online_time is not None else None
-    current_time = datetime.now()
+    max_online_delta = timedelta(hours=max_online_hours) if max_online_hours is not None else None
 
     for listing in soup.find_all("div", class_="offer_list_item"):
         print("\n--- New Listing Found ---")
 
-        # Skip listings with "Verifiziertes Unternehmen" label
         verified_label = listing.find("a", class_="label_verified")
         if verified_label:
             print("Skipping listing with 'Verifiziertes Unternehmen' label.")
@@ -176,19 +165,15 @@ def search_listings(session, filters):
         street = location_parts[2] if len(location_parts) > 2 else None
         print(f"Room Count: {room_count}, City Area: {city_area}, Street: {street}")
 
-        # Filter based on max_online_time
-        post_date_element = listing.find("span", class_="text-muted")
-        if post_date_element and max_online_delta:
-            post_time_str = post_date_element.text.strip()
-            try:
-                post_time = datetime.strptime(post_time_str, "%d.%m.%Y %H:%M")
-                time_since_post = current_time - post_time
-                if time_since_post > max_online_delta:
-                    print(f"Listing exceeds max online time ({time_since_post} > {max_online_delta}). Skipping listing.")
-                    continue
-            except ValueError:
-                print(f"Could not parse posting time for filtering: {post_time_str}")
-                continue
+        # Extract and parse the online duration from list view
+        post_date_element = listing.find("span", style="color: #218700;")
+        online_duration = parse_online_duration(post_date_element.text.strip()) if post_date_element else timedelta(hours=0)
+        print(f"Online Duration: {online_duration}")
+
+        # Filter based on max_online_hours
+        if max_online_delta and online_duration > max_online_delta:
+            print(f"Listing exceeds max online hours ({online_duration} > {max_online_delta}). Skipping listing.")
+            continue
 
         availability_dates = listing.find("div", class_="col-xs-5 text-center").text.strip() if listing.find("div", class_="col-xs-5 text-center") else ""
         start_date_text, end_date_text = availability_dates.split(" - ") if " - " in availability_dates else (availability_dates, None)
@@ -210,8 +195,6 @@ def search_listings(session, filters):
         ad_person_element = listing.find("span", class_="ml5")
         ad_person = ad_person_element.text.strip() if ad_person_element else "Unknown"
 
-        description_text = get_listing_text(session, link, base_url) if link else "No link available"
-
         listings.append({
             "title": title,
             "link": link,
@@ -224,7 +207,8 @@ def search_listings(session, filters):
             "city_area": city_area,
             "street": street,
             "lister_name": ad_person,
-            "description": description_text
+            "online_duration": str(online_duration),
+            "description": "Description not available in list view"  # Placeholder if you only fetch the description from the detail page
         })
 
     return listings
@@ -246,18 +230,18 @@ def handler(inputs):
 # Sample usage:
 # inputs = {
 #     "filter":
-    # {
-    #     "city_id": 8, 
-    #     "rent_max": 1500,
-    #     "room_size_min": 10,
-    #     "room_number_min": 2,
-    #     "district_codes": "132, 85079, 163, 165, 170, 171, 189",
-    #     "only_furnished": False,
-    #     "max_online_time": 1,
-    #     "balcony": False,
-    #     "move_in_earliest": "2025-01-01",
-    #     "min_stay_days": 100
-    # }
+#     {
+#         "city_id": 8,
+#         "rent_max": 1500,
+#         "room_size_min": 10,
+#         "room_number_min": 2,
+#         "district_codes": "132, 85079, 163, 165, 170, 171, 189",
+#         "only_furnished": False,
+#         "max_online_hours": 3,
+#         "balcony": False,
+#         "move_in_earliest": "2025-01-01",
+#         "min_stay_days": 100
+#     }
 # }
 # results = handler(inputs)
 # print(results)

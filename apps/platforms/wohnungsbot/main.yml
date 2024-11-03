@@ -40,7 +40,7 @@ steps:
               'rent_max': 1000,
               'room_size_min': 10,
               'only_furnished': False,
-              'max_online_time': 1,
+              'max_online_hours': 1,
               'balcony': False,
               'room_number_min': 1,
               'district_codes': '',

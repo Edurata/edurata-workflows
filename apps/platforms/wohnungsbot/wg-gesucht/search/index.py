@@ -245,22 +245,8 @@ def handler(inputs):
     return {"listings": listings}
 
 # Sample usage:
-inputs = {
-    "filter":
-{
-  "balcony": False,
-  "city_id": 8,
-  "district_codes": "132, 85079, 163, 165, 170, 171, 189",
-  "email": "juliandemourgues@edurata.com",
-  "max_online_hours": 24,
-  "min_stay_days": 100,
-  "move_in_earliest": "2025-02-01",
-  "name": "Julian",
-  "only_furnished": False,
-  "rent_max": 1200,
-  "room_number_min": 2,
-  "room_size_min": 30,
-}
+# inputs = {
+#     "filter":
 #     {
 #         "city_id": 8,
 #         "rent_max": 1500,
@@ -273,6 +259,6 @@ inputs = {
 #         "move_in_earliest": "2025-01-01",
 #         "min_stay_days": 100
 #     }
-}
-results = handler(inputs)
-print(results)
+# }
+# results = handler(inputs)
+# print(results)

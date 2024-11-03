@@ -10,16 +10,30 @@ from login import login_wg_gesucht
 def build_base_url(city_id):
     return f"https://www.wg-gesucht.de/wohnungen-in-Berlin.8.2.1.0.html"
 
+from datetime import datetime, timedelta
+import re
+
 def parse_online_duration(noprint_text):
     """Parse the noprint date field text to get the online duration in hours."""
-    if "Tag" in noprint_text:  # Handle days (e.g., "2 Tage" or "1 Tag")
+    # Check if the text contains a specific date (e.g., "17.10.2024")
+    date_match = re.search(r"(\d{2}\.\d{2}\.\d{4})", noprint_text)
+    if date_match:
+        # Parse the date and calculate the duration in hours from the current time
+        post_date = datetime.strptime(date_match.group(1), "%d.%m.%Y")
+        now = datetime.now()
+        duration = now - post_date
+        return duration  # timedelta
+
+    # Handle cases with relative time descriptions (e.g., "2 Tage", "1 Stunde")
+    if "Tag" in noprint_text:  # Handle days
         days = int(re.search(r"(\d+)", noprint_text).group(1)) if re.search(r"(\d+)", noprint_text) else 1
         return timedelta(hours=days * 24)
-    elif "Stunde" in noprint_text:  # Handle hours (e.g., "2 Stunden" or "1 Stunde")
+    elif "Stunde" in noprint_text:  # Handle hours
         hours = int(re.search(r"(\d+)", noprint_text).group(1)) if re.search(r"(\d+)", noprint_text) else 1
         return timedelta(hours=hours)
-    else:
-        return timedelta(hours=0)
+    
+    # Default case if none of the above match
+    return timedelta(hours=0)
 
 def fetch_csrf_token(session, base_url, max_retries=3, wait=2):
     csrf_token = None

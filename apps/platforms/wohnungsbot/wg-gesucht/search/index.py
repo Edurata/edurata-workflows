@@ -247,12 +247,12 @@ def handler(inputs):
 # inputs = {
 #     "filter": {
 #         "city_id": 8, 
-#         "rent_max": 2000,
+#         "rent_max": 1500,
 #         "room_size_min": 10,
 #         "rm_min": 2,
 #         "district_codes": "132, 85079, 163, 165, 170, 171, 189",
 #         "only_furnished": False,
-#         "max_online_time": 48,
+#         "max_online_time": 1,
 #         "balcony": False,
 #         "move_in_earliest": "2025-01-01",
 #         "min_stay_days": 100

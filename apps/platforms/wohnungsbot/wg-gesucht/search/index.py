@@ -81,7 +81,7 @@ def search_listings(session, filters):
 
     move_in_earliest = filters.get("move_in_earliest")
     min_stay_days = filters.get("min_stay_days", 0)
-    rm_min = filters.get("rm_min", 1)  # Minimum room count
+    rm_min = filters.get("room_number_min", 1)  # Minimum room count
     max_online_time = filters.get("max_online_time", None)  # Maximum listing online time in hours
 
     dFr = int(datetime.strptime(move_in_earliest, "%Y-%m-%d").replace(hour=12).timestamp()) if move_in_earliest else None
@@ -245,18 +245,19 @@ def handler(inputs):
 
 # Sample usage:
 # inputs = {
-#     "filter": {
-#         "city_id": 8, 
-#         "rent_max": 1500,
-#         "room_size_min": 10,
-#         "rm_min": 2,
-#         "district_codes": "132, 85079, 163, 165, 170, 171, 189",
-#         "only_furnished": False,
-#         "max_online_time": 1,
-#         "balcony": False,
-#         "move_in_earliest": "2025-01-01",
-#         "min_stay_days": 100
-#     }
+#     "filter":
+    # {
+    #     "city_id": 8, 
+    #     "rent_max": 1500,
+    #     "room_size_min": 10,
+    #     "room_number_min": 2,
+    #     "district_codes": "132, 85079, 163, 165, 170, 171, 189",
+    #     "only_furnished": False,
+    #     "max_online_time": 1,
+    #     "balcony": False,
+    #     "move_in_earliest": "2025-01-01",
+    #     "min_stay_days": 100
+    # }
 # }
 # results = handler(inputs)
 # print(results)

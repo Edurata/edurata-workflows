@@ -42,7 +42,7 @@ steps:
               'only_furnished': False,
               'max_online_time': 1,
               'balcony': False,
-              'rm_min': 1,
+              'room_number_min': 1,
               'district_codes': '',
               'move_in_earliest': today_date,
               'min_stay_days': 30

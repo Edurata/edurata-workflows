@@ -23,7 +23,7 @@ def create_session_with_retries(retries=3, backoff_factor=0.3):
         total=retries,
         backoff_factor=backoff_factor,
         status_forcelist=[429, 500, 502, 503, 504],
-        method_whitelist=["GET", "POST"]
+        allowed_methods=["GET", "POST"]  # Changed from method_whitelist to allowed_methods
     )
     adapter = HTTPAdapter(max_retries=retry_strategy)
     session.mount("https://", adapter)

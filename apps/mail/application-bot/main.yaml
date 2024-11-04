@@ -128,7 +128,7 @@ steps:
          Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
          Keep it very short and dry. Don't use corporate language.
 
-         Mention in the end that it is an automated message and that it is from the source page ${get-customer-details.response.data.records[0].fields.sourcePage}.
+         Mention in the end that it is an automated message and that it is from the source page ${each.fields.sourcePage}.
          Mention that the recipient can reply to the email address ${extract-target-address[each.index].response} directly.
 
          Also write contact details below the email body.

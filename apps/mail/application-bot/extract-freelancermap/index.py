@@ -1,5 +1,8 @@
 import os
 import requests
+from requests.adapters import HTTPAdapter
+from requests.exceptions import ConnectionError, HTTPError, Timeout
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
@@ -13,6 +16,20 @@ headers = {
     'Upgrade-Insecure-Requests': '1',
 }
 
+def create_session_with_retries(retries=3, backoff_factor=0.3):
+    """Creates a requests session with retry logic."""
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=[429, 500, 502, 503, 504],
+        method_whitelist=["GET", "POST"]
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
 def login_to_freelancermap():
     """Logs into Freelancermap and returns a session object."""
     print("Starting login process...")
@@ -23,7 +40,7 @@ def login_to_freelancermap():
         raise ValueError("Environment variables FREELANCERMAP_USERNAME or FREELANCERMAP_PASSWORD not set.")
 
     login_url = "https://www.freelancermap.com/login"
-    session = requests.Session()
+    session = create_session_with_retries()
 
     payload = {
         "login": username,
@@ -31,21 +48,29 @@ def login_to_freelancermap():
         '_remember_me': '0',
     }
 
-    response = session.post(login_url, data=payload, headers=headers)
-    print(f"Login response status: {response.status_code}")
-    if response.status_code != 200:
-        raise Exception("Login failed. Please check your credentials.")
+    try:
+        response = session.post(login_url, data=payload, headers=headers)
+        print(f"Login response status: {response.status_code}")
+        if response.status_code != 200:
+            raise Exception("Login failed. Please check your credentials.")
+        print("Login successful!")
+    except (ConnectionError, HTTPError, Timeout) as e:
+        print(f"Login failed due to network error: {e}")
+        raise
 
-    print("Login successful!")
     return session
 
 def extract_full_message(session, message_url):
     """Visits a full message page and extracts the content."""
     print(f"Extracting message from URL: {message_url}")
-    response = session.get(message_url, headers=headers)
-    print(f"Message page response status: {response.status_code}")
-    if response.status_code != 200:
-        raise Exception(f"Failed to access message: {message_url}")
+    try:
+        response = session.get(message_url, headers=headers)
+        print(f"Message page response status: {response.status_code}")
+        if response.status_code != 200:
+            raise Exception(f"Failed to access message: {message_url}")
+    except (ConnectionError, HTTPError, Timeout) as e:
+        print(f"Failed to retrieve message due to network error: {e}")
+        raise
 
     soup = BeautifulSoup(response.text, "html.parser")
     message_content = soup.get_text(separator=' ', strip=True)
@@ -56,10 +81,15 @@ def extract_job_descriptions(session):
     """Extracts job descriptions and visits full messages for more details."""
     inbox_url = "https://www.freelancermap.com/app/pobox/main"
     print(f"Accessing inbox at: {inbox_url}")
-    response = session.get(inbox_url, headers=headers)
-    print(f"Inbox response status: {response.status_code}")
-    if response.status_code != 200:
-        raise Exception("Failed to access the inbox.")
+
+    try:
+        response = session.get(inbox_url, headers=headers)
+        print(f"Inbox response status: {response.status_code}")
+        if response.status_code != 200:
+            raise Exception("Failed to access the inbox.")
+    except (ConnectionError, HTTPError, Timeout) as e:
+        print(f"Failed to retrieve inbox due to network error: {e}")
+        raise
 
     soup = BeautifulSoup(response.text, "html.parser")
     job_elements = soup.find_all("div", class_="subject d-flex table-layout-only")
@@ -90,7 +120,6 @@ def extract_job_descriptions(session):
 def filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days):
     """Filters jobs based on comma-separated positive/negative keywords and elapsed days since posting."""
     print("Starting job filtering...")
-    # Convert keyword lists to lowercase for case-insensitive matching
     positive_keywords = positive_keywords.lower().split(",") if isinstance(positive_keywords, str) else []
     negative_keywords = negative_keywords.lower().split(",") if isinstance(negative_keywords, str) else []
     
@@ -101,7 +130,6 @@ def filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days):
         days_elapsed = (today - job["date"]).days
         print(f"Evaluating job '{job['title']}' posted {days_elapsed} days ago")
 
-        # Check if any positive keyword is present and no negative keyword is present
         if any(keyword.strip() in job_text for keyword in positive_keywords) and \
            not any(keyword.strip() in job_text for keyword in negative_keywords) and \
            days_elapsed <= max_elapsed_days:
@@ -119,19 +147,13 @@ def handler(inputs):
         print("Handler started with inputs:", inputs)
         positive_keywords = inputs.get("positive_keywords", [])
         negative_keywords = inputs.get("negative_keywords", [])
-        max_elapsed_days = inputs.get("max_elapsed_days", 30)  # Default to 30 days if not provided
+        max_elapsed_days = inputs.get("max_elapsed_days", 30)
 
         session = login_to_freelancermap()
-
         jobs = extract_job_descriptions(session)
-
         matching_jobs = filter_jobs(jobs, positive_keywords, negative_keywords, max_elapsed_days)
 
         print("Handler finished, returning matching jobs", len(matching_jobs))
-        print("Sample job:", matching_jobs[0] if matching_jobs else None)
-        # print mb size of the whole job list
-        print(f"Total size of jobs: {round(sum(len(job['content']) for job in jobs) / 1024, 2)} KB")
-
         return {
             "matching_jobs": matching_jobs
         }
@@ -145,6 +167,6 @@ def handler(inputs):
 # inputs = {
 #     "positive_keywords": "Python, Remote",
 #     "negative_keywords": "Senior, Manager",
-#     "max_elapsed_days": 15  # Only jobs posted within the last 15 days
+#     "max_elapsed_days": 15
 # }
 # print(handler(inputs))

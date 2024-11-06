@@ -119,9 +119,9 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     foreach: "${get-job-postings.response.data.records}"
+    concurrency: 1
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      model: "gpt-4"
       systemMessage: |
         "Using the following CV and job posting information, generate an email body in html without linebreaks highlighting the applicant's skills and 
          qualifications to apply for the job. The email should be professional and tailored to the job description. 

@@ -1,0 +1,132 @@
+name: hot-post-keyword-responder
+apiRevision: "edurata.io/v1"
+description: |
+  This workflow searches for hot posts containing specific keywords on a platform (like Reddit), sends the post content to ChatGPT to generate a helpful response, and then posts the generated response as a comment on the post.
+interface:
+  inputs:
+    type: object
+    properties:
+      platform:
+        type: string
+        description: "The platform to search (e.g., Reddit)"
+      keywords:
+        type: array
+        items:
+          type: string
+        description: "Keywords to search for in posts"
+      min_upvotes:
+        type: integer
+        description: "Minimum number of upvotes for a post to be considered 'hot'"
+      chatgpt_prompt:
+        type: string
+        description: "The prompt template to use with ChatGPT for generating a response"
+  outputs:
+    type: object
+    properties:
+      comments_posted:
+        type: array
+        items:
+          type: object
+          properties:
+            post_id:
+              type: string
+            comment_id:
+              type: string
+        description: "List of comments posted with their post and comment IDs"
+steps:
+  get-people-data:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: 'https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")'
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+  construct-reddit-query:
+    description: Construct a query to search for posts on Reddit.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          # Split the comma-separated string and strip extra whitespace
+          terms = [term.strip() for term in inputs["search_terms"].split(",")]
+          
+          # Create the formatted string
+          output_string = ' OR '.join([f'selftext:"{term}"' for term in terms])
+          
+          # Return the output
+          return {"formatted_string": output_string}
+    props:
+      search_terms: "${get-people-data.response.data.records[0].fields.searchTerms}"
+  search-posts:
+    description: Search for posts with specified keywords on the platform.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "https://www.reddit.com/search"
+      params:
+        q: ${construct-reddit-query.formatted_string}
+        sort: "hot"
+        limit: 50
+      headers:
+        User-Agent: "EdurataBot/1.0"
+  filter-hot-posts:
+    description: Filter posts to include only those considered "hot" based on minimum upvotes.
+    if: "${each.data.ups} >= ${inputs.min_upvotes}"
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          return {
+              "filtered_post": {
+                  "post_id": inputs["data"]["id"],
+                  "title": inputs["data"]["title"],
+                  "content": inputs["data"]["selftext"]
+              }
+          }
+    props:
+      posts: "${search-posts.response.data.data.children}"
+  generate-chatgpt-response:
+    description: Generate a helpful response using ChatGPT for each filtered post.
+    foreach: "${filter-hot-posts.filtered_post}"
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: POST
+      url: "https://api.openai.com/v1/chat/completions"
+      headers:
+        Authorization: "Bearer ${secrets.OPENAI_API_KEY}"
+      data:
+        model: "gpt-3.5-turbo"
+        messages:
+          - role: "user"
+            content: "${inputs.chatgpt_prompt.replace('{title}', each.title).replace('{content}', each.content)}"
+  post-comment:
+    description: Post the generated response as a comment on the post.
+    foreach: "${generate-chatgpt-response.generated_reply}"
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: POST
+      url: "https://oauth.reddit.com/api/comment"
+      headers:
+        Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
+      data:
+        parent_id: "t3_${filter-hot-posts.filtered_post.post_id}"
+        text: "${each}"
+    outputs:
+      comment_id: "${post-comment.response.data.json.data.things[0].data.id}"
+  collect-comments:
+    description: Collects all posted comments with their IDs and post IDs.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          comments = []
+          for item in inputs["post-comment"]:
+              comments.append({
+                  "post_id": item["parent_id"].replace("t3_", ""),
+                  "comment_id": item["comment_id"]
+              })
+          return {"comments_posted": comments}

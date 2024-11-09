@@ -64,7 +64,7 @@ steps:
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
-        Craft a reply to the following Reddit post, impersonating CTO of a startup managing a digital product.
+        Craft a reply to the following Reddit post, impersonating a CTO of a startup managing a digital product.
         Use the following data:
         - Post text: ${each.data.selftext}
         - Business/Product description: ${retrieve-context.response.data.records[0].fields.businessDescription}

@@ -49,7 +49,7 @@ steps:
         const { data, appName } = inputs;
         const emailField = data.fields[0]
         const nameField = data.fields[1]
-        const uriEncodedId = encodeURIComponent(appName + " for " +  emailField.value);
+        const uriEncodedId = encodeURIComponent(emailField.value);
         return {
           email: emailField.value,
           name: nameField.value,
@@ -135,6 +135,30 @@ steps:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
         name: "${extract-data-from-event.uriEncodedId}"
+  get-environment:
+    description: Get the environment details for the user again in case it was created before.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.uriEncodedId}
+      method: POST
+      headers:
+        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+      __create-environment: ${create-environment}
+  get-schedule:
+    runtime: nodejs20
+    code: |
+      exports.handler = async (inputs) => {
+        // generate daily schedule at random time to spread out the load
+        const hour = Math.floor(Math.random() * 24);
+        const minute = Math.floor(Math.random() * 60);
+        const schedule = `${minute} ${hour} * * *`;
+
+        return {
+          schedule,
+        };
+      };
   create-trigger:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -145,10 +169,10 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
-        name: "${extract-data-from-event.name}"
+        name: "${extract-data-from-event.uriEncodedId}"
         environmentId: ${create-environment.response.data.id}
-        deploymentId: ${get-application-config-from-name.appConfig.deploymentId}
         variables: "{\"userEmail\": \"${extract-data-from-event.email}\", \"peopleTableId\": \"${get-application-config-from-name.appConfig.peopleTableId}\"}"
+        schedule: ${get-schedule.schedule}
   send-oauth-email:
     if: ${get-application-config-from-name.appConfig.oauthSecretName}
     source:

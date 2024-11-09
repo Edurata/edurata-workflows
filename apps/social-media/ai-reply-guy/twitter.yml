@@ -1,0 +1,90 @@
+name: twitter-reply-bot
+apiRevision: edurata.io/v1
+description: |
+  A bot that searches Twitter for posts containing specified keywords and replies with contextually relevant responses generated using AI, with additional context from Airtable.
+interface:
+  inputs:
+    properties:
+      keywords:
+        type: array
+        items:
+          type: string
+        description: Keywords to search for on Twitter.
+      airtableTableId:
+        type: string
+        description: The Airtable table containing context for generating replies.
+  required:
+    - keywords
+    - airtableTableId
+steps:
+  retrieve-context:
+    description: |
+      Retrieve context data from Airtable to use in generating AI responses.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.airtableTableId}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      params:
+        filterByFormula: "email = '${inputs.userEmail}'"
+  split-keywords:
+    description: Split the keywords from the context data into an array.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          keywords = inputs['retrieve-context']['response']['data']['records'][0]['fields']['keywords']
+          # split by comma
+          keywords = keywords.split(',')
+          return {'keywords': keywords}
+    props:
+      retrieve-context: ${retrieve-context}
+  search-twitter:
+    foreach: ${inputs.keywords}
+    description: |
+      Search Twitter for posts that contain the specified keywords.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.twitter.com/2/tweets/search/recent"
+      headers:
+        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+      params:
+        query: "${each}"
+        max_results: 5
+  generate-reply:
+    foreach: ${search-twitter.response.data}
+    description: |
+      Use AI to generate a contextual reply based on the Twitter post and data from Airtable.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/chatgpt
+    props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        Craft a reply to the following X post, impersonating a CTO of a startup managing a digital product.
+        Use the following data:
+        - Post text: ${each.data.selftext}
+        - Business/Product description: ${retrieve-context.response.data.records[0].fields.businessDescription}
+        The response should be helpful and encouraging. If the digital product is possible to integrate in the response, suggest it.
+        The intention is to be helpful firstly and promote the product secondly.
+      message: "Generate a reply."
+  post-reply:
+    foreach: ${generate-reply.response}
+    description: |
+      Post the generated reply to Twitter as a response to the relevant tweet.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: "https://api.twitter.com/2/tweets"
+      headers:
+        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+      data:
+        text: "${each}"
+        in_reply_to_tweet_id: "${search-twitter.response.data.id}"

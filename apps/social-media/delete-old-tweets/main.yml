@@ -103,7 +103,6 @@ steps:
           return {
               "old_tweets": old_tweets
           }
-
   delete-tweets:
     description: "Delete the filtered tweets using the Twitter API."
     foreach: ${filter-old-tweets.old_tweets}

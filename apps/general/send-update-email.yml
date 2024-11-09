@@ -34,7 +34,7 @@ steps:
       exports.handler = async (inputs) => {
         const { data, appName } = inputs;
         const emailField = data.fields[0]
-        const uriEncodedId = encodeURIComponent(appName + " for " +  emailField.value);
+        const uriEncodedId = encodeURIComponent(emailField.value);
         return {
           email: emailField.value,
           uriEncodedId,

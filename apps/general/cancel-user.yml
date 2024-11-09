@@ -183,7 +183,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     props:
-      _delete-deployment: ${delete-deployment}
+      _delete-trigger: ${delete-trigger}
       # _delete-environment: ${delete-environment}
       _delete-airtable-record: ${delete-airtable-record}
       sender: ${get-application-config-from-name.appConfig.senderEmail}

@@ -123,21 +123,21 @@ steps:
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
-        "Using the following CV and job posting information, generate an email body in html without linebreaks highlighting the applicant's skills and 
+        "Using the following CV and job posting information, generate an email body in html without linebreaks highlighting my skills and 
          qualifications to apply for the job. The email should be professional and tailored to the job description. 
          Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
          Keep it very short and dry. Don't use corporate language.
 
-         Mention in the end that it is an automated message and that it is from the source page ${each.fields.sourcePage}.
+         Mention in the end that it is an automated message and that it is in response to a job opening on ${each.fields.sourcePage}.
          Mention that the recipient can reply to the email address ${extract-target-address[each.index].response} directly.
 
           In your response don't include markup formatting as it will be processed directly.
 
-         Hourly rate: ${get-customer-details.response.data.records[0].fields.hourlyRate}.
          Job Posting Details: ${each.fields.raw} 
-         Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.
-         Applicant CV: ${extract-CV-content.extracted_text}."
-      message: "Create the email and only return the email body without markup formatting."
+         My Hourly rate: ${get-customer-details.response.data.records[0].fields.hourlyRate}.
+         My Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.
+         My CV: ${extract-CV-content.extracted_text}."
+      message: "Create the email in html and only return the email body without markup formatting."
   generate-email-subject:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

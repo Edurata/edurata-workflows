@@ -89,10 +89,10 @@ def handler(inputs):
     return {"status": "Applications sent successfully"}
 
 # Sample function call (uncomment to use)
-handler({
-    "application_list": [
-        {"listing_url": "https://www.wg-gesucht.de/wohnungen-in-Berlin.8.2.1.0.html?asset_id=11219738&pu=22446810&sort_column=1&sort_order=0", 
-         "application": "Hello, I'm interested in renting your flat.", 
-         "recipient_name": "Albian Mustafa"},
-    ]
-})
+# handler({
+#     "application_list": [
+#         {"listing_url": "https://www.wg-gesucht.de/wohnungen-in-Berlin.8.2.1.0.html?asset_id=11219738&pu=22446810&sort_column=1&sort_order=0", 
+#          "application": "Hello, I'm interested in renting your flat.", 
+#          "recipient_name": "Albian Mustafa"},
+#     ]
+# })

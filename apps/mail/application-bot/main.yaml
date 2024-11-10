@@ -182,7 +182,7 @@ steps:
       from email import encoders
       import os
       def handler(inputs):
-          message = inputs['html_body']
+          message = inputs['html_body'].replace('\n', '<br>')
           cv_filepath = inputs['cv_filepath']
           msg = MIMEMultipart()
           msg['From'] = inputs['sender']
@@ -196,7 +196,7 @@ steps:
           encoders.encode_base64(part)
           part.add_header('Content-Disposition', f"attachment; filename= {os.path.basename(cv_filepath)}")
           msg.attach(part)
-          
+
           raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
           return {'raw': raw}
     props:

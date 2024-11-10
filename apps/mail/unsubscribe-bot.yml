@@ -6,26 +6,32 @@ interface:
   inputs:
     type: object
     properties:
-      email_account:
+      userEmail:
         type: string
         description: "Email account to scan"
-      email_query:
-        type: string
-        description: "Query for the email search, such as Gmail search query"
-      recipient_email:
-        type: string
-        description: "Recipient email to send unsubscribe links"
     required:
-      - email_account
-      - recipient_email
+      - userEmail
   outputs:
     type: object
     properties:
       email_sent:
         type: boolean
         description: "Indicates if the summary email was successfully sent"
-
+inputs:
+  customerTableId: ${variables.applicationConfig.unsubscribeBot.peopleTableId}
 steps:
+  get-customer-details:
+    description: "Retrieve customer details (email and CV) from the second Airtable table."
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.customerTableId}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      params:
+        filterByFormula: "email = '${inputs.userEmail}'"
   get-recent-emails:
     description: |
       Retrieve all emails from the last three months.
@@ -111,17 +117,3 @@ steps:
         html_body:
           type: string
           description: "HTML body with unsubscribe links"
-  send-summary-email:
-    description: |
-      Send an email to the recipient with all unsubscribe links.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/send-ses
-    props:
-      sender: no-reply@unsubscribe-bot.com
-      to: ${inputs.recipient_email}
-      subject: "Your Unsubscribe Links"
-      html_body: ${generate-html-body.html_body}
-      AWS_REGION: "eu-central-1"
-      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}

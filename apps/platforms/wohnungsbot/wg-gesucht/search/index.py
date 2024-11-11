@@ -10,29 +10,22 @@ from login import login_wg_gesucht
 def build_base_url(city_id):
     return f"https://www.wg-gesucht.de/wohnungen-in-Berlin.8.2.1.0.html"
 
-from datetime import datetime, timedelta
-import re
-
 def parse_online_duration(noprint_text):
     """Parse the noprint date field text to get the online duration in hours."""
-    # Check if the text contains a specific date (e.g., "17.10.2024")
     date_match = re.search(r"(\d{2}\.\d{2}\.\d{4})", noprint_text)
     if date_match:
-        # Parse the date and calculate the duration in hours from the current time
         post_date = datetime.strptime(date_match.group(1), "%d.%m.%Y")
         now = datetime.now()
         duration = now - post_date
         return duration  # timedelta
 
-    # Handle cases with relative time descriptions (e.g., "2 Tage", "1 Stunde")
-    if "Tag" in noprint_text:  # Handle days
+    if "Tag" in noprint_text:
         days = int(re.search(r"(\d+)", noprint_text).group(1)) if re.search(r"(\d+)", noprint_text) else 1
         return timedelta(hours=days * 24)
-    elif "Stunde" in noprint_text:  # Handle hours
+    elif "Stunde" in noprint_text:
         hours = int(re.search(r"(\d+)", noprint_text).group(1)) if re.search(r"(\d+)", noprint_text) else 1
         return timedelta(hours=hours)
     
-    # Default case if none of the above match
     return timedelta(hours=0)
 
 def fetch_csrf_token(session, base_url, max_retries=3, wait=2):
@@ -73,25 +66,24 @@ def fetch_csrf_token(session, base_url, max_retries=3, wait=2):
     return csrf_token
 
 def search_listings(session, filters):
-    city_id = filters.get("city_id")  # Expect city_id in the filters
+    city_id = filters.get("city_id")
     if not city_id:
         raise ValueError("city_id must be specified in filters.")
         
     base_url = build_base_url(city_id)
-    
     csrf_token = fetch_csrf_token(session, base_url)
     if not csrf_token:
         print("Failed to retrieve CSRF token. Cannot proceed with search.")
         return []
 
-    print(f"Requesting URL: {base_url} with filters: {filters}")
-
     move_in_earliest = filters.get("move_in_earliest")
+    move_in_latest = filters.get("move_in_latest")
     min_stay_days = filters.get("min_stay_days", 0)
     rm_min = filters.get("room_number_min", 1)
     max_online_hours = filters.get("max_online_hours", None)
 
     dFr = int(datetime.strptime(move_in_earliest, "%Y-%m-%d").replace(hour=12).timestamp()) if move_in_earliest else None
+    dTo = int(datetime.strptime(move_in_latest, "%Y-%m-%d").replace(hour=12).timestamp()) if move_in_latest else None
 
     params = {
         "city_id": city_id,
@@ -139,7 +131,6 @@ def search_listings(session, filters):
 
     soup = BeautifulSoup(response.text, 'html.parser')
     listings = []
-
     max_online_delta = timedelta(hours=max_online_hours) if max_online_hours is not None else None
 
     for listing in soup.find_all("div", class_="offer_list_item"):
@@ -179,15 +170,10 @@ def search_listings(session, filters):
         street = location_parts[2] if len(location_parts) > 2 else None
         print(f"Room Count: {room_count}, City Area: {city_area}, Street: {street}")
 
-        # Extract and parse the online duration from list view
-        # Find the post_date_element with either of the two possible color styles
         post_date_element = listing.find("span", style=lambda value: value and ("#218700" in value or "#898989" in value))
-
-        # If post_date_element is missing, return infinity; otherwise, parse the duration
         online_duration = parse_online_duration(post_date_element.text.strip()) if post_date_element else float('inf')
         print(f"Online Duration: {online_duration}")
 
-        # Filter based on max_online_hours
         if max_online_delta and online_duration > max_online_delta:
             print(f"Listing exceeds max online hours ({online_duration} > {max_online_delta}). Skipping listing.")
             continue
@@ -206,6 +192,13 @@ def search_listings(session, filters):
                 if stay_days < min_stay_days:
                     print(f"Stay duration ({stay_days} days) is less than minimum required ({min_stay_days} days). Skipping listing.")
                     continue
+
+                if move_in_latest:
+                    move_in_latest_dt = datetime.strptime(move_in_latest, "%Y-%m-%d")
+                    if start_date < datetime.strptime(move_in_earliest, "%Y-%m-%d") or start_date > move_in_latest_dt:
+                        print("Availability start date is outside the allowed move-in range. Skipping listing.")
+                        continue
+
             except ValueError:
                 continue
 
@@ -225,7 +218,7 @@ def search_listings(session, filters):
             "street": street,
             "lister_name": ad_person,
             "online_duration": str(online_duration),
-            "description": "Description not available in list view"  # Placeholder if you only fetch the description from the detail page
+            "description": "Description not available in list view"
         })
 
     return listings
@@ -249,15 +242,16 @@ def handler(inputs):
 #     "filter":
 #     {
 #         "city_id": 8,
-#         "rent_max": 1500,
+#         "rent_max": 1000,
 #         "room_size_min": 10,
 #         "room_number_min": 2,
 #         "district_codes": "132, 85079, 163, 165, 170, 171, 189",
 #         "only_furnished": False,
-#         "max_online_hours": 3,
+#         "max_online_hours": 60,
 #         "balcony": False,
 #         "move_in_earliest": "2025-01-01",
-#         "min_stay_days": 100
+#         "move_in_latest": "2025-01-30",
+#         "min_stay_days": 20
 #     }
 # }
 # results = handler(inputs)

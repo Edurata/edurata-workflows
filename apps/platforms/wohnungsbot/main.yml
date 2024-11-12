@@ -78,7 +78,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/deployment/${get-application-config-from-name.appConfig.deploymentId}/trigger
+      url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsbot.deploymentId}/trigger
       method: GET
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"

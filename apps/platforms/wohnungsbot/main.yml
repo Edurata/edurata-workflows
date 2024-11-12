@@ -84,7 +84,7 @@ steps:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data: 
         name:
-          eq: ${extract-data-from-event.uriEncodedId}
+          eq: ${inputs.userEmail}
   get-trigger-update-data:
     description: "Get the current time and calculate schedule status based on user creation and isPro."
     runtime: python3_10
@@ -145,7 +145,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/deployment/${get-application-config-from-name.appConfig.deploymentId}/trigger/${get-trigger.response.data.items[0].id}
+      url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsbot.deploymentId}/trigger/${get-trigger.response.data.items[0].id}
       method: POST
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"

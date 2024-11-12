@@ -22,11 +22,11 @@ steps:
       path: general/axios
     props:
       method: GET
-      url: "https://api.stripe.com/v1/charges"
+      url: "https://api.stripe.com/v1/charges/search"
       headers:
         Authorization: "Bearer ${secrets.STRIPE_API_KEY}"
       params:
-        email: "${inputs.userEmail}"
+        query: "email:'${inputs.userEmail}'"
         "expand[]": "data.invoice.lines"
   process-purchase-data:
     description: |

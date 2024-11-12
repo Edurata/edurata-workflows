@@ -153,7 +153,7 @@ steps:
         schedule: ${get-trigger-update-data.new_schedule}
         disabled: ${get-trigger-update-data.disabled}
   set-defaults-filter:
-    if: ${process-purchase-data.isPro} === true || ${get-days-since-creation.days_since_creation} < 30
+    if: ${process-purchase-data.disabled} === false
     runtime: python3_10
     description: |
       Set default values for the search filter.

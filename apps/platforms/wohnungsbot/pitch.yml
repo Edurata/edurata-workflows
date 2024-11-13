@@ -1,0 +1,233 @@
+name: wohnungsbot-pitch
+apiRevision: edurata.io/v1
+description: |
+  A bot that scans WG-Gesucht for people who search for flats and recommends the bot to them.
+inputs:
+  customerTableId: ${variables.applicationConfig.wohnungsbot.peopleTableId}
+steps:
+  fetch-charges:
+    description: |
+      Fetch charges from Stripe for the specified email to get purchase history.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.stripe.com/v1/charges/search"
+      headers:
+        Authorization: "Bearer ${secrets.STRIPE_API_KEY}"
+      params:
+        query: "email:'${inputs.userEmail}'"
+        "expand[]": "data.invoice.lines"
+  process-purchase-data:
+    description: |
+      Processes the charges data to check if there is a successful charge 
+      for the given product ID within the last month. Returns a boolean 
+      indicating if the user is "Pro."
+    runtime: nodejs20
+    code: |
+      function handler(inputs) {
+        const charges = inputs["data"].data;
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        let isPro = false;
+
+        for (const charge of charges) {
+          // Check if the charge is paid (successful) and within the last month
+          if (charge.paid && charge.created * 1000 >= oneMonthAgo.getTime()) {
+            if (charge.invoice && charge.invoice.lines.data) {
+              for (const lineItem of charge.invoice.lines.data) {
+                if (lineItem.price.product === inputs.product_id) {
+                  isPro = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (isPro) break;
+        }
+
+        return { isPro };
+      }
+    props:
+      product_id: "${inputs.product_id}"
+      data: "${fetch-charges.response.data}"
+  get-customer-details:
+    description: "Retrieve customer details (email and CV) from the second Airtable table."
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.customerTableId}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      params:
+        filterByFormula: "email = '${inputs.userEmail}'"
+  get-trigger:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsbot.deploymentId}/trigger
+      method: GET
+      headers:
+        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+      data: 
+        name:
+          eq: ${inputs.userEmail}
+  get-trigger-update-data:
+    description: "Get the current time and calculate schedule status based on user creation and isPro."
+    runtime: python3_10
+    code: |
+      from datetime import datetime
+      import random
+
+      def handler(inputs):
+          # Parse user creation date from inputs
+          user_creation_day = datetime.strptime(inputs['user_creation'], '%d.%m.%Y')
+          # Calculate the difference in days
+          days_since_creation = (datetime.now() - user_creation_day).days
+
+          # Retrieve inputs
+          is_pro = inputs['isPro']
+          current_schedule = inputs['schedule']
+
+          # Initialize the response values
+          disabled = False
+          new_schedule = None
+          update_necessary = False
+
+          # Determine the expected schedule based on isPro and days_since_creation
+          if is_pro:
+              random_minute = random.randint(0, 59)
+              expected_schedule = f"{random_minute} * * * *"  # hourly at a random minute
+          elif not is_pro and days_since_creation < 30:
+              random_hour = random.randint(0, 23)
+              expected_schedule = f"0 {random_hour} * * *"  # daily at a random hour
+          else:
+              expected_schedule = None
+              disabled = True
+
+          # Check if the current schedule matches the expected schedule
+          if current_schedule != expected_schedule:
+              new_schedule = expected_schedule
+              update_necessary = True
+
+          # If disabled is set to true, ensure update_necessary is also true
+          if disabled:
+              update_necessary = True
+
+          # Return the results
+          return {
+              'current_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+              'days_since_creation': days_since_creation,
+              'disabled': disabled,
+              'new_schedule': new_schedule,
+              'update_necessary': update_necessary
+          }
+    props:
+      user_creation: ${get-customer-details.response.data.records[0].createdAt}
+      isPro: ${get-customer-details.response.data.records[0].isPro}
+      schedule: ${get-customer-details.response.data.records[0].schedule}
+  update-trigger:
+    if: ${get-trigger-update-data.update_necessary}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsbot.deploymentId}/trigger/${get-trigger.response.data.items[0].id}
+      method: POST
+      headers:
+        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+      data: 
+        schedule: ${get-trigger-update-data.new_schedule}
+        disabled: ${get-trigger-update-data.disabled}
+  set-defaults-filter:
+    if: ${process-purchase-data.disabled} === false
+    runtime: python3_10
+    description: |
+      Set default values for the search filter.
+    code: |
+      from datetime import datetime, timedelta
+      def handler(inputs):
+          isPro = inputs['isPro']
+          max_online_hours = 1 if isPro else 24
+          search_params = inputs['search_params']
+          today_date = datetime.now().strftime('%Y-%m-%d')
+          default_filter = {
+              'city_id': 8,
+              'rent_max': 1000,
+              'room_size_min': 10,
+              'only_furnished': False,
+              'max_online_hours': max_online_hours,
+              'balcony': False,
+              'room_number_min': 1,
+              'district_codes': '',
+              'move_in_earliest': today_date,
+              'min_stay_days': 30
+          }
+          for key, value in default_filter.items():
+              if key not in search_params:
+                  search_params[key] = value
+          return {'filter': search_params}
+    props:
+      search_params: ${get-customer-details.response.data.records[0].fields}
+      isPro: ${process-purchase-data.isPro}
+  search-flat-listings:
+    description: |
+      Fetch flat listings from WG-Gesucht using the specified search parameters.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      path: apps/platforms/wohnungsbot/wg-gesucht/search
+    props:
+      filter: ${set-defaults-filter.filter}
+      WG_USERNAME: ${get-customer-details.response.data.records[0].fields.wgUsername}
+      WG_PASSWORD: ${get-customer-details.response.data.records[0].fields.wgPassword}
+  generate-applications:
+    foreach: ${search-flat-listings.listings}
+    description: |
+      Generate applications for the filtered flat listings with chatgpt
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        "Write a personalized message to apply for the flat listing. Write it in the language of listing description. Also include emoticons. If the name of lister consists of multiple words, use the first word only to make it more personal.
+
+        Take the following information into account:
+        - Title: ${each.title}
+        - Description: ${each.description}
+        - Name of lister: ${each.lister_name}
+        - About the applicant: ${get-customer-details.response.data.records[0].fields.applicantDescription}
+      message: "Create the message."
+  merge-info:
+    runtime: python3_10
+    description: |
+      Merge the flat listings with the generated applications.
+    code: |
+      def handler(inputs):
+          listings = inputs['listings']
+          applications = inputs['applications']
+          merged_listings = []
+          for listing, application in zip(listings, applications):
+              merged_listings.append({
+                  'listing_url': listing['link'],
+                  'recipient_name': listing['lister_name'],
+                  'application': application
+              })
+          return {'merged_listings': merged_listings}
+    props:
+      listings: "${search-flat-listings.listings}"
+      applications: "${generate-applications[*].response}"
+  apply-to-listings:  
+    description: |
+      Automatically apply to the filtered flat listings.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      path: apps/platforms/wohnungsbot/wg-gesucht/apply
+    props:
+      WG_USERNAME: ${get-customer-details.response.data.records[0].fields.wgUsername}
+      WG_PASSWORD: ${get-customer-details.response.data.records[0].fields.wgPassword}
+      application_list: ${merge-info.merged_listings}

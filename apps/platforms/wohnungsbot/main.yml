@@ -14,6 +14,19 @@ interface:
 inputs:
   customerTableId: ${variables.applicationConfig.wohnungsbot.peopleTableId}
 steps:
+  fetch-stripe-customer:
+    description: |
+      Fetch charges from Stripe for the specified email to get purchase history.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.stripe.com/v1/customers/search"
+      headers:
+        Authorization: "Bearer ${secrets.STRIPE_API_KEY}"
+      params:
+        query: "email:'${inputs.userEmail}'"	
   fetch-charges:
     description: |
       Fetch charges from Stripe for the specified email to get purchase history.
@@ -26,7 +39,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.STRIPE_API_KEY}"
       params:
-        query: "email:'${inputs.userEmail}'"
+        query: "customer:'${get-stripe-customer-id.response.data.data[0].id}'"	
         "expand[]": "data.invoice.lines"
   process-purchase-data:
     description: |

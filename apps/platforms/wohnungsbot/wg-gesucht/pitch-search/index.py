@@ -56,8 +56,7 @@ def search_people(session, city_id, csrf_token, max_online_hours=None):
         "sort_order": 0,
         "noDeact": 1,
         "categories[]": 2,
-        "exContAds": 1,
-        "img_only": 1
+        "exContAds": 1
     }
 
     try:
@@ -170,6 +169,6 @@ def handler(inputs):
     return {"people_listings": people}
 
 # Sample usage:
-inputs = {"city_id": 8, "max_online_hours": 2}
-results = handler(inputs)
-print(results)
+# inputs = {"city_id": 8, "max_online_hours": 2}
+# results = handler(inputs)
+# print(results)

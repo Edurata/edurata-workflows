@@ -73,6 +73,6 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: apps/platforms/wohnungsbot/wg-gesucht/apply
     props:
-      WG_USERNAME: ${get-customer-details.response.data.records[0].fields.wgUsername}
-      WG_PASSWORD: ${get-customer-details.response.data.records[0].fields.wgPassword}
+      WG_USERNAME: ${get-random-credentials.wgUsername}
+      WG_PASSWORD: ${get-random-credentials.wgPassword}
       application_list: ${merge-info.merged_listings}

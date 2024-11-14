@@ -39,7 +39,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.STRIPE_API_KEY}"
       params:
-        query: "customer:'${get-stripe-customer-id.response.data.data[0].id}'"	
+        query: "customer:'${fetch-stripe-customer.response.data.data[0].id}'"	
         "expand[]": "data.invoice.lines"
   process-purchase-data:
     description: |

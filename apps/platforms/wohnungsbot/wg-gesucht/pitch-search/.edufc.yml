@@ -1,0 +1,51 @@
+name: wg_gesucht_person_scraper
+description: >
+  Scrapes WG-Gesucht for listings based on the city ID and optional maximum online hours.
+  It requires login credentials provided as environment variables. Returns a list of
+  people listings filtered by the provided criteria.
+runtime: python3_10
+
+interface:
+  inputs:
+    properties:
+      city_id:
+        type: integer
+        description: >
+          ID of the city to search for listings in WG-Gesucht. This is a required parameter.
+      max_online_hours:
+        type: integer
+        description: >
+          Maximum number of hours a listing has been online to be included in the results.
+          If not provided, all listings will be returned.
+    required: 
+      - city_id
+  outputs:
+    properties:
+      people_listings:
+        type: array
+        description: >
+          A list of dictionaries containing details of each listing, including title, link,
+          name, age, online duration, and description.
+        items:
+          type: object
+          properties:
+            title:
+              type: string
+              description: Title of the listing.
+            link:
+              type: string
+              description: Direct link to the listing.
+            name:
+              type: string
+              description: Name of the person in the listing.
+            age:
+              type: integer
+              description: Age of the person in the listing.
+            online_duration:
+              type: string
+              description: Duration the listing has been online.
+            description:
+              type: string
+              description: Description text of the listing.
+  required:
+    - people_listings

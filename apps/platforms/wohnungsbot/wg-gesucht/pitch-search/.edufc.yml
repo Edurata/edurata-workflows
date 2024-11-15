@@ -8,6 +8,12 @@ runtime: python3_10
 interface:
   inputs:
     properties:
+          WG_USERNAME:
+        type: env
+        description: WG-Gesucht account username for login.
+      WG_PASSWORD:
+        type: env
+        description: WG-Gesucht account password for login.
       city_id:
         type: integer
         description: >

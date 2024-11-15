@@ -22,9 +22,8 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: apps/platforms/wohnungsbot/wg-gesucht/pitch-search
     props:
-      filter:
-        city_id: 8
-        max_online_hours: 80
+      city_id: 8
+      max_online_hours: 80
       WG_USERNAME: ${get-random-credentials.login.wgUsername}
       WG_PASSWORD: ${get-random-credentials.login.wgPassword}
   generate-recommendations:

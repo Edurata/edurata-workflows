@@ -66,9 +66,9 @@ def fetch_csrf_token(session, base_url, max_retries=3, wait=2):
     return csrf_token
 
 def search_listings(session, filters):
-    city_name = filters.get("cityName", "Berlin")
+    city_name = filters.get("city_name", "Berlin")
     city_id = 8  # Berlin
-    district_names = filters.get("districtNames", [])
+    district_names = filters.get("district_names", [])
     district_mapping = json.load(open("district_mapping.json"))  # Load your mapping JSON
     city_mapping = json.load(open("city_mapping.json"))  # Load your mapping JSON
     district_codes = []
@@ -264,8 +264,8 @@ def handler(inputs):
 # inputs = {
 #     "filter":
 #     { 
-#         "cityName": "Hamburg",
-#         "districtNames": ["Bahrenfeld"],
+#         "city_name": "Hamburg",
+#         "district_names": ["Bahrenfeld"],
 #         "rent_max": 1000,
 #         "room_size_min": 10,
 #         "room_number_min": 2,

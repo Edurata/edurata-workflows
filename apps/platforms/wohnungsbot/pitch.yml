@@ -20,7 +20,7 @@ steps:
       Fetch users that are searching for flats.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-      path: apps/platforms/wohnungsbot/wg-gesucht/search
+      path: apps/platforms/wohnungsbot/wg-gesucht/pitch-search
     props:
       filter:
         city_id: 8

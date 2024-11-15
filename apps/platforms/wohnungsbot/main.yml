@@ -28,7 +28,6 @@ steps:
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
   set-defaults-filter:
-    if: ${process-purchase-data.isProd} === true || ${get-customer-details.response.data.records[0].fields.creat} === true
     runtime: python3_10
     description: |
       Set default values for the search filter.

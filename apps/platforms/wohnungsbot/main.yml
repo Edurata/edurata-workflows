@@ -5,6 +5,12 @@ description: |
 interface:
   inputs:
     properties:
+      max_online_hours:
+        default: 1
+        type: number
+        description: >
+          Maximum number of hours a listing has been online to be included in the results.
+          If not provided, all listings will be returned.
       userEmail:
         type: string
         description: The email address of the user of the workflow.
@@ -14,66 +20,6 @@ interface:
 inputs:
   customerTableId: ${variables.applicationConfig.wohnungsbot.peopleTableId}
 steps:
-  fetch-stripe-customer:
-    description: |
-      Fetch charges from Stripe for the specified email to get purchase history.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
-    props:
-      method: GET
-      url: "https://api.stripe.com/v1/customers/search"
-      headers:
-        Authorization: "Bearer ${secrets.STRIPE_API_KEY}"
-      params:
-        query: "email:'${inputs.userEmail}'"	
-  fetch-charges:
-    description: |
-      Fetch charges from Stripe for the specified email to get purchase history.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
-    props:
-      method: GET
-      url: "https://api.stripe.com/v1/charges/search"
-      headers:
-        Authorization: "Bearer ${secrets.STRIPE_API_KEY}"
-      params:
-        query: "customer:'${fetch-stripe-customer.response.data.data[0].id}'"	
-        "expand[]": "data.invoice.lines"
-  process-purchase-data:
-    description: |
-      Processes the charges data to check if there is a successful charge 
-      for the given product ID within the last month. Returns a boolean 
-      indicating if the user is "Pro."
-    runtime: nodejs20
-    code: |
-      function handler(inputs) {
-        const charges = inputs["data"].data;
-        const oneMonthAgo = new Date();
-        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-        let isPro = false;
-
-        for (const charge of charges) {
-          // Check if the charge is paid (successful) and within the last month
-          if (charge.paid && charge.created * 1000 >= oneMonthAgo.getTime()) {
-            if (charge.invoice && charge.invoice.lines.data) {
-              for (const lineItem of charge.invoice.lines.data) {
-                if (lineItem.price.product === inputs.product_id) {
-                  isPro = true;
-                  break;
-                }
-              }
-            }
-          }
-          if (isPro) break;
-        }
-
-        return { isPro };
-      }
-    props:
-      product_id: "${inputs.product_id}"
-      data: "${fetch-charges.response.data}"
   get-customer-details:
     description: "Retrieve customer details (email and CV) from the second Airtable table."
     source:
@@ -86,95 +32,15 @@ steps:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
-  get-trigger:
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsbot.deploymentId}/trigger
-      method: GET
-      headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-      data: 
-        name:
-          eq: ${inputs.userEmail}
-  get-trigger-update-data:
-    description: "Get the current time and calculate schedule status based on user creation and isPro."
-    runtime: python3_10
-    code: |
-      from datetime import datetime
-      import random
-
-      def handler(inputs):
-          # Parse user creation date from inputs
-          user_creation_day = datetime.strptime(inputs['user_creation'], '%d.%m.%Y')
-          # Calculate the difference in days
-          days_since_creation = (datetime.now() - user_creation_day).days
-
-          # Retrieve inputs
-          is_pro = inputs['isPro']
-          current_schedule = inputs['schedule']
-
-          # Initialize the response values
-          disabled = False
-          new_schedule = None
-          update_necessary = False
-
-          # Determine the expected schedule based on isPro and days_since_creation
-          if is_pro:
-              random_minute = random.randint(0, 59)
-              expected_schedule = f"{random_minute} * * * *"  # hourly at a random minute
-          elif not is_pro and days_since_creation < 30:
-              random_hour = random.randint(0, 23)
-              expected_schedule = f"0 {random_hour} * * *"  # daily at a random hour
-          else:
-              expected_schedule = None
-              disabled = True
-
-          # Check if the current schedule matches the expected schedule
-          if current_schedule != expected_schedule:
-              new_schedule = expected_schedule
-              update_necessary = True
-
-          # If disabled is set to true, ensure update_necessary is also true
-          if disabled:
-              update_necessary = True
-
-          # Return the results
-          return {
-              'current_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-              'days_since_creation': days_since_creation,
-              'disabled': disabled,
-              'new_schedule': new_schedule,
-              'update_necessary': update_necessary
-          }
-    props:
-      user_creation: ${get-customer-details.response.data.records[0].createdAt}
-      isPro: ${get-customer-details.response.data.records[0].isPro}
-      schedule: ${get-customer-details.response.data.records[0].schedule}
-  update-trigger:
-    if: ${get-trigger-update-data.update_necessary}
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsbot.deploymentId}/trigger/${get-trigger.response.data.items[0].id}
-      method: POST
-      headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-      data: 
-        schedule: ${get-trigger-update-data.new_schedule}
-        disabled: ${get-trigger-update-data.disabled}
   set-defaults-filter:
-    if: ${process-purchase-data.disabled} === false
+    if: ${process-purchase-data.isProd} === true || ${get-customer-details.response.data.records[0].fields.creat} === true
     runtime: python3_10
     description: |
       Set default values for the search filter.
     code: |
       from datetime import datetime, timedelta
       def handler(inputs):
-          isPro = inputs['isPro']
-          max_online_hours = 1 if isPro else 24
+          max_online_hours = inputs['max_online_hours']
           search_params = inputs['search_params']
           today_date = datetime.now().strftime('%Y-%m-%d')
           default_filter = {
@@ -195,7 +61,7 @@ steps:
           return {'filter': search_params}
     props:
       search_params: ${get-customer-details.response.data.records[0].fields}
-      isPro: ${process-purchase-data.isPro}
+      max_online_hours: ${inputs.max_online_hours}
   search-flat-listings:
     description: |
       Fetch flat listings from WG-Gesucht using the specified search parameters.

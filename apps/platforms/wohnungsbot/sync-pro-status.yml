@@ -1,0 +1,97 @@
+name: wg-gesucht-application-bot
+apiRevision: edurata.io/v1
+description: |
+  Fetches regulary stripe charges and updates airtable with the pro status of the user.
+steps:
+  get-24h-back-epoch-time:
+    runtime: python3_10
+    description: |
+      Get the epoch time for yesterday.
+    code: |
+      from datetime import datetime, timedelta
+      def handler(inputs):
+          yesterday = datetime.now() - timedelta(days=1)
+          epoch_time = int(yesterday.timestamp())
+          return {'epoch_time': epoch_time}
+  fetch-stripe-charges:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.stripe.com/v1/customers/search"
+      headers:
+        Authorization: "Bearer ${secrets.STRIPE_API_KEY}"
+      params:
+        query: "created>${get-24h-back-epoch-time.epoch_time} status:\"succeeded\""
+        "expand[]": "data.customer"
+  get-metadata-from-charges:
+    runtime: python3_10
+    description: |
+      Extract metadata from the charges.
+    code: |
+      import random
+      from datetime import datetime, timedelta
+
+      def handler(inputs):
+          charges = inputs['fetch-stripe-charges']['data']
+          applicationConfig = inputs['applicationConfig']
+          metadata = []
+          amountToDeploymentId = {}
+
+          # Map amount to deploymentId
+          amountToDeploymentId[wohnungsBot.proMonthlyAmount] = applicationConfig['wohnungsbot']['deploymentId']
+
+          for charge in charges:
+              # Ensure necessary fields are present to avoid KeyError
+              amount = charge.get('amount')
+              date = charge.get('created')
+              customer = charge.get('customer', {})
+              email = customer.get('customer_email')
+              created = charge.get('created')
+              deploymentId = amountToDeploymentId.get(amount)
+              randomHourlySchedule = random.randint(0, 23)
+              cron = f'{randomHourlySchedule} * * * *'
+              in_one_month_iso_after_creation = datetime.fromisoformat(created) + timedelta(days=30) 
+              if deploymentId:
+                metadata.append({
+                    'email': email,
+                    'deploymentId': deploymentId,
+                    'created': created,
+                    'schedule': cron,
+                    'expireDate': in_one_month_iso_after_creation
+                })
+
+          return {'metadata': metadata}
+    props:
+      applicationConfig: ${variables.applicationConfig}
+      fetch-stripe-charges: ${fetch-stripe-charges.response.data}
+  get-trigger:
+    foreach: ${get-metadata-from-charges.metadata}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: ${meta.apiUrl}/deployment/${each.deploymentId}/trigger
+      method: GET
+      headers:
+        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+      data: 
+        name:
+          eq: ${each.email}
+  update-trigger:
+    foreach: ${get-metadata-from-charges.metadata}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsbot.deploymentId}/trigger/${get-trigger.response.data.items[0].id}
+      method: POST
+      headers:
+        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+      data:
+        schedule: ${each.schedule}
+        disabled: false
+        expireDate: ${each.expireDate}
+        
+

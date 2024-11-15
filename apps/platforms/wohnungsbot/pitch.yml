@@ -25,8 +25,8 @@ steps:
       filter:
         city_id: 8
         max_online_hours: 80
-      WG_USERNAME: ${get-random-credentials.wgUsername}
-      WG_PASSWORD: ${get-random-credentials.wgPassword}
+      WG_USERNAME: ${get-random-credentials.login.wgUsername}
+      WG_PASSWORD: ${get-random-credentials.login.wgPassword}
   generate-recommendations:
     foreach: ${search-users.people_listings}
     description: |
@@ -73,6 +73,6 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: apps/platforms/wohnungsbot/wg-gesucht/apply
     props:
-      WG_USERNAME: ${get-random-credentials.wgUsername}
-      WG_PASSWORD: ${get-random-credentials.wgPassword}
+      WG_USERNAME: ${get-random-credentials.login.wgUsername}
+      WG_PASSWORD: ${get-random-credentials.login.wgPassword}
       application_list: ${merge-info.merged_listings}

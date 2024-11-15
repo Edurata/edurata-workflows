@@ -93,5 +93,6 @@ steps:
         schedule: ${each.schedule}
         disabled: false
         expireDate: ${each.expireDate}
-        
-
+        variables: 
+          email: ${each.email}
+          isPro: true

@@ -69,8 +69,9 @@ def search_listings(session, filters):
     city_name = filters.get("city_name", "Berlin")
     city_id = 8  # Berlin
     district_names = filters.get("district_names", [])
-    district_mapping = json.load(open("district_mapping.json"))  # Load your mapping JSON
-    city_mapping = json.load(open("city_mapping.json"))  # Load your mapping JSON
+    script_dir = os.path.dirname(__file__)
+    district_mapping = json.load(open(os.path.join(script_dir, "district_mapping.json")))  # Load your mapping JSON
+    city_mapping = json.load(open(os.path.join(script_dir, "city_mapping.json")))  # Load your mapping JSON
     district_codes = []
 
     try:
@@ -261,21 +262,21 @@ def handler(inputs):
     return {"listings": listings}
 
 # Sample usage:
-# inputs = {
-#     "filter":
-#     { 
-#         "city_name": "Hamburg",
-#         "district_names": ["Bahrenfeld"],
-#         "rent_max": 1000,
-#         "room_size_min": 10,
-#         "room_number_min": 2,
-#         "only_furnished": False,
-#         "max_online_hours": 60,
-#         "balcony": False,
-#         "move_in_earliest": "2025-01-01",
-#         "move_in_latest": "2025-01-30",
-#         "min_stay_days": 20
-#     }
-# }
-# results = handler(inputs)
-# print(results)
+inputs = {
+    "filter":
+    { 
+        "city_name": "Hamburg",
+        "district_names": ["Bahrenfeld"],
+        "rent_max": 1000,
+        "room_size_min": 10,
+        "room_number_min": 2,
+        "only_furnished": False,
+        "max_online_hours": 60,
+        "balcony": False,
+        "move_in_earliest": "2025-01-01",
+        "move_in_latest": "2025-01-30",
+        "min_stay_days": 20
+    }
+}
+results = handler(inputs)
+print(results)

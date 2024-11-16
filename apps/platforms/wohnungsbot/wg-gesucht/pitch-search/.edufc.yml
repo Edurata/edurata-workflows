@@ -4,7 +4,6 @@ description: >
   It requires login credentials provided as environment variables. Returns a list of
   people listings filtered by the provided criteria.
 runtime: python3_10
-
 interface:
   inputs:
     properties:

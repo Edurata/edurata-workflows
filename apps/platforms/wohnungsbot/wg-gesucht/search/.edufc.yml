@@ -1,7 +1,6 @@
 name: wg_gesucht_scraper
 runtime: python3_10
 description: Scrapes WG-Gesucht website listings based on specific filters such as city, rent range, room size, etc., requiring login credentials and CSRF token handling.
-
 interface:
   inputs:
     type: object

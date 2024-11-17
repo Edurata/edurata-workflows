@@ -119,7 +119,7 @@ steps:
       path: general/axios
     props:
       url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.email}
-      method: POST
+      method: GET
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       __create-environment: ${create-environment}

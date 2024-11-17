@@ -147,7 +147,7 @@ steps:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data: 
         name:
-          eq: ${extract-data-from-event.uriEncodedId}
+          eq: ${extract-data-from-event.email}
   delete-trigger:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

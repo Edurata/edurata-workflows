@@ -184,7 +184,7 @@ steps:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
         name: "${extract-data-from-event.email}"
-        environmentId: ${create-environment.response.data.id}
+        environmentId: ${get-environment.response.data.id}
         variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
         schedule: ${get-schedule.schedule}
   send-finished-email:

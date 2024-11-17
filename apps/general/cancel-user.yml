@@ -153,7 +153,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/deployments/${get-application-config-from-name.appConfig.deploymentId}/trigger/${get-deployment-triggers.response.data.items[0].id}
+      url: ${meta.apiUrl}/deployment/${get-application-config-from-name.appConfig.deploymentId}/trigger/${get-deployment-triggers.response.data.items[0].id}
       method: DELETE
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"

@@ -46,7 +46,7 @@ steps:
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
-        const { data, appName } = inputs;
+        const { data } = inputs;
         const emailField = data.fields[0]
         const nameField = data.fields[1]
         const uriEncodedId = encodeURIComponent(emailField.value);
@@ -57,59 +57,36 @@ steps:
         };
       }
     props:
-      appName: ${extract-application-name-from-event.applicationName}
       data: ${inputs.data}
-  extract-application-name-from-event:
+  extract-application-id-from-event:
     runtime: nodejs20
-    interface:
-      inputs:
-        properties:
-          appNameField:
-            example:
-              {
-                "key": "question_0dDJAA",
-                "label": "Which microapp do you want to update?",
-                "type": "DROPDOWN",
-                "value": [
-                  "c426210f-e82e-4259-ac93-f1bf3951da32"
-                ],
-                "options": [
-                  {
-                    "id": "c09e221a-dbdb-4c04-a9cb-1b78e72e4a26",
-                    "text": "Short story bot"
-                  },
-                  {
-                    "id": "c426210f-e82e-4259-ac93-f1bf3951da32",
-                    "text": "Accounting bot"
-                  },
-                  {
-                    "id": "d45666ba-7026-4067-841a-5ba51bb04ffb",
-                    "text": "Application bot"
-                  }
-                ]
-              }
-            type: object
-        required:
-          - appNameField
     code: |
       exports.handler = async (inputs) => {
-        const appNameField = inputs.appNameField;
-        const appDropdownId = appNameField.value[0];
-        return {
-          applicationName: appNameField.options.find(option => option.id === appDropdownId).text
-        };
-      }
+          const fields = inputs.fields;
+
+          // Find the field with the label "applicationId"
+          const applicationIdField = fields.find(field => field.label === "applicationId");
+
+          if (!applicationIdField) {
+              throw new Error("Field with label 'applicationId' not found.");
+          }
+
+          // Extract the applicationId directly as a string
+          const applicationId = applicationIdField.value;
+
+          return {
+              applicationId: applicationId
+          };
+      };
     props:
-      appNameField: ${inputs.data.fields[1]}
+      fields: ${inputs.data.fields}
   get-application-config-from-name:
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
-        const { applicationName, applicationConfig } = inputs;
+        const { applicationId, applicationConfig } = inputs;
 
-        // Find the configuration for the given applicationName
-        const appConfig = Object.entries(applicationConfig)
-          .find(([id, config]) => config.appName === applicationName)?.[1];
+        const appConfig = applicationConfig[applicationId];
 
         // Throw an error if no configuration is found
         if (!appConfig) {
@@ -122,7 +99,7 @@ steps:
         };
       };
     props:
-      applicationName: ${extract-application-name-from-event.applicationName}
+      applicationId: ${extract-application-id-from-event.applicationId}
       applicationConfig: ${inputs.applicationConfig}
   create-environment:
     source:
@@ -150,15 +127,32 @@ steps:
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
-        // generate daily schedule at random time to spread out the load
-        const hour = Math.floor(Math.random() * 24);
-        const minute = Math.floor(Math.random() * 60);
-        const schedule = `${minute} ${hour} * * *`;
+          const scheduleRate = inputs.scheduleRate;
 
-        return {
-          schedule,
-        };
+          let schedule;
+
+          if (scheduleRate === 'hourly') {
+              // Every hour at a random minute
+              const minute = Math.floor(Math.random() * 60);
+              schedule = `${minute} * * * *`;
+          } else if (scheduleRate === 'daily') {
+              // Generate daily schedule at a random hour and minute
+              const hour = Math.floor(Math.random() * 24);
+              const minute = Math.floor(Math.random() * 60);
+              schedule = `${minute} ${hour} * * *`;
+          } else if (scheduleRate === 'never') {
+              // Special cron expression for "never" (non-functional schedule)
+              schedule = null; // or an empty string, depending on your system's requirements
+          } else {
+              throw new Error(`Invalid scheduleRate: ${scheduleRate}. Expected 'hourly', 'daily', or 'never'.`);
+          }
+
+          return {
+              schedule,
+          };
       };
+    props:
+      scheduleRate: ${get-application-config-from-name.appConfig.normalScheduleRate}
   translate-schedule-to-readable:
     runtime: nodejs20
     code: |
@@ -194,7 +188,7 @@ steps:
         variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
         schedule: ${get-schedule.schedule}
   send-finished-email:
-    if: "!(${get-application-config-from-name.appConfig.oauthSecretName})"
+    if: "!(${get-application-config-from-name.appConfig.oauthSecretName?})"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
@@ -216,11 +210,13 @@ steps:
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   send-oauth-email:
-    if: ${get-application-config-from-name.appConfig.oauthSecretName}
+    if: ${get-application-config-from-name.appConfig.oauthSecretName?}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     props:
+      __create-environment: ${create-environment}
+      __create-trigger: ${create-trigger}
       sender: ${get-application-config-from-name.appConfig.senderEmail}
       to: ${extract-data-from-event.email}
       subject: "${get-application-config-from-name.appConfig.appName}: Authorization needed"

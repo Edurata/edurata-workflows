@@ -178,7 +178,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/deployments/${get-application-config-from-name.appConfig.deploymentId}/trigger
+      url: ${meta.apiUrl}/deployment/${get-application-config-from-name.appConfig.deploymentId}/trigger
       method: POST
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
@@ -224,7 +224,7 @@ steps:
         Hey ${extract-data-from-event.name}!,
         <br><br>
         The setup is almost complete.
-        We still need OAuth permissions to ${get-application-config-from-name.appConfig.oauthPurposeDescription}. Please click <a href="${meta.apiUrl}/oauth/google?s=${get-application-config-from-name.appConfig.oauthSecretName}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
+        We still need OAuth permissions to ${get-application-config-from-name.appConfig.oauthPurposeDescription?}. Please click <a href="${meta.apiUrl}/oauth/google?s=${get-application-config-from-name.appConfig.oauthSecretName}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedEmail}">here</a> to authorize us.
         You will be redirected to a page where you can authorize the third-party app.
 
         Best wishes,

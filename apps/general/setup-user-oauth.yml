@@ -47,8 +47,8 @@ steps:
     code: |
       exports.handler = async (inputs) => {
         const { data } = inputs;
-        const emailField = data.fields[0]
-        const nameField = data.fields[1]
+        const nameField = data.fields[0]
+        const emailField = data.fields[1]
         const uriEncodedId = encodeURIComponent(emailField.value);
         return {
           email: emailField.value,

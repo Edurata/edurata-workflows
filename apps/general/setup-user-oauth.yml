@@ -111,14 +111,14 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
-        name: "${extract-data-from-event.uriEncodedId}"
+        name: "${extract-data-from-event.email}"
   get-environment:
     description: Get the environment details for the user again in case it was created before.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.uriEncodedId}
+      url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.email}
       method: POST
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
@@ -183,7 +183,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       data:
-        name: "${extract-data-from-event.uriEncodedId}"
+        name: "${extract-data-from-event.email}"
         environmentId: ${create-environment.response.data.id}
         variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
         schedule: ${get-schedule.schedule}

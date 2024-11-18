@@ -9,7 +9,7 @@ interface:
         default: false
         type: boolean
         description: >
-          If the user is pro subscribed
+          If the user is pro subscribed.
       userEmail:
         type: string
         description: The email address of the user of the workflow.

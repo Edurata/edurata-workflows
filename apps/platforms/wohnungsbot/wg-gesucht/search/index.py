@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import os
 import time
 from login import login_wg_gesucht
+import random
 
 def build_base_url():
     return f"https://www.wg-gesucht.de/wohnungen-in-Berlin.8.2.1.0.html"
@@ -66,17 +67,20 @@ def fetch_csrf_token(session, base_url, max_retries=3, wait=2):
     return csrf_token
 
 def search_listings(session, filters):
+    categories = filters.get("categories", ["Wohnung"])
     city_name = filters.get("city_name", "Berlin")
     city_id = 8  # Berlin
     district_names = filters.get("district_names", [])
     script_dir = os.path.dirname(__file__)
     district_mapping = json.load(open(os.path.join(script_dir, "district_mapping.json")))  # Load your mapping JSON
     city_mapping = json.load(open(os.path.join(script_dir, "city_mapping.json")))  # Load your mapping JSON
+    categories_mapping = json.load(open(os.path.join(script_dir, "categories_mapping.json")))
     district_codes = []
 
     try:
         district_codes = [district_mapping[city_name][district_name] for district_name in district_names]
         city_id = city_mapping[city_name]
+        category_ids = [categories_mapping[category] for category in categories]
     except KeyError as e:
         raise ValueError(f"Invalid city or district name provided: {e}")
 
@@ -103,7 +107,7 @@ def search_listings(session, filters):
         "sort_order": 0,
         "noDeact": 1,
         "exc": 2,
-        "categories[]": 2,
+        "categories[]": category_ids,
         "rent_types[]": [1, 2],
         "rMax": filters.get("rent_max", 1000),
         "sMin": filters.get("room_size_min", 10),
@@ -143,7 +147,7 @@ def search_listings(session, filters):
         print(f"Detected URL change. New URL: {response.url}")
 
         # wait for random seconds before making the next request
-        time.sleep(2.3)
+        time.sleep(random.uniform(0, 2))
 
         # Make a new request to the redirected URL
         response = session.get(response.url, headers=headers)
@@ -228,8 +232,7 @@ def search_listings(session, filters):
 
         ad_person_element = listing.find("span", class_="ml5")
         ad_person = ad_person_element.text.strip() if ad_person_element else "Unknown"
-
-        listings.append({
+        current_listing = {
             "title": title,
             "link": link,
             "rent": rent,
@@ -243,7 +246,25 @@ def search_listings(session, filters):
             "lister_name": ad_person,
             "online_duration": str(online_duration),
             "description": "Description not available in list view"
-        })
+        }
+        # Fetch description from the detailed listing page
+        if link:
+            try:
+                wait_time = random.uniform(0, 2)
+                time.sleep(wait_time)
+                response = session.get(link, headers={"User-Agent": "Mozilla/5.0"})
+                if response.status_code == 200:
+                    detail_soup = BeautifulSoup(response.text, "html.parser")
+                    description_div = detail_soup.find("div", id="freitext_0")
+                    description_paragraph = description_div.find("p") if description_div else None
+                    description = description_paragraph.get_text(strip=True) if description_paragraph else "No description found."
+                    current_listing["description"] = description
+                    print(f"Updated description for {title}: {description[:50]}...")
+                else:
+                    print(f"Failed to fetch description for {title} (Status Code: {response.status_code})")
+            except Exception as e:
+                print(f"Error fetching description for {title}: {e}")
+        listings.append(current_listing)
 
     return listings
 
@@ -265,13 +286,14 @@ def handler(inputs):
 # inputs = {
 #     "filter":
 #     { 
+#         "categories": ["Wohnung"],
 #         "city_name": "Berlin",
 #         "district_names": [],
-#         "rent_max": 450,
+#         "rent_max": 1500,
 #         "room_size_min": 10,
 #         "room_number_min": 2,
 #         "only_furnished": False,
-#         "max_online_hours": 1,
+#         "max_online_hours": 10,
 #         "balcony": False,
 #         "move_in_earliest": "2024-12-01",
 #         "move_in_latest": "2025-01-01",

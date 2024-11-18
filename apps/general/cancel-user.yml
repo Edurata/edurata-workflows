@@ -158,7 +158,8 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
   delete-airtable-record:
-    if: ${delete-trigger.response.status} === 200
+    if: 
+      "===": ["${delete-trigger.response.status}", 200]
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -168,7 +169,8 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-delete-email:
-    if: ${delete-airtable-record.response.status} === 200
+    if: 
+      "===": ["${delete-airtable-record.response.status}", 200]
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses

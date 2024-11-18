@@ -188,7 +188,9 @@ steps:
         variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
         schedule: ${get-schedule.schedule}
   send-finished-email:
-    if: "${get-application-config-from-name.appConfig.oauthSecretName?} === null"
+    if: 
+      "not":
+        "!!": "${get-application-config-from-name.appConfig.oauthSecretName?}"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
@@ -209,27 +211,27 @@ steps:
         <br><br>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
-  # send-oauth-email:
-  #   if: 
-  #     ${get-application-config-from-name.appConfig.oauthSecretName?} !== null
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: etl/load/send-ses
-  #   props:
-  #     __create-environment: ${create-environment}
-  #     __create-trigger: ${create-trigger}
-  #     sender: ${get-application-config-from-name.appConfig.senderEmail}
-  #     to: ${extract-data-from-event.email}
-  #     subject: "${get-application-config-from-name.appConfig.appName}: Authorization needed"
-  #     html_body: >
-  #       Hey ${extract-data-from-event.name}!,
-  #       <br><br>
-  #       The setup is almost complete.
-  #       We still need OAuth permissions to ${get-application-config-from-name.appConfig.oauthPurposeDescription?}. Please click <a href="${meta.apiUrl}/oauth/google?s=${get-application-config-from-name.appConfig.oauthSecretName?}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedId}">here</a> to authorize us.
-  #       You will be redirected to a page where you can authorize the third-party app.
+  send-oauth-email:
+    if: 
+      "!!": "${get-application-config-from-name.appConfig.oauthSecretName?}"
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-ses
+    props:
+      __create-environment: ${create-environment}
+      __create-trigger: ${create-trigger}
+      sender: ${get-application-config-from-name.appConfig.senderEmail}
+      to: ${extract-data-from-event.email}
+      subject: "${get-application-config-from-name.appConfig.appName}: Authorization needed"
+      html_body: >
+        Hey ${extract-data-from-event.name}!,
+        <br><br>
+        The setup is almost complete.
+        We still need OAuth permissions to ${get-application-config-from-name.appConfig.oauthPurposeDescription?}. Please click <a href="${meta.apiUrl}/oauth/google?s=${get-application-config-from-name.appConfig.oauthSecretName?}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedId}">here</a> to authorize us.
+        You will be redirected to a page where you can authorize the third-party app.
 
-  #       Best wishes,
-  #       Edurata Team
-  #       <br><br>
-  #     AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
-  #     AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
+        Best wishes,
+        Edurata Team
+        <br><br>
+      AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
+      AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

@@ -262,21 +262,21 @@ def handler(inputs):
     return {"listings": listings}
 
 # Sample usage:
-inputs = {
-    "filter":
-    { 
-        "city_name": "Hamburg",
-        "district_names": ["Bahrenfeld"],
-        "rent_max": 1000,
-        "room_size_min": 10,
-        "room_number_min": 2,
-        "only_furnished": False,
-        "max_online_hours": 60,
-        "balcony": False,
-        "move_in_earliest": "2025-01-01",
-        "move_in_latest": "2025-01-30",
-        "min_stay_days": 20
-    }
-}
-results = handler(inputs)
-print(results)
+# inputs = {
+#     "filter":
+#     { 
+#         "city_name": "Berlin",
+#         "district_names": [],
+#         "rent_max": 450,
+#         "room_size_min": 10,
+#         "room_number_min": 2,
+#         "only_furnished": False,
+#         "max_online_hours": 1,
+#         "balcony": False,
+#         "move_in_earliest": "2024-12-01",
+#         "move_in_latest": "2025-01-01",
+#         "min_stay_days": 20
+#     }
+# }
+# results = handler(inputs)
+# print(results)

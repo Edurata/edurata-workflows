@@ -5,12 +5,11 @@ description: |
 interface:
   inputs:
     properties:
-      max_online_hours:
-        default: 1
-        type: number
+      isPro:
+        default: false
+        type: boolean
         description: >
-          Maximum number of hours a listing has been online to be included in the results.
-          If not provided, all listings will be returned.
+          If the user is pro subscribed
       userEmail:
         type: string
         description: The email address of the user of the workflow.
@@ -34,7 +33,7 @@ steps:
     code: |
       from datetime import datetime, timedelta
       def handler(inputs):
-          max_online_hours = inputs['max_online_hours']
+          is_pro = inputs['is_pro']
           search_params = inputs['search_params']
           today_date = datetime.now().strftime('%Y-%m-%d')
           default_filter = {
@@ -43,7 +42,7 @@ steps:
               'rent_max': 1000,
               'room_size_min': 10,
               'only_furnished': False,
-              'max_online_hours': max_online_hours,
+              'max_online_hours': 1 if is_pro else 24,
               'balcony': False,
               'room_number_min': 1,
               'move_in_earliest': today_date,
@@ -55,7 +54,7 @@ steps:
           return {'filter': search_params}
     props:
       search_params: ${get-customer-details.response.data.records[0].fields}
-      max_online_hours: ${inputs.max_online_hours}
+      is_pro: ${inputs.isPro}
   search-flat-listings:
     description: |
       Fetch flat listings from WG-Gesucht using the specified search parameters.

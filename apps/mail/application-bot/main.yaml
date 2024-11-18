@@ -32,7 +32,8 @@ inputs:
   maxElapsedDays: ${variables.applicationConfig.applicationBot.maxElapsedDays}
 steps:
   extract-freelancermap-job-postings:
-    if: "\"${get-customer-details.response.data.records[0].fields.freelancermapUser}\""
+    if: 
+      "!!": ${get-customer-details.response.data.records[0].fields.freelancermapUser}
     description: Extract job postings via html parsing and return a list of job postings.
     source:
       repoUrl: https://github.com/Edurata/edurata-workflows.git
@@ -44,7 +45,8 @@ steps:
       negative_keywords: ${get-customer-details.response.data.records[0].fields.negativeKeywords}
       max_elapsed_days: ${inputs.maxElapsedDays}
   add-new-jobs-to-airtable:
-    if: "\"${get-customer-details.response.data.records[0].fields.freelancermapUser}\""
+    if: 
+      "!!": ${get-customer-details.response.data.records[0].fields.freelancermapUser}
     foreach: "${extract-freelancermap-job-postings.matching_jobs}"
     description: Add new job postings to the Airtable.
     source:

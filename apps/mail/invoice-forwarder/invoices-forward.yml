@@ -126,7 +126,10 @@ steps:
         maxResults: 10
       __create-labels: ${create-labels}
   continue-if-new-mails:
-    if: ${get-new-mails-without-tag.response.data.resultSizeEstimate} > 0
+    if: 
+      ">":
+        - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
+        - 0
     else: success
     runtime: python3_10
     code: |
@@ -231,7 +234,8 @@ steps:
         raw: ${encode_email_attachments.raw}
   # Inline step to encode the email with attachment in base64 format
   encode_email_attachments:
-    if: ('${merge-config.config.forwardEmail}').length > 0
+    if: 
+      "!!": ${merge-config.config.forwardEmail}
     else: success
     runtime: python3_10
     interface:
@@ -310,7 +314,8 @@ steps:
   #     AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   get-folder-id:
     runtime: python3_10
-    if: ('${merge-config.config.gdriveFolderName}').length > 0
+    if: 
+      "!!": ${merge-config.config.gdriveFolderName}
     code: |
       import datetime
       def handler(inputs):
@@ -318,7 +323,8 @@ steps:
           today = datetime.datetime.now().strftime("%Y-%m-%d")
           return {"folder_name": today}
   create-folderpath:
-    if: ${filter-attachments.filtered_attachments}.length > 0
+    if: 
+      "!!": ${filter-attachments.filtered_attachments}
     description: |
       Create the folder path like invoices/2021-01-01 in Google Drive
     source:

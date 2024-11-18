@@ -102,8 +102,8 @@ steps:
       rest: ${inputs.functionsToBuild}
   build-nodejs20:
     foreach: ${get-runtime.runtime_and_files}
-    if: >
-      "${each.runtime}" === "nodejs20"
+    if:
+      "===": ["${each.runtime}", "nodejs20"]
     description: Building the python10 code
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -112,8 +112,8 @@ steps:
       code: ${each.repoCode}
   build-python3_10:
     foreach: ${get-runtime.runtime_and_files}
-    if: >
-      "${each.runtime}" === "python3_10"
+    if:
+      "===": ["${each.runtime}", "python3_10"]
     description: Building the python10 code
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -160,8 +160,8 @@ steps:
       module.exports = {handler}
   get-upload-url:
     foreach: ${get-runtime.runtime_and_files}
-    if: >
-      "${each.runtime}" !== "docker"
+    if:
+      "!==": ["${each.runtime}", "docker"]
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -171,8 +171,8 @@ steps:
         Authorization: "Bearer ${meta.executionToken}"
   zip-code:
     foreach: ${merge-results.results}
-    if: >
-      "${get-runtime.runtime_and_files[each.index].runtime}" !== "docker"
+    if:
+      "!==": ["${get-runtime.runtime_and_files[each.index].runtime}", "docker"]
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/zip
@@ -180,8 +180,8 @@ steps:
       file: ${each.code}
   upload-code:
     foreach: ${merge-results.results}
-    if: >
-      "${get-runtime.runtime_and_files[each.index].runtime}" !== "docker"
+    if:
+      "!==": ["${get-runtime.runtime_and_files[each.index].runtime}", "docker"]
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

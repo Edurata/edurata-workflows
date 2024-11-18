@@ -188,7 +188,7 @@ steps:
         variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
         schedule: ${get-schedule.schedule}
   send-finished-email:
-    if: "!(${get-application-config-from-name.appConfig.oauthSecretName?})"
+    if: "${get-application-config-from-name.appConfig.oauthSecretName?} === null"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
@@ -210,7 +210,7 @@ steps:
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   send-oauth-email:
-    if: ${get-application-config-from-name.appConfig.oauthSecretName?}
+    if: ${get-application-config-from-name.appConfig.oauthSecretName?} !== null
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses

@@ -183,10 +183,10 @@ steps:
         Hey ${find-in-airtable.response.data.records[0].fields.name}!,
         <br><br>
         We have deleted all resources related to your subscription.
-
+        <br>
         If you want to start a new subscription visit <a href="${get-application-config-from-name.appConfig.appUrl}">${get-application-config-from-name.appConfig.appName} online</a>.
-
-        All the best,
+        <br>
+        All the best,<br>
         The Edurata team
         <br><br>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}

@@ -40,7 +40,7 @@ steps:
           amountToDeploymentId = {}
 
           # Map amount to deploymentId
-          amountToDeploymentId[wohnungsBot.proMonthlyAmount] = applicationConfig['wohnungsbot']['deploymentId']
+          amountToDeploymentId[wohnungsBot.proMonthlyAmount] = applicationConfig['wohnungsBot']['deploymentId']
 
           for charge in charges:
               # Ensure necessary fields are present to avoid KeyError
@@ -85,7 +85,7 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsbot.deploymentId}/trigger/${get-trigger.response.data.items[0].id}
+      url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsBot.deploymentId}/trigger/${get-trigger.response.data.items[0].id}
       method: POST
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"

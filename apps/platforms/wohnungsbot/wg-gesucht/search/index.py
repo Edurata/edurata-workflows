@@ -285,7 +285,7 @@ def handler(inputs):
 # Sample usage:
 # inputs = {
 #     "filter":
-#     { 
+#     {
 #         "categories": ["Wohnung"],
 #         "city_name": "Berlin",
 #         "district_names": [],

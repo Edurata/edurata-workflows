@@ -286,7 +286,7 @@ def handler(inputs):
 # inputs = {
 #     "filter":
 #     {
-#         "categories": ["Wohnung"],
+#         "categories": ["Wohnung", "WG-Zimmer"],
 #         "city_name": "Berlin",
 #         "district_names": [],
 #         "rent_max": 1500,

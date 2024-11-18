@@ -102,7 +102,9 @@ steps:
     props:
       listings: "${search-flat-listings.listings}"
       applications: "${generate-applications[*].response}"
-  apply-to-listings:  
+  apply-to-listings:
+    if:
+      "!!": "${merge-info.merged_listings}"
     description: |
       Automatically apply to the filtered flat listings.
     source:

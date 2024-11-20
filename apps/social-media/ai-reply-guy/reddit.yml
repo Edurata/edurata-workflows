@@ -28,17 +28,6 @@ steps:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
-  split-keywords:
-    description: Split the keywords from the context data into an array.
-    runtime: python3_10
-    code: |
-      def handler(inputs):
-          keywords = inputs['retrieve-context']['response']['data']['records'][0]['fields']['keywords']
-          # split by comma
-          keywords = keywords.split(',')
-          return {'keywords': keywords}
-    props:
-      retrieve-context: ${retrieve-context}
   search-reddit:
     foreach: ${split-keywords.keywords}
     description: |
@@ -52,7 +41,7 @@ steps:
       headers:
         User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
       params:
-        q: "${each}"
+        q: ${retrieve-context.response.data.records[0].fields.keywords}
         limit: 10
   generate-reply:
     foreach: ${search-reddit.response.data.children}

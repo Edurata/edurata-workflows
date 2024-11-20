@@ -109,7 +109,10 @@ def send_application_via_http(application_list):
         else:
             print(f"Failed to send message to {recipient_name} at {message_url} with status code {response.status_code}")
             print("Response:", response.text)
-            raise Exception("Failed to send message")
+            if response.status_code == 400 and "detail" in response.json() and "Conversation already" in response.json()["detail"]:
+                print("Skipping this application as the conversation already exists.")
+            else:
+                raise Exception("Failed to send message")
 
         # Random delay between requests
         delay = random.uniform(2, 5)  # Random delay between 2 and 5 seconds

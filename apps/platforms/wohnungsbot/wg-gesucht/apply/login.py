@@ -19,9 +19,8 @@ def login_wg_gesucht(username, password):
         "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
         "Cache-Control": "no-cache",
         "Content-Type": "application/json",
-        "Origin": "https://www.wg-gesucht.de",
-        "Pragma": "no-cache",
-        "Referer": "https://www.wg-gesucht.de/",
+        "Origin": BASE_URL,
+        "Referer": BASE_URL,
         "Sec-Ch-Ua": "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"",
         "Sec-Ch-Ua-Mobile": "?0",
         "Sec-Ch-Ua-Platform": "\"Windows\"",
@@ -48,23 +47,27 @@ def login_wg_gesucht(username, password):
     
     # Parse the response for tokens
     if response.status_code == 200:
+        print(response.json())
         response_data = response.json()
         access_token = response_data.get("access_token")
-        refresh_token = response_data.get("refresh_token")
         csrf_token = response_data.get("csrf_token")
-        
+        user_id = response_data.get("user_id")  # Adjust key based on actual response
+
         # Store tokens in headers for authenticated requests
         session.headers.update({
             "Authorization": f"Bearer {access_token}",
-            "X-CSRF-Token": csrf_token  # if future requests require it
+            "X-CSRF-Token": csrf_token  # if required for future requests
         })
         
         print("Login successful!")
-        return session, response_data  # Return the session and token data if login was successful
+        return session, csrf_token, user_id
     else:
         print("Request failed with status:", response.status_code)
-        print("Response detail:", response.json())
-        raise Exception("Failed to reach the login endpoint.")
+        try:
+            print("Response detail:", response.json())
+        except Exception:
+            print("Failed to parse error response.")
+        raise Exception("Failed to log in to WG-Gesucht.")
 
 # Usage example
 if __name__ == "__main__":
@@ -73,8 +76,9 @@ if __name__ == "__main__":
 
     if username and password:
         try:
-            session, tokens = login_wg_gesucht(username, password)
-            print("Tokens received:", tokens)
+            session, csrf_token, user_id = login_wg_gesucht(username, password)
+            print("CSRF Token:", csrf_token)
+            print("User ID:", user_id)
         except Exception as e:
             print(f"Error: {e}")
     else:

@@ -48,7 +48,7 @@ steps:
         - Alter der Person: ${each.age}
         - Name: ${each.name}
         - Beschreibung: ${each.description}
-      message: "Schreibe die Nachricht an ${each.name}"
+      message: "Schreibe die Text Nachricht an ${each.name}"
   merge-info:
     runtime: python3_10
     description: |

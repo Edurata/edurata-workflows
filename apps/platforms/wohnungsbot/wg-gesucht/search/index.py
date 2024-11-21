@@ -69,18 +69,24 @@ def fetch_csrf_token(session, base_url, max_retries=3, wait=2):
 def search_listings(session, filters):
     categories = filters.get("categories", ["Wohnung"])
     city_name = filters.get("city_name", "Berlin")
+    gender = filters.get("gender")
+    age = filters.get("age")
     city_id = 8  # Berlin
     district_names = filters.get("district_names", [])
     script_dir = os.path.dirname(__file__)
     district_mapping = json.load(open(os.path.join(script_dir, "district_mapping.json")))  # Load your mapping JSON
     city_mapping = json.load(open(os.path.join(script_dir, "city_mapping.json")))  # Load your mapping JSON
     categories_mapping = json.load(open(os.path.join(script_dir, "categories_mapping.json")))
+    gender_mapping = json.load(open(os.path.join(script_dir, "gender_mapping.json")))
+    gender_id = False
     district_codes = []
 
     try:
         district_codes = [district_mapping[city_name][district_name] for district_name in district_names]
         city_id = city_mapping[city_name]
         category_ids = [categories_mapping[category] for category in categories]
+        if gender:
+            gender_id = gender_mapping[gender]
     except KeyError as e:
         raise ValueError(f"Invalid city or district name provided: {e}")
 
@@ -113,6 +119,12 @@ def search_listings(session, filters):
         "sMin": filters.get("room_size_min", 10),
         "rmMin": rm_min
     }
+
+    if gender_id:
+        params["wgSea"] = gender_id
+
+    if age:
+        params["wgAge"] = age
 
     # Add district codes to params as an array
     if district_codes:
@@ -286,6 +298,7 @@ def handler(inputs):
 inputs = {
     "filter":
     {
+        "gender": "Mann",
         "categories": ["WG-Zimmer"],
         "city_name": "Berlin",
         "district_names": [],

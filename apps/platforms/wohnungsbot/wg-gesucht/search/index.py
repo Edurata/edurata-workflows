@@ -267,9 +267,9 @@ def search_listings(session, filters):
                 response = session.get(link, headers={"User-Agent": "Mozilla/5.0"})
                 if response.status_code == 200:
                     detail_soup = BeautifulSoup(response.text, "html.parser")
-                    description_div = detail_soup.find("div", id="freitext_0")
-                    description_paragraph = description_div.find("p") if description_div else None
-                    description = description_paragraph.get_text(strip=True) if description_paragraph else "No description found."
+                    description_divs = detail_soup.find_all("div", class_="section_freetext")
+                    descriptions = [div.get_text(strip=True) for div in description_divs if div] if description_divs else ["No description found."]
+                    description = " | ".join(descriptions)
                     current_listing["description"] = description
                     print(f"Updated description for {title}: {description[:50]}...")
                 else:
@@ -315,4 +315,7 @@ def handler(inputs):
 #     }
 # }
 # results = handler(inputs)
+# # write to file
+# with open("output.json", "w") as f:
+#     json.dump(results, f, indent=4)
 # print(results)

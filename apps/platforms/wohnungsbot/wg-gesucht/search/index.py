@@ -298,6 +298,7 @@ def handler(inputs):
 inputs = {
     "filter":
     {
+        "age": 35,
         "gender": "Mann",
         "categories": ["WG-Zimmer"],
         "city_name": "Berlin",

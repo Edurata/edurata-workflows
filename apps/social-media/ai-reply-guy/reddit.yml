@@ -29,7 +29,6 @@ steps:
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
   search-reddit:
-    foreach: ${split-keywords.keywords}
     description: |
       Search Reddit for posts that contain the specified keywords.
     source:
@@ -41,7 +40,7 @@ steps:
       headers:
         User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
       params:
-        q: ${retrieve-context.response.data.records[0].fields.keywords}
+        q: ${retrieve-context.response.data.records[0].fields.query}
         limit: 10
   generate-reply:
     foreach: ${search-reddit.response.data.children}

@@ -60,20 +60,20 @@ steps:
         The response should be helpful and encouraging. If the digital product is possible to integrate in the response, suggest it.
         The intention is to be helpful firstly and promote the product secondly.
       message: "Generate a reply."
-  post-reply:
-    foreach: ${search-reddit.response.data.children}
-    description: |
-      Post the generated reply to Reddit as a comment on the relevant post.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: POST
-      url: "https://oauth.reddit.com/api/comment"
-      headers:
-        Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
-        User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
-      data:
-        api_type: "json"
-        text: "${generate-reply[eachIndex].response}"
-        thing_id: "${each.data.name}"
+  # post-reply:
+  #   foreach: ${search-reddit.response.data.children}
+  #   description: |
+  #     Post the generated reply to Reddit as a comment on the relevant post.
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: general/axios
+  #   props:
+  #     method: POST
+  #     url: "https://oauth.reddit.com/api/comment"
+  #     headers:
+  #       Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
+  #       User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
+  #     data:
+  #       api_type: "json"
+  #       text: "${generate-reply[eachIndex].response}"
+  #       thing_id: "${each.data.name}"

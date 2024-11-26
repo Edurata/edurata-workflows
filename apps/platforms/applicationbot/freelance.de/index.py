@@ -134,7 +134,7 @@ def simulate_button_click(session, project_id, user_id):
         "X-Requested-With": "XMLHttpRequest",
         "Referer": f"https://www.freelance.de/Projekte/Projekt-{project_id}",
     })
-    
+ 
     try:
         # Send the POST request
         response = session.post(ajax_url, data=post_data, headers=ajax_headers)

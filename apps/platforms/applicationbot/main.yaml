@@ -1,8 +1,7 @@
-name: airtable-job-applicator
+name: job-applicator
 apiRevision: edurata.io/v1
 description: |
-  Workflow that scans an Airtable containing job postings in 'raw', customer emails, and whether the entry is processed.
-  It generates personalized job applications for each customer based on their CV and sends the emails using Gmail.
+  Workflow that scans freelance.de for new job postings and automatically applies to them based on user-defined preferences.
 interface:
   inputs:
     type: object
@@ -31,23 +30,25 @@ inputs:
   customerTableId: ${variables.applicationConfig.applicationBot.peopleTableId}
   maxElapsedDays: ${variables.applicationConfig.applicationBot.maxElapsedDays}
 steps:
-  extract-freelancermap-job-postings:
+  extract-freelancede-job-postings:
     if: 
-      "!!": ${get-customer-details.response.data.records[0].fields.freelancermapUser}
+      "AND": 
+        - "!!":
+            ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+        - "!!":
+            ${get-customer-details.response.data.records[0].fields.freelancedePw}
     description: Extract job postings via html parsing and return a list of job postings.
     source:
       repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: apps/mail/application-bot/extract-freelancermap
     props:
-      FREELANCERMAP_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancermapUser}
-      FREELANCERMAP_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancermapPw}
-      positive_keywords: ${get-customer-details.response.data.records[0].fields.positiveKeywords}
-      negative_keywords: ${get-customer-details.response.data.records[0].fields.negativeKeywords}
-      max_elapsed_days: ${inputs.maxElapsedDays}
+      FREELANCE_DE_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+      FREELANCE_DE_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancedePw}
+      query_url: https://www.freelance.de/projekte?query=((AWS%20OR%20GCP)%20OR%20KUBERNETES)%20AND%20TERRAFORM%20AND%20CI&sortBy=last_update&lastUpdate=today
   add-new-jobs-to-airtable:
     if: 
-      "!!": ${get-customer-details.response.data.records[0].fields.freelancermapUser}
-    foreach: "${extract-freelancermap-job-postings.matching_jobs}"
+      "!!": ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+    foreach: "${extract-freelancede-job-postings.projects}"
     description: Add new job postings to the Airtable.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -59,7 +60,7 @@ steps:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       data:
         fields:
-          raw: "${each.content}"
+          raw: "${each}"
           userEmail: "${inputs.userEmail}"
           processed: false
   get-job-postings:
@@ -128,9 +129,9 @@ steps:
         "Using the following CV and job posting information, generate an email body in html without linebreaks highlighting my skills and 
          qualifications to apply for the job. The email should be professional and tailored to the job description. 
          Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
-         Keep it very short and dry. Don't use corporate language.
+         Keep it very short and dry. Don't use corporate language. maximum 300 characters.
 
-         Mention in the end that it is an automated message and that it is in response to a job opening on ${each.fields.sourcePage}.
+         Mention in the end that it is in response to a job opening on ${each.fields.sourcePage}.
          Mention that the recipient can reply to the email address ${extract-target-address[each.index].response} directly.
 
           In your response don't include markup formatting as it will be processed directly.
@@ -203,7 +204,8 @@ steps:
           return {'raw': raw}
     props:
       sender: "${inputs.userEmail}"
-      to: "${extract-target-address[each.index].response}"
+      to: "juliandemourgues@edurata.com"
+      # to: "${extract-target-address[each.index].response}"
       subject: "${generate-email-subject[each.index].response}"
       html_body: "${each.response}"
       cv_filepath: "${download-CV.response.file}"

@@ -75,7 +75,10 @@ steps:
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
-        "Write a personalized message to apply for the flat listing. Write it in the language of listing description. Also include emoticons. If the name of lister consists of multiple words, use the first word only to make it more personal.
+        "Write a personalized message to apply for the flat listing. 
+        Write it in the language of listing description. 
+        Also include emoticons. 
+        If the name of lister consists of multiple words, use the first word only to make it more personal.
 
         Take the following information into account:
         - Title: ${each.title}

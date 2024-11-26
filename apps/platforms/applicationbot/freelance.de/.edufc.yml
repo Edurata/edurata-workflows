@@ -1,0 +1,28 @@
+name: freelance_scraper
+runtime: python3_10
+description: >
+  A scraper for freelance.de that logs in using provided credentials,
+  fetches project listings based on a query URL, and extracts project
+  descriptions and contact details.
+interface:
+  inputs:
+    properties:
+      FREELANCE_DE_PASSWORD:
+        type: env
+        description: The password for the freelance.de account.
+      FREELANCE_DE_USERNAME:
+        type: env
+        description: The username for the freelance.de account.
+      query_url:
+        type: string
+        description: The URL to query project listings from freelance.de.
+    required:
+      - query_url
+  outputs:
+    properties:
+      projects:
+        type: array
+        description: A list of extracted project details including descriptions and contact information.
+      error:
+        type: string
+        description: Error message in case of failure.

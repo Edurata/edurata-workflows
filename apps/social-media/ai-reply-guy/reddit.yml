@@ -28,6 +28,22 @@ steps:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
+  #https://support.reddithelp.com/hc/en-us/articles/19696541895316-Available-search-features
+  prepare-reddit-query:
+    description: Takes a string of terms and formats them as a Reddit search query.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          terms_string = inputs.get("terms_string", "")
+          
+          terms = [term.strip() for term in terms_string.split(",") if term.strip()]
+
+          # join with selftext:{term} and separated by whitespace
+          reddit_query = " ".join([f"selftext:{term}" for term in terms])
+          
+          return {
+              "reddit_query": reddit_query
+          }
   search-reddit:
     description: |
       Search Reddit for posts that contain the specified keywords.
@@ -40,7 +56,7 @@ steps:
       headers:
         User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
       params:
-        q: ${retrieve-context.response.data.records[0].fields.query}
+        q: ${prepare-reddit-query.reddit_query}
         limit: 10
   generate-reply:
     foreach: ${search-reddit.response.data.children}

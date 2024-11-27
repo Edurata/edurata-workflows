@@ -14,6 +14,8 @@ interface:
   required:
     - userEmail
     - airtableTableId
+inputs: 
+  airtableTableId: ${variables.applicationConfig.replyBot.peopleTableId}
 steps:
   retrieve-context:
     description: |
@@ -40,7 +42,8 @@ steps:
 
           # join with selftext:{term} and separated by whitespace
           reddit_query = " ".join([f"selftext:{term}" for term in terms])
-          
+          # add self:true before
+          reddit_query = f"self:true {reddit_query}"
           return {
               "reddit_query": reddit_query
           }

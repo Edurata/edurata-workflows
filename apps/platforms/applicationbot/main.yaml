@@ -40,7 +40,7 @@ steps:
     description: Extract job postings via html parsing and return a list of job postings.
     source:
       repoUrl: https://github.com/Edurata/edurata-workflows.git
-      path: apps/mail/application-bot/freelance.de
+      path: apps/platforms/applicationbot/freelance.de
     props:
       FREELANCE_DE_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancedeUser}
       FREELANCE_DE_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancedePw}

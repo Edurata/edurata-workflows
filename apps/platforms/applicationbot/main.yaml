@@ -32,7 +32,7 @@ inputs:
 steps:
   extract-freelancede-job-postings:
     if: 
-      "AND": 
+      "and": 
         - "!!":
             ${get-customer-details.response.data.records[0].fields.freelancedeUser}
         - "!!":

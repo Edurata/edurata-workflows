@@ -56,16 +56,16 @@ steps:
       url: "https://api.airtable.com/v0/${inputs.jobTableId}"
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"
-      data:
+      params:
         filterByFormula: "{sourceUrl} = '${each.link}'"
   add-new-jobs-to-airtable:
+    foreach: "${extract-freelancede-job-postings.projects}"
     if: 
       and:
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedeUser}
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedePw}
         - "!":
             "!!": ${check-if-record-exists[each.index].response.data.records}
-    foreach: "${extract-freelancede-job-postings.projects}"
     description: Add new job postings to the Airtable.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

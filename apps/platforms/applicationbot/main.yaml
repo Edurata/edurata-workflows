@@ -46,6 +46,7 @@ steps:
       FREELANCE_DE_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancedePw}
       query_url: https://www.freelance.de/projekte?query=((AWS%20OR%20GCP)%20OR%20KUBERNETES)%20AND%20TERRAFORM%20AND%20CI&sortBy=last_update&lastUpdate=today
   check-if-record-exists:
+    foreach: "${extract-freelancede-job-postings.projects}"
     description: "Check if the job posting already exists in the Airtable."
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -56,14 +57,14 @@ steps:
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       data:
-        filterByFormula: "{sourceUrl} = '${each.fields.link}'"
+        filterByFormula: "{sourceUrl} = '${each.link}'"
   add-new-jobs-to-airtable:
     if: 
       and:
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedeUser}
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedePw}
         - "!":
-            "!!": ${check-if-record-exists.response.data.records}
+            "!!": ${check-if-record-exists[each.index].response.data.records}
     foreach: "${extract-freelancede-job-postings.projects}"
     description: Add new job postings to the Airtable.
     source:

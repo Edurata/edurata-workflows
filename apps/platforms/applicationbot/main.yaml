@@ -45,9 +45,25 @@ steps:
       FREELANCE_DE_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancedeUser}
       FREELANCE_DE_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancedePw}
       query_url: https://www.freelance.de/projekte?query=((AWS%20OR%20GCP)%20OR%20KUBERNETES)%20AND%20TERRAFORM%20AND%20CI&sortBy=last_update&lastUpdate=today
+  check-if-record-exists:
+    description: "Check if the job posting already exists in the Airtable."
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: POST
+      url: "https://api.airtable.com/v0/${inputs.jobTableId}"
+      headers:
+        Authorization: "Bearer ${inputs.airtableApiKey}"
+      data:
+        filterByFormula: "{sourceUrl} = '${each.fields.link}'"
   add-new-jobs-to-airtable:
     if: 
-      "!!": ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+      and:
+        - "!!": ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+        - "!!": ${get-customer-details.response.data.records[0].fields.freelancedePw}
+        - "!":
+            "!!": ${check-if-record-exists.response.data.records}
     foreach: "${extract-freelancede-job-postings.projects}"
     description: Add new job postings to the Airtable.
     source:
@@ -135,6 +151,7 @@ steps:
         Mention that it is in response to a job opening on ${each.fields.sourcePage}.
 
         In your response don't include markup formatting and return the body directly.
+        Only return the email body as the header is done separately.
         As its html, you must use <br> for linebreaks.
 
         Job Posting Details: ${each.fields.raw} 

@@ -23,6 +23,15 @@ interface:
       projects:
         type: array
         description: A list of extracted project details including descriptions and contact information.
+        items:
+          type: object
+          properties:
+            content:
+              type: string
+              description: The contents of the project.
+            link:
+              type: string
+              description: The link to the project listing.
       error:
         type: string
         description: Error message in case of failure.

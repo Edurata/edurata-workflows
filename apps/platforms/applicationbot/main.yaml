@@ -33,7 +33,6 @@ steps:
   extract-freelancede-job-postings:
     if: 
       and: 
-        - false
         - "!!":
             ${get-customer-details.response.data.records[0].fields.freelancedeUser}
         - "!!":
@@ -142,7 +141,7 @@ steps:
          My Hourly rate: ${get-customer-details.response.data.records[0].fields.hourlyRate}.
 
          My Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.
-         
+
          My CV: ${extract-CV-content.extracted_text}."
       message: "Create the email in html and only return the email body without markup formatting."
   generate-email-subject:

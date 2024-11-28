@@ -124,25 +124,26 @@ steps:
     foreach: "${get-job-postings.response.data.records}"
     concurrency: 1
     props:
+      model: gpt-4o
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
-        "Using the following CV and job posting information, generate an email body in html highlighting my skills and 
-         qualifications to apply for the job. The email should be tailored to the job description. 
-         Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
-         Keep it very short and dry but friendly. Don't use corporate language. maximum 400 characters. Always mention the hourly rate and availability.
+        Using the following CV and job posting information, generate an email body in html highlighting my skills and 
+        qualifications to apply for the job. The email should be tailored to the job description. 
+        Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
+        Keep it very short and dry but friendly. Don't use corporate language. maximum 400 characters. Always mention the hourly rate and availability.
 
-         Mention that it is in response to a job opening on ${each.fields.sourcePage}.
+        Mention that it is in response to a job opening on ${each.fields.sourcePage}.
 
         In your response don't include markup formatting and return the body directly.
-        As its html, you can use <br> for linebreaks.
+        As its html, you must use <br> for linebreaks.
 
-         Job Posting Details: ${each.fields.raw} 
+        Job Posting Details: ${each.fields.raw} 
 
-         My Hourly rate: ${get-customer-details.response.data.records[0].fields.hourlyRate}.
+        My Hourly rate: ${get-customer-details.response.data.records[0].fields.hourlyRate}.
 
-         My Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.
+        My Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.
 
-         My CV: ${extract-CV-content.extracted_text}."
+        My CV: ${extract-CV-content.extracted_text}.
       message: "Create the email in html and only return the email body without markup formatting."
   generate-email-subject:
     source:

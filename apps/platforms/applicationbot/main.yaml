@@ -77,7 +77,7 @@ steps:
         Authorization: "Bearer ${inputs.airtableApiKey}"
       data:
         fields:
-          raw: "${each}"
+          raw: "${each.content}"
           userEmail: "${inputs.userEmail}"
           processed: false
   get-job-postings:

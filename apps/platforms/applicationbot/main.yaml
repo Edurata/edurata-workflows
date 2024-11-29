@@ -52,7 +52,7 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      method: POST
+      method: GET
       url: "https://api.airtable.com/v0/${inputs.jobTableId}"
       headers:
         Authorization: "Bearer ${inputs.airtableApiKey}"

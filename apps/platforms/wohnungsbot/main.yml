@@ -77,7 +77,7 @@ steps:
       systemMessage: |
         "Write a personalized message to apply for the flat listing. 
         Write it in the language of listing description. 
-        Also include emoticons. 
+        Use emoticons sparingly and only if they are common in the language.
         If the name of lister consists of multiple words, use the first word only to make it more personal.
 
         Take the following information into account:

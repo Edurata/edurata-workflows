@@ -79,7 +79,7 @@ steps:
         fields:
           raw: "${each.content}"
           userEmail: "${inputs.userEmail}"
-          sourcePage: "${each.link}"
+          sourceUrl: "${each.link}"
           processed: false
   get-job-postings:
     description: "Retrieve job postings from Airtable where 'processed' is not true."

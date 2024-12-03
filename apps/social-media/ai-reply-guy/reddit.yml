@@ -55,13 +55,14 @@ steps:
       path: general/axios
     props:
       method: GET
-      url: "https://www.reddit.com/search.json"
+      url: https://oauth.reddit.com/search
       headers:
         Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
         User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
       params:
         q: ${prepare-reddit-query.reddit_query}
         limit: 10
+        sort: "top"
   generate-reply:
     foreach: ${search-reddit.response.data.children}
     description: |

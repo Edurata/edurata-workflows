@@ -30,6 +30,20 @@ inputs:
   customerTableId: ${variables.applicationConfig.applicationBot.peopleTableId}
   maxElapsedDays: ${variables.applicationConfig.applicationBot.maxElapsedDays}
 steps:
+  # extract-freelancermap-job-postings:
+  #   description: Extract job postings via html parsing and return a list of job postings.
+  #   if: 
+  #     and: 
+  #       - "!!":
+  #           ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+  #       - "!!":
+  #           ${get-customer-details.response.data.records[0].fields.freelancedePw}
+  #   source:
+  #     repoUrl: https://github.com/Edurata/edurata-workflows.git
+  #     path: apps/platforms/applicationbot/extract-freelancermap-inbox
+  #   props:
+  #     FREELANCERMAP_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancermapUser}
+  #     FREELANCERMAP_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancermapPw}
   extract-freelancede-job-postings:
     if: 
       and: 
@@ -44,7 +58,7 @@ steps:
     props:
       FREELANCE_DE_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancedeUser}
       FREELANCE_DE_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancedePw}
-      query_url: https://www.freelance.de/projekte?query=((AWS%20OR%20GCP)%20OR%20KUBERNETES)%20AND%20TERRAFORM%20AND%20CI&sortBy=last_update&lastUpdate=today
+      query_url: ${get-customer-details.response.data.records[0].fields.freelancedeQueryUrl}
   check-if-record-exists:
     foreach: "${extract-freelancede-job-postings.projects}"
     description: "Check if the job posting already exists in the Airtable."

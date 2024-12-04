@@ -191,6 +191,8 @@ steps:
          Job Posting Details: ${each.fields.raw} 
       message: "Create the email subject and return only text without formatting."
   prepare-gmail-raw:
+    if:
+      "!!": "${extract-target-address[each.index].response}"
     foreach: "${generate-email-content}"
     description: "Prepare the base64 encoded raw email content for sending using Gmail API."
     runtime: python3_10
@@ -241,8 +243,8 @@ steps:
           return {'raw': raw}
     props:
       sender: "${inputs.userEmail}"
-      to: "juliandemourgues@edurata.com"
-      # to: "${extract-target-address[each.index].response}"
+      # to: "juliandemourgues@edurata.com"
+      to: "${extract-target-address[each.index].response}"
       subject: "${generate-email-subject[each.index].response}"
       html_body: "${each.response}"
       cv_filepath: "${download-CV.response.file}"

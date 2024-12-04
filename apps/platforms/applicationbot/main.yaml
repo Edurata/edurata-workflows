@@ -164,7 +164,7 @@ steps:
         Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
         Keep it very short and dry but friendly. Don't use corporate language. maximum 400 characters. Always mention the hourly rate and availability.
 
-        Mention that it is in response to a job opening on ${each.fields.sourcePage}.
+        Mention that it is in response to a job opening on ${each.fields.sourceUrl}.
 
         In your response don't include markup formatting and return the body directly.
         Only return the email body as the header is done separately.

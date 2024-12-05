@@ -41,7 +41,7 @@ steps:
           terms = [term.strip() for term in terms_string.split(",") if term.strip()]
 
           # join with selftext:{term} and separated by whitespace
-          reddit_query = " ".join([f"selftext:{term}" for term in terms])
+          reddit_query = " ".join([f"selftext:\"{term}\"" for term in terms])
           # add self:true before
           reddit_query = f"self:true {reddit_query}"
           return {

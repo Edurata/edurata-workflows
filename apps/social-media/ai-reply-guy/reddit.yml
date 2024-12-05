@@ -77,11 +77,12 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         Craft a reply to the following Reddit post, impersonating a CTO of a startup managing a digital product.
+        Don't be overly friendly or overly formal. Be like a typical redditor just typing this within a minute without much thought.
         Use the following data:
         - Post text: ${each.data.selftext}
         - Business/Product description: ${retrieve-context.response.data.records[0].fields.businessDescription}
-        The response should be helpful and encouraging. If the digital product is possible to integrate in the response, suggest it.
-        The intention is to be helpful firstly and promote the product secondly.
+        If the digital product is possible to integrate in the response, suggest it but very shortly. 
+        The majority of the response should be about the post itself.
         The comment should be no longer than 5 sentences and in general very short.
       message: "Generate a reply."
   post-reply:

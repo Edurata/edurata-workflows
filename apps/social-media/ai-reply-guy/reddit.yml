@@ -47,6 +47,8 @@ steps:
           return {
               "reddit_query": reddit_query
           }
+    props:
+      terms_string: ${retrieve-context.response.data.records[0].fields.searchTerms}
   search-reddit:
     description: |
       Search Reddit for posts that contain the specified keywords.

@@ -64,7 +64,7 @@ steps:
         limit: 10
         sort: "top"
   generate-reply:
-    foreach: ${search-reddit.response.data.children}
+    foreach: ${search-reddit.response.data.data.children}
     description: |
       Use AI to generate a contextual reply based on the Reddit post and data from Airtable.
     source:
@@ -81,7 +81,7 @@ steps:
         The intention is to be helpful firstly and promote the product secondly.
       message: "Generate a reply."
   post-reply:
-    foreach: ${search-reddit.response.data.children}
+    foreach: ${search-reddit.response.data.data.children}
     description: |
       Post the generated reply to Reddit as a comment on the relevant post.
     source:

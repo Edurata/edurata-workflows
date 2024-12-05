@@ -66,6 +66,7 @@ steps:
         limit: 10
         sort: "top"
   generate-reply:
+    model: gpt-4o
     foreach: ${search-reddit.response.data.data.children}
     description: |
       Use AI to generate a contextual reply based on the Reddit post and data from Airtable.
@@ -81,6 +82,7 @@ steps:
         - Business/Product description: ${retrieve-context.response.data.records[0].fields.businessDescription}
         The response should be helpful and encouraging. If the digital product is possible to integrate in the response, suggest it.
         The intention is to be helpful firstly and promote the product secondly.
+        The comment should be no longer than 5 sentences and in general very short.
       message: "Generate a reply."
   post-reply:
     foreach: ${search-reddit.response.data.data.children}
@@ -97,5 +99,5 @@ steps:
         User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
       data:
         api_type: "json"
-        text: "${generate-reply[eachIndex].response}"
+        text: "${generate-reply[each.index].response}"
         thing_id: "${each.data.name}"

@@ -87,7 +87,7 @@ steps:
       message: "Generate a reply."
   post-reply:
     foreach: ${search-reddit.response.data.data.children}
-    concurrency: 1
+    concurrency: 1 # Ensure we don't hit Reddit's rate limits
     description: |
       Post the generated reply to Reddit as a comment on the relevant post.
     source:

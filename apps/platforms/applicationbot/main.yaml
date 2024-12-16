@@ -61,10 +61,8 @@ steps:
       query_url: ${get-customer-details.response.data.records[0].fields.freelancedeQueryUrl}
   merge-job-postings:
     description: "Merge job postings from different sources."
-    code:
-      runtime: python3_10
-      handler: handler
-      source: |
+    runtime: python3_10
+    code: |
         def handler(inputs):
             freelancede_projects = inputs["extract-freelancede-job-postings.projects"] or []
             freelancermap_jobs = inputs["extract-freelancermap-job-postings.matching_jobs"] or []
@@ -74,9 +72,9 @@ steps:
             return {
                 "projects": freelancermap_jobs + freelancede_projects
             }
-      props:
-        extract-freelancermap-job-postings: "${extract-freelancermap-job-postings}"
-        extract-freelancede-job-postings: "${extract-freelancede-job-postings}"
+    props:
+      extract-freelancermap-job-postings: "${extract-freelancermap-job-postings}"
+      extract-freelancede-job-postings: "${extract-freelancede-job-postings}"
   check-if-record-exists:
     foreach: "${merge-job-postings.projects}"
     description: "Check if the job posting already exists in the Airtable."

@@ -180,7 +180,7 @@ steps:
         Using the following CV and job posting information, generate an email body in html highlighting my skills and 
         qualifications to apply for the job. The email should be tailored to the job description. 
         Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
-        Keep it very short and dry but friendly. Don't use corporate language. maximum 400 characters. Always mention the hourly rate and availability.
+        Keep it very short and dry but friendly. Don't use corporate language. maximum 500 characters. Always mention the hourly rate and availability.
 
         Mention that it is in response to a job opening on ${each.fields.sourceUrl}.
 

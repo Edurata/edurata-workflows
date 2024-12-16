@@ -205,7 +205,7 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         "Using the job posting information, generate an email subject that references the job opening.
-         Only return the completed subject in the language of the job posting without formatting.
+         Only return the completed subject in the language of the job posting without formatting and without any additional information.
          Job Posting Details: ${each.fields.raw} 
       message: "Create the email subject and return only text without formatting."
   prepare-gmail-raw:

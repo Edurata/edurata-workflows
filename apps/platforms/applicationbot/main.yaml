@@ -35,15 +35,17 @@ steps:
     if: 
       and: 
         - "!!":
-            ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+            ${get-customer-details.response.data.records[0].fields.freelancermapUser}
         - "!!":
-            ${get-customer-details.response.data.records[0].fields.freelancedePw}
+            ${get-customer-details.response.data.records[0].fields.freelancermapPw}
     source:
       repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: apps/platforms/applicationbot/extract-freelancermap-inbox
     props:
       FREELANCERMAP_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancermapUser}
       FREELANCERMAP_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancermapPw}
+      positive_keywords: ${get-customer-details.response.data.records[0].fields.positiveKeywords}
+      max_elapsed_days: 1
   extract-freelancede-job-postings:
     if: 
       and: 

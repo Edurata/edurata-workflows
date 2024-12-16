@@ -70,7 +70,7 @@ steps:
             freelancermap_jobs = inputs["extract-freelancermap-job-postings"] or []
             # put basic link into freelancermap_jobs
             for project in freelancermap_jobs:
-                project["link"] = "https://www.freelancermap.de"
+                project["link"] = "https://www.freelancermap.com"
             return {
                 "projects": freelancermap_jobs + freelancede_projects
             }

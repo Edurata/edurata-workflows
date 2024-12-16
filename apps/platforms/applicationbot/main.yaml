@@ -30,20 +30,20 @@ inputs:
   customerTableId: ${variables.applicationConfig.applicationBot.peopleTableId}
   maxElapsedDays: ${variables.applicationConfig.applicationBot.maxElapsedDays}
 steps:
-  # extract-freelancermap-job-postings:
-  #   description: Extract job postings via html parsing and return a list of job postings.
-  #   if: 
-  #     and: 
-  #       - "!!":
-  #           ${get-customer-details.response.data.records[0].fields.freelancedeUser}
-  #       - "!!":
-  #           ${get-customer-details.response.data.records[0].fields.freelancedePw}
-  #   source:
-  #     repoUrl: https://github.com/Edurata/edurata-workflows.git
-  #     path: apps/platforms/applicationbot/extract-freelancermap-inbox
-  #   props:
-  #     FREELANCERMAP_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancermapUser}
-  #     FREELANCERMAP_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancermapPw}
+  extract-freelancermap-job-postings:
+    description: Extract job postings via html parsing and return a list of job postings.
+    if: 
+      and: 
+        - "!!":
+            ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+        - "!!":
+            ${get-customer-details.response.data.records[0].fields.freelancedePw}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
+      path: apps/platforms/applicationbot/extract-freelancermap-inbox
+    props:
+      FREELANCERMAP_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancermapUser}
+      FREELANCERMAP_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancermapPw}
   extract-freelancede-job-postings:
     if: 
       and: 
@@ -59,8 +59,26 @@ steps:
       FREELANCE_DE_USERNAME: ${get-customer-details.response.data.records[0].fields.freelancedeUser}
       FREELANCE_DE_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancedePw}
       query_url: ${get-customer-details.response.data.records[0].fields.freelancedeQueryUrl}
+  merge-job-postings:
+    description: "Merge job postings from different sources."
+    code:
+      runtime: python3_10
+      handler: handler
+      source: |
+        def handler(inputs):
+            freelancede_projects = inputs["extract-freelancede-job-postings.projects"] or []
+            freelancermap_jobs = inputs["extract-freelancermap-job-postings.matching_jobs"] or []
+            # put basic link into freelancermap_jobs
+            for project in freelancermap_jobs:
+                project["link"] = "https://www.freelancermap.de"
+            return {
+                "projects": freelancermap_jobs + freelancede_projects
+            }
+      props:
+        extract-freelancermap-job-postings: "${extract-freelancermap-job-postings}"
+        extract-freelancede-job-postings: "${extract-freelancede-job-postings}"
   check-if-record-exists:
-    foreach: "${extract-freelancede-job-postings.projects}"
+    foreach: "${merge-job-postings.projects}"
     description: "Check if the job posting already exists in the Airtable."
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -73,7 +91,7 @@ steps:
       params:
         filterByFormula: "{sourceUrl} = '${each.link}'"
   add-new-jobs-to-airtable:
-    foreach: "${extract-freelancede-job-postings.projects}"
+    foreach: "${merge-job-postings.projects}"
     if: 
       and:
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedeUser}

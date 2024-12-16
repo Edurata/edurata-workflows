@@ -66,8 +66,8 @@ steps:
     runtime: python3_10
     code: |
         def handler(inputs):
-            freelancede_projects = inputs["extract-freelancede-job-postings.projects"] or []
-            freelancermap_jobs = inputs["extract-freelancermap-job-postings.matching_jobs"] or []
+            freelancede_projects = inputs["extract-freelancede-job-postings"] or []
+            freelancermap_jobs = inputs["extract-freelancermap-job-postings"] or []
             # put basic link into freelancermap_jobs
             for project in freelancermap_jobs:
                 project["link"] = "https://www.freelancermap.de"
@@ -75,8 +75,8 @@ steps:
                 "projects": freelancermap_jobs + freelancede_projects
             }
     props:
-      extract-freelancermap-job-postings: "${extract-freelancermap-job-postings}"
-      extract-freelancede-job-postings: "${extract-freelancede-job-postings}"
+      extract-freelancermap-job-postings: "${extract-freelancermap-job-postings.matching_jobs}"
+      extract-freelancede-job-postings: "${extract-freelancede-job-postings.projects}"
   check-if-record-exists:
     foreach: "${merge-job-postings.projects}"
     description: "Check if the job posting already exists in the Airtable."

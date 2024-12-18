@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./logo.png" alt="Edurata Logo" width="200"/>
+  <img src="./logo-white.png" alt="Edurata Logo" width="150" />
   
   # **Edurata Workflows**
   
@@ -7,8 +7,6 @@
 
   ![License](https://img.shields.io/github/license/edurata/edurata-workflows)
   ![Last Commit](https://img.shields.io/github/last-commit/edurata/edurata-workflows)
-  ![Build Status](https://img.shields.io/github/actions/workflow/status/edurata/edurata-workflows/main.yml?branch=main)
-  ![Version](https://img.shields.io/github/v/release/edurata/edurata-workflows)
   ![Issues](https://img.shields.io/github/issues/edurata/edurata-workflows)
 </div>
 

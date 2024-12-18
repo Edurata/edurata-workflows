@@ -5,9 +5,9 @@
   
   _Open-source workflow templates for orchestrating Python and Node.js functions._
 
-  ![License](https://img.shields.io/github/license/edurata/edurata-workflows)
-  ![Last Commit](https://img.shields.io/github/last-commit/edurata/edurata-workflows)
-  ![Issues](https://img.shields.io/github/issues/edurata/edurata-workflows)
+  ![License](https://img.shields.io/github/license/Edurata/edurata-workflows)
+  ![Last Commit](https://img.shields.io/github/last-commit/Edurata/edurata-workflows)
+  ![Issues](https://img.shields.io/github/issues/Edurata/edurata-workflows)
 </div>
 
 ---

@@ -94,7 +94,7 @@ steps:
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: Du findest und generierst einen passenden Bibelvers zu Labels aus einem Bild.
+      systemMessage: You generate a quote for incoming labels.
       message: |
         Find a suitable inspiring quote for the labels: ${each.labels}
   push-to-x:
@@ -104,10 +104,6 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/tweet
     props:
-      API_KEY: ${secrets.TWITTER_API_KEY_C}
-      API_SECRET: ${secrets.TWITTER_API_SECRET_C}
-      ACCESS_TOKEN: ${secrets.TWITTER_ACCESS_TOKEN_C}
-      ACCESS_TOKEN_SECRET: ${secrets.TWITTER_ACCESS_TOKEN_SECRET_C}
       BEARER_TOKEN: ${secrets.TWITTER_BEARER_TOKEN_C}
       message: ${generate-quotes[each.index].response}
       mediaPath: ${filter-for-with-media.posts[each.pictureIndex].mediaPath}

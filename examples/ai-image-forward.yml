@@ -1,7 +1,6 @@
 apiRevision: edurata.io/v1
 name: quote-forwarder
 title: Prepare text content
-schedule: "0 21 * * *"
 description: |
   Generating a quote plus a picture from telegram and forwards it to social media..
 interface:
@@ -104,6 +103,6 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/tweet
     props:
-      BEARER_TOKEN: ${secrets.TWITTER_BEARER_TOKEN_C}
+      BEARER_TOKEN: ${secrets.TWITTER_API_BEARER_TOKEN}
       message: ${generate-quotes[each.index].response}
       mediaPath: ${filter-for-with-media.posts[each.pictureIndex].mediaPath}

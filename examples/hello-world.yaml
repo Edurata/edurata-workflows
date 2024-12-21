@@ -2,8 +2,7 @@ apiRevision: edurata.io/v1
 name: hello-world
 title: Testing all runtimes with a hello-world function.
 description: |
-  Testing
-  - hello-world
+  Testing basic functionality of all runtimes with a hello-world print.
 interface:
   inputs:
     properties:
@@ -32,18 +31,33 @@ steps:
     props:
       array: ${inputs.messages}
       joinString: " "
+  test-python-inline:
+    runtime: python3_10
+    code: |
+      def handler(event):
+        print("Hello, World!")
+    props:
+      message: "Message from python inline: ${construct-message.string}"
+  test-node-inline:
+    runtime: nodejs20
+    code: |
+      exports.handler = async (event) => {
+        console.log("Hello, World!");
+      };
+    props:
+      message: "Message from node inline: ${construct-message.string}"
   test-python:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/python
     props:
-      message: ${construct-message.string}
+      message: "Message from python: ${construct-message.string}"
   test-node:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/node
     props:
-      message: ${construct-message.string}
+      message: "Message from node: ${construct-message.string}"
   test-docker-upstream:
     description: |
       This step is using a docker image from the docker hub
@@ -53,12 +67,19 @@ steps:
     props:
       cmd:
         - cowsay
-        - ${construct-message.string}
-  # test-docker-custom:
-  #   description: |
-  #     This step is using a custom docker image that uploads the result to the orchestrator
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: tests/whalesay.edufc.yml
-  #   props:
-  #     message: ${construct-message.string}
+        - "Message from docker: ${construct-message.string}"
+  test-foreach-with-if:
+    foreach: ${inputs.messages}
+    if:
+      or:
+        - ===:
+            - ${each}
+            - "Hello"
+        - ===:
+            - ${each}
+            - "World"
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: tests/node
+    props:
+      message: "Message from node: ${construct-message.string}"

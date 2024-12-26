@@ -65,6 +65,9 @@ steps:
     description: |
       This step is using a docker image from the docker hub
     runtime: docker
+    source:
+      imageRepoUrl: "docker/whalesay"
+      tag: "latest"
     interface:
       inputs:
         properties:

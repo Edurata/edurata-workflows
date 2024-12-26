@@ -102,7 +102,7 @@ steps:
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedeUser}
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedePw}
         - "!":
-            "!!": ${check-if-record-exists[each.index].response.data.records}
+            "!!": ${check-if-record-exists[each.index].response.data.records?}
     description: Add new job postings to the Airtable.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

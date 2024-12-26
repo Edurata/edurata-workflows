@@ -79,6 +79,11 @@ steps:
       extract-freelancede-job-postings: "${extract-freelancede-job-postings.projects}"
   check-if-record-exists:
     foreach: "${merge-job-postings.projects}"
+    if:
+      "!":
+        "in":
+          - "freelancermap"
+          - "${each.link}"
     description: "Check if the job posting already exists in the Airtable."
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

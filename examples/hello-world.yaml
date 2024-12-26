@@ -25,12 +25,15 @@ outputs:
   messageFromNode: ${test-node.message}
 steps:
   construct-message:
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/transform/join
+    runtime: nodejs20
+    code: |
+      exports.handler = async (event) => {
+        return {
+          string: event.messages.join(" ")
+        };
+      };
     props:
-      array: ${inputs.messages}
-      joinString: " "
+      messages: ${inputs.messages}
   test-python-inline:
     runtime: python3_10
     code: |

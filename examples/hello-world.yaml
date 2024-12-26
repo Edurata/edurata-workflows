@@ -64,9 +64,13 @@ steps:
   test-docker-upstream:
     description: |
       This step is using a docker image from the docker hub
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: tests/whalesay.edufc.yml
+    runtime: docker
+    interface:
+      inputs:
+        properties:
+          cmd:
+            type: cmdValue
+            description: The command to run
     props:
       cmd:
         - cowsay

@@ -34,14 +34,14 @@ steps:
       };
     props:
       messages: ${inputs.messages}
-  test-python-inline:
+  test-python-inline-code:
     runtime: python3_10
     code: |
       def handler(event):
         print("Hello, World!")
     props:
       message: "Message from python inline: ${construct-message.string}"
-  test-node-inline:
+  test-node-inline-code:
     runtime: nodejs20
     code: |
       exports.handler = async (event) => {

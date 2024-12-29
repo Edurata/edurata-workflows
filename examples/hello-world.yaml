@@ -92,4 +92,4 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/node
     props:
-      message: "Message from node: ${construct-message.string}"
+      message: "Message from if foreach: ${each}"

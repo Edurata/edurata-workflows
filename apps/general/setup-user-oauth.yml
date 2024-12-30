@@ -185,7 +185,8 @@ steps:
       data:
         name: "${extract-data-from-event.email}"
         environmentId: ${get-environment.response.data.id}
-        variables: "{\"userEmail\": \"${extract-data-from-event.email}\"}"
+        variables: 
+          userEmail: "${extract-data-from-event.email}"
         schedule: ${get-schedule.schedule}
   send-finished-email:
     if: 

@@ -189,7 +189,7 @@ steps:
         schedule: ${get-schedule.schedule}
   send-finished-email:
     if: 
-      "not":
+      "!":
         "!!": "${get-application-config-from-name.appConfig.oauthSecretName?}"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

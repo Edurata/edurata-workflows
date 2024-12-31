@@ -207,6 +207,9 @@ steps:
         <br><br>
         Your bot is ready to go and will run ${translate-schedule-to-readable.readableSchedule}.
 
+        If you want to update your configuration, click <a href="https://tally.so/r/m6RKrB">here</a>.
+        <br>
+        If you want to delete your configuration, click <a href="https://tally.so/r/3lLdzX">here</a>.
         Best wishes,
         Edurata Team
         <br><br>

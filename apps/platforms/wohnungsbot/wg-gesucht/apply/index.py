@@ -58,6 +58,23 @@ def extract_ad_details(session, listing_url, debug_file="response.html"):
             if ad_id and ad_type:
                 return ad_id, ad_type
 
+        # Fallback 3: extract from the favourite_btn_icon class
+        favourite_icon = soup.find('i', class_='favourite_btn_icon')
+        if favourite_icon:
+            ad_id = favourite_icon.get('data-ad_id')
+            ad_type = favourite_icon.get('data-ad_type')
+            if ad_id and ad_type:
+                return ad_id, ad_type
+
+        # Fallback 4: extract from specific hidden inputs
+        conversation_ad_id_input = soup.find('input', id='conversation_ad_id')
+        conversation_ad_type_input = soup.find('input', id='conversation_ad_type')
+        if conversation_ad_id_input and conversation_ad_type_input:
+            ad_id = conversation_ad_id_input.get('value')
+            ad_type = conversation_ad_type_input.get('value')
+            if ad_id and ad_type:
+                return ad_id, ad_type
+
         # If all methods fail
         raise ValueError("Failed to extract ad ID and ad type from the page.")
 
@@ -109,13 +126,13 @@ def send_application_via_http(application_list):
         else:
             print(f"Failed to send message to {recipient_name} at {message_url} with status code {response.status_code}")
             print("Response:", response.text)
-            if response.status_code == 400 and "detail" in response.json() and "Conversation already" in response.json()["detail"]:
-                print("Skipping this application as the conversation already exists.")
+            if response.status_code == 400 and "detail" in response.json() and ("Conversation already" in response.json()["detail"] or "Restricted request" in response.json()["detail"]):
+                print("Skipping this application as the conversation already exists or restricted request.")
             else:
                 raise Exception("Failed to send message")
 
         # Random delay between requests
-        delay = random.uniform(2, 5)  # Random delay between 2 and 5 seconds
+        delay = random.uniform(2, 10)  # Random delay between 2 and 5 seconds
         print(f"Waiting for {delay:.2f} seconds before the next application...")
         time.sleep(delay)
 
@@ -138,3 +155,4 @@ def handler(inputs):
 #          "recipient_name": "Albian Mustafa"},
 #     ]
 # })
+

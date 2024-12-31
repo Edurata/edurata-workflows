@@ -36,7 +36,7 @@ steps:
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
-        Empfehle der folgenden person ${each.name} eine Software zu verwenden, die ich (Cedric) entwickelt habe. 
+        Empfehle der folgenden person ${each.name} eine Software zu verwenden, die ich (Julian) entwickelt habe. 
         Die Software heißt Wohnungsbot mit der man automatisch bewerbungen auf wohnungsinserate schreiben kann. 
         Die Website ist https://apps.edurata.com/de/wohnungsbot 
         Schreibe auch dazu, dass die Empfehlung AI generiert ist und der wohnungsbot auch so funktioniert.

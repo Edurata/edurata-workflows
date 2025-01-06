@@ -128,10 +128,10 @@ steps:
   continue-if-new-mails:
     if:
       and:
-        ">":
-          - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
-          - 0
-        "!!": ${get-new-mails-without-tag.response.data.messages}
+        - ">":
+            - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
+            - 0
+        - "!!": ${get-new-mails-without-tag.response.data.messages}
     runtime: python3_10
     code: |
       def handler(inputs):

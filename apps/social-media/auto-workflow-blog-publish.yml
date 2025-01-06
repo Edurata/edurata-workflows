@@ -1,0 +1,156 @@
+name: workflow-blog-to-multiple-platforms
+apiRevision: edurata.io/v1
+description: |
+  This workflow retrieves a workflow definition, generates a blog post and title, and posts it to multiple platforms.
+interface:
+  inputs:
+    type: object
+    properties:
+      user_table_id:
+        type: string
+        description: "The Airtable ID in the format app/tbl for user"
+      blog_posts_table_id:
+        type: string
+        description: "The Airtable ID in the format app/tbl for blog posts"
+      user_email:
+        type: string
+        description: "The email of the current user"
+steps:
+  get-latest-unprocessed-post:
+    description: Retrieve the latest unprocessed post from the Airtable.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.blog_posts_table_id}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      params:
+        filterByFormula: "AND({status}!='processed')"
+        limit: 1
+  download-git-repo:
+    description: |
+      Clone the Git repository containing the workflow definition.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/clone-git
+    props:
+      repoUrl: ${get-latest-unprocessed-post.response.data.records[0].fields.workflowUrl}
+      auth:
+        privateToken: "${secrets.GIT_TOKEN}"
+      path: ${get-latest-unprocessed-post.response.data.records[0].fields.workflowPath}
+  get-workflow-definition:
+    description: |
+      Read the workflow definition from the cloned repository.
+    runtime: python3_10
+    interface:
+      inputs:
+        properties:
+          repoCode:
+            type: file
+            description: The path to the cloned repository.
+      outputs:
+        type: object
+        description: The workflow definition.
+    code: |
+      import yaml
+      
+      def handler(inputs):
+          with open(inputs['repoCode'], 'r') as file:
+              return yaml.safe_load(file)
+    props:
+      repoCode: ${download-git-repo.response.repoCode}
+  generate-blog-content:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/chatgpt
+    props:
+      model: gpt-4o
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        You are going to receive a yaml file of a workflow. 
+        you should generate a blog article that can be posted on hubspot blog.
+        The article should be about the workflow and its use case.
+      message: ${get-workflow-definition}
+  generate-title:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/chatgpt
+    props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        You are going to receive a yaml file of a workflow. 
+        you should generate a matching title for a blog article describing the workflow.
+      message: ${get-workflow-definition}
+  post-blog-to-hubspot:
+    description: |
+      Publish the post to Hubspot if the user has enabled LinkedIn in their settings.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/post-blog-to-linkedin
+    props:
+      accessToken: "${secrets.LINKEDIN_API_KEY}"
+      author: "Test User"
+      title: ${generate-title.response}
+      content: ${generate-blog-content.response}
+  post-reference-to-reddit:
+    concurrency: 1 # Ensure we don't hit Reddit's rate limits
+    description: |
+      Post the generated content as a new post inside a subreddit.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: "https://oauth.reddit.com/api/submit"
+      headers:
+        Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
+        User-Agent: "Reddit-Post-Bot/0.1 by Edurata"
+        Content-Type: "application/x-www-form-urlencoded"
+      data:
+        api_type: "json"
+        title: "${generate-blog-title.response}" # Title of the post
+        sr: "${generate-post[each.index].subreddit}" # Subreddit to post in
+        kind: "self" # 'self' for text posts, 'link' for URL posts
+        text: "${generate-blog-content.response}" # Content of the post (for self posts)
+  post-reference-to-linkedin:
+    description: |
+      Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
+    code: |
+      exports.handler = async (inputs) => {
+        const { title, content } = inputs;
+        // Post the content to LinkedIn
+        const response = await axios.post('https://api.linkedin.com/v2/shares', {
+          owner: 'urn:li:person:123456789',
+          subject: title,
+          text: content,
+        }, {
+          headers: {
+            Authorization: `Bearer ${inputs.accessToken}`,
+          },
+        });
+        return {
+          url: response.data.url,
+        };
+      };
+    props:
+      title: ${generate-title.response}
+      content: ${format-content.response}
+      accessToken: "${secrets.LINKEDIN_API_KEY}"
+  update-airtable:
+    description: |
+      Update the Airtable records with the published URLs for each platform and mark the post as processed.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: PATCH
+      url: "https://api.airtable.com/v0/${inputs.blog_posts_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      body:
+        fields:
+          linkedin_url: ${post-to-linkedin.response.url}
+          medium_url: ${post-to-medium.response.url}
+          status: "processed"

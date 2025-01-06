@@ -132,7 +132,6 @@ steps:
           - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
           - 0
         "!!": ${get-new-mails-without-tag.response.data.messages}
-    else: success
     runtime: python3_10
     code: |
       def handler(inputs):

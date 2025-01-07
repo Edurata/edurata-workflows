@@ -18,7 +18,7 @@ interface:
           type: string
         description: "The subreddits to post to"
 inputs:
-  subreddits: ["r/learnprogramming", "r/programming"]
+  subreddits: ${variables.marketing_subreddits}
 steps:
   get-latest-unprocessed-post:
     description: Retrieve the latest unprocessed post from the Airtable.

@@ -12,9 +12,13 @@ interface:
       blog_posts_table_id:
         type: string
         description: "The Airtable ID in the format app/tbl for blog posts"
-      user_email:
-        type: string
-        description: "The email of the current user"
+      subreddits:
+        type: array
+        items:
+          type: string
+        description: "The subreddits to post to"
+inputs:
+  subreddits: ["r/learnprogramming", "r/programming"]
 steps:
   get-latest-unprocessed-post:
     description: Retrieve the latest unprocessed post from the Airtable.
@@ -107,7 +111,9 @@ steps:
       title: ${generate-title.response}
       content: ${generate-blog-content.response}
   post-reference-to-reddit:
+    foreach: ${inputs.subreddits}
     concurrency: 1 # Ensure we don't hit Reddit's rate limits
+    delay: 15 # Delay between requests to avoid rate limits
     description: |
       Post the generated content as a new post inside a subreddit.
     source:
@@ -123,7 +129,7 @@ steps:
       data:
         api_type: "json"
         title: "${generate-blog-title.response}" # Title of the post
-        sr: "${generate-post[each.index].subreddit}" # Subreddit to post in
+        sr: "${each}" # Subreddit to post in
         kind: "self" # 'self' for text posts, 'link' for URL posts
         text: "${generate-blog-content.response}" # Content of the post (for self posts)
   post-reference-to-linkedin:

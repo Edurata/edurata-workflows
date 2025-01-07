@@ -45,8 +45,6 @@ steps:
       path: etl/extract/clone-git
     props:
       repoUrl: ${get-latest-unprocessed-post.response.data.records[0].fields.workflowUrl}
-      auth:
-        privateToken: "${secrets.GIT_TOKEN}"
       path: ${get-latest-unprocessed-post.response.data.records[0].fields.workflowPath}
   get-workflow-definition:
     description: |

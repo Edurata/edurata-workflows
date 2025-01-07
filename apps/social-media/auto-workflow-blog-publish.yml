@@ -73,6 +73,18 @@ steps:
         you should generate a blog article that can be posted on hubspot blog.
         The article should be about the workflow and its use case.
       message: ${get-workflow-definition}
+  generate-update-message-linkedin:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/chatgpt
+    props:
+      model: gpt-4o
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        You are going to receive a yaml file of a workflow. 
+        you should generate a blog article that can be posted on hubspot blog.
+        The article should be about the workflow and its use case.
+      message: ${get-workflow-definition}
   generate-title:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -117,27 +129,13 @@ steps:
   post-reference-to-linkedin:
     description: |
       Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
-    code: |
-      exports.handler = async (inputs) => {
-        const { title, content } = inputs;
-        // Post the content to LinkedIn
-        const response = await axios.post('https://api.linkedin.com/v2/shares', {
-          owner: 'urn:li:person:123456789',
-          subject: title,
-          text: content,
-        }, {
-          headers: {
-            Authorization: `Bearer ${inputs.accessToken}`,
-          },
-        });
-        return {
-          url: response.data.url,
-        };
-      };
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-linkedin
     props:
       title: ${generate-title.response}
-      content: ${format-content.response}
-      accessToken: "${secrets.LINKEDIN_API_KEY}"
+      text: ${format-content.response}
+      LINKEDIN_API_TOKEN: "${secrets.LINKEDIN_API_KEY}"
   update-airtable:
     description: |
       Update the Airtable records with the published URLs for each platform and mark the post as processed.

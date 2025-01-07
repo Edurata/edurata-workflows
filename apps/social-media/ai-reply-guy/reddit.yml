@@ -88,6 +88,7 @@ steps:
   post-reply:
     foreach: ${search-reddit.response.data.data.children}
     concurrency: 1 # Ensure we don't hit Reddit's rate limits
+    delay: 5 # Delay between requests to avoid rate limits
     description: |
       Post the generated reply to Reddit as a comment on the relevant post.
     source:

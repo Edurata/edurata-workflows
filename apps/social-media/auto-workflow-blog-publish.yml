@@ -119,7 +119,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
         User-Agent: "Reddit-Post-Bot/0.1 by Edurata"
-        Content-Type: "application/x-www-form-urlencoded"
+        Content-Type: "application/x-www-form-urlenco ded"
       data:
         api_type: "json"
         title: "${generate-blog-title.response}" # Title of the post
@@ -133,9 +133,10 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-linkedin
     props:
+      author: "Test User"
       title: ${generate-title.response}
       text: ${format-content.response}
-      LINKEDIN_API_TOKEN: "${secrets.LINKEDIN_API_KEY}"
+      LINKEDIN_API_SECRET: "${secrets.LINKEDIN_API_KEY}"
   update-airtable:
     description: |
       Update the Airtable records with the published URLs for each platform and mark the post as processed.

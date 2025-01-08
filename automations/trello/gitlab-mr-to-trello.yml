@@ -1,0 +1,71 @@
+name: gitlab-mr-to-trello-comment
+apiRevision: edurata.io/v1
+description: |
+  Workflow triggered by a GitLab webhook when a new merge request is created. 
+  It searches for a Trello ticket with the MR number and adds a comment with a link to the MR.
+interface:
+  inputs:
+    type: object
+    properties:
+      gitlab_event:
+        type: object
+        description: Payload from the GitLab webhook.
+    required: [gitlab_event]
+  outputs:
+    type: object
+    properties:
+      trello_comment_response:
+        type: object
+        description: Response from Trello for adding the comment.
+steps:
+  extract-mr-details:
+    description: Extract merge request details from the GitLab webhook payload.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          event = inputs["gitlab_event"]
+          if "object_attributes" not in event or event["object_kind"] != "merge_request":
+              raise ValueError("Not a merge request event.")
+          
+          mr_number = event["object_attributes"]["iid"]
+          mr_url = event["object_attributes"]["url"]
+          
+          return {
+              "mr_number": mr_number,
+              "mr_url": mr_url
+          }
+
+  search-trello-card:
+    description: Search for a Trello card matching the merge request number.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: 'https://api.trello.com/1/search'
+      headers:
+        Authorization: "Bearer ${secrets.TRELLO_API_KEY}"
+      params:
+        query: '${extract-mr-details.mr_number}'
+        key: ${secrets.TRELLO_API_KEY}
+        token: ${secrets.TRELLO_API_TOKEN}
+
+  add-trello-comment:
+    description: Add a comment to the Trello card with a link to the merge request.
+    if: 
+      ">":
+        - ${search-trello-card.response.cards.length}
+        - 0
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: 'https://api.trello.com/1/cards/${search-trello-card.response.cards[0].id}/actions/comments'
+      headers:
+        Authorization: "Bearer ${secrets.TRELLO_API_KEY}"
+      params:
+        key: ${secrets.TRELLO_API_KEY}
+        token: ${secrets.TRELLO_API_TOKEN}
+      body:
+        text: 'A new merge request has been created: ${extract-mr-details.mr_url}'

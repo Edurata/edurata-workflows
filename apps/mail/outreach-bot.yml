@@ -1,4 +1,4 @@
-name: airtable-email-workflow
+name: outreach-bot
 apiRevision: "edurata.io/v1"
 description: |
   A workflow that fetches filtered leads from Airtable, retrieves email templates from the user object in a user table,
@@ -69,6 +69,7 @@ steps:
         # last sent date is more that two days ago
         filterByFormula: "AND(user_id='${fetch-user.response.data.records[0].id}', sent_count < 3, last_sent_date < DATEADD(TODAY(), -2, 'days'))" 
   enrich-leads-with-template:
+    runtime: python3_10
     foreach: ${fetch-leads.response.data.records}
     description: Map the template of the current user to each lead
     code: |

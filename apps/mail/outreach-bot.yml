@@ -1,0 +1,145 @@
+name: airtable-email-workflow
+apiRevision: "edurata.io/v1"
+description: |
+  A workflow that fetches filtered leads from Airtable, retrieves email templates from the user object in a user table,
+  generates emails using ChatGPT based on the templates and lead information,
+  sends the emails via Gmail, and updates Airtable to track the email stage and sent count.
+interface:
+  inputs:
+    properties:
+      airtable_base_id:
+        type: string
+        description: The Airtable base ID containing leads data and user information.
+      leads_table:
+        type: string
+        description: The name of the Airtable table with lead data.
+      user_table:
+        type: string
+        description: The name of the Airtable table with user data.
+      user_email:
+        type: string
+        description: The email address of the user to retrieve templates.
+      gmail_sender_email:
+        type: string
+        description: The email address of the Gmail account used to send emails.
+    required:
+      - airtable_base_id
+      - leads_table
+      - user_table
+      - user_email
+      - gmail_sender_email
+  outputs:
+    properties:
+      sent_emails:
+        type: array
+        items:
+          type: object
+          properties:
+            email:
+              type: string
+            status:
+              type: string
+              description: Sent status of the email.
+outputs:
+  sent_emails: ${send-email[*].response.data}
+steps:
+  fetch-user:
+    description: Fetch user data from Airtable for the current user.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.user_table}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      params:
+        filterByFormula: "email='${inputs.user_email}'"
+  fetch-leads:
+    description: Fetch lead records from Airtable filtered by user_id and sent_count < 3.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: "https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.leads_table}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      params:
+        # last sent date is more that two days ago
+        filterByFormula: "AND(user_id='${fetch-user.response.data.records[0].id}', sent_count < 3, last_sent_date < DATEADD(TODAY(), -2, 'days'))" 
+  enrich-leads-with-template:
+    foreach: ${fetch-leads.response.data.records}
+    description: Map the template of the current user to each lead
+    code: |
+      def handler(inputs):
+          user = inputs["user"]
+          leads = inputs["leads"]
+          template0 = user["fields"]["template_0"]
+          template1 = user["fields"]["template_1"]
+          template2 = user["fields"]["template_2"]
+          for lead in leads:
+              # map depending on the sent count
+              if lead["fields"]["sent_count"] == 0:
+                  lead["fields"]["template"] = template0
+              elif lead["fields"]["sent_count"] == 1:
+                  lead["fields"]["template"] = template1
+              elif lead["fields"]["sent_count"] == 2:
+                  lead["fields"]["template"] = template2
+          return leads
+    props:
+      templates: ${fetch-user.response.data.records[0].fields.templates}
+      user: ${fetch-user.response.data.records[0].fields}
+  generate-email-content:
+    description: Generate email content using ChatGPT based on templates and lead data.
+    foreach: ${enrich-leads-with-template}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/chatgpt
+    props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        Based on the following template and lead details, generate a personalized email.
+        Template: ${each.fields.template}
+        Lead Details: Name: ${each.fields.name}, Email: ${each.fields.email}, Details: ${each.fields.details}.
+        Ensure that the email is polite and adheres to professional communication norms.
+        Only return the email content, not the subject.
+      message: Generate personalized email content
+  send-email:
+    foreach: ${enrich-leads-with-template}
+    description: Send the generated email to the lead using Gmail.
+    runtime: python3_10
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/send-gmail-email
+    props:
+      threadId: ${each.fields.gmailThreadId}
+      userEmail: ${inputs.gmail_sender_email}
+      recipient: ${fetch-user.response.data.records[0].fields.email}
+      subject: ${fetch-user.response.data.records[0].fields.email_subject}
+      body: ${generate-email-content[each.index].response}
+  get-update-json:
+    foreach: ${send-email}
+    description: Prepare the JSON payload to update the Airtable record.
+    code: |
+      def handler(inputs):
+          return {
+              "fields": {
+                  "thread_id": inputs["threadId"],
+                  "sent_count": inputs["fields"]["sent_count"] + 1
+              }
+          }
+    props:
+      threadId: ${send-email.response.threadId}
+  update-airtable:
+    foreach: ${send-email}
+    description: Update the Airtable record with the incremented sent count and possibly next email stage.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: PATCH
+      url: "https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.leads_table}/${enrich-leads-with-template[each.index].id}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      json: ${get-update-json[each.index].response}

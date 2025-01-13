@@ -1,5 +1,5 @@
 name: email-unsubscribe-service
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 description: |
   Workflow scans all recent emails from the last three months, identifies subscription services with their unsubscribe links, and sends a single email containing those links.
 interface:

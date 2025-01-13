@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: words-to-airtable
 title: Vocabulary enricher
 description: |

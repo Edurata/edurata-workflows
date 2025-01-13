@@ -1,5 +1,5 @@
 name: wg-gesucht-application-bot
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 description: |
   Fetches regulary stripe charges and updates airtable with the pro status of the user.
 steps:

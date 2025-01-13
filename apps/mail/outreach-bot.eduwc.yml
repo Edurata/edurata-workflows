@@ -1,5 +1,5 @@
 name: outreach-bot
-apiRevision: "edurata.io/v1"
+apiRevision: edurata.io/workflow/v1
 description: |
   A workflow that fetches filtered leads from Airtable, retrieves email templates from the user object in a user table,
   generates emails using ChatGPT based on the templates and lead information,
@@ -56,6 +56,7 @@ steps:
       params:
         filterByFormula: "email='${inputs.user_email}'"
   fetch-leads:
+    test: "test"
     description: Fetch lead records from Airtable filtered by user_id and sent_count < 3.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -109,7 +110,6 @@ steps:
   send-email:
     foreach: ${enrich-leads-with-template}
     description: Send the generated email to the lead using Gmail.
-    runtime: python3_10
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-gmail-email
@@ -122,6 +122,7 @@ steps:
   get-update-json:
     foreach: ${send-email}
     description: Prepare the JSON payload to update the Airtable record.
+    runtime: python3
     code: |
       def handler(inputs):
           return {

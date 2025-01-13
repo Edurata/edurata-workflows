@@ -1,5 +1,5 @@
 name: vocabulary-test-generator
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 description: |
   A workflow that creates a vocabulary test from an Airtable table by finding vocabulary based on email,
   generating a short story with GPT-4, constructing a Google Form with test questions, and sending

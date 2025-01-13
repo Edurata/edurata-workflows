@@ -1,5 +1,5 @@
 name: wohnungsbot-pitch
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 description: |
   A bot that scans WG-Gesucht for people who search for flats and recommends the bot to them.
 steps:

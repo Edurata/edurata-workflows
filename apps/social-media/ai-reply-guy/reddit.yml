@@ -1,5 +1,5 @@
 name: reddit-reply-bot
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 description: |
   A bot that searches Reddit for posts containing specified keywords and replies with contextually relevant responses generated using AI, using additional context from Airtable.
 interface:

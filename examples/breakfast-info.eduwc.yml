@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: breakfast-info
 title: Fetch daily weather and news for your location using a few example functions..
 schedule: "0 8 * * *"

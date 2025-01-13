@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: delete-microapp-user
 title: Deletes a user from a microapp
 description: |

@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: scrape-images
 title: scrape-images
 description: Scraping images for a list of people and uploading them to the s3 bucket

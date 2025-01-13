@@ -1,5 +1,5 @@
 name: hot-post-keyword-responder
-apiRevision: "edurata.io/v1"
+apiRevision: "edurata.io/workflow/v1"
 description: |
   This workflow searches for hot posts containing specific keywords on a platform (like Reddit), sends the post content to ChatGPT to generate a helpful response, and then posts the generated response as a comment on the post.
 interface:

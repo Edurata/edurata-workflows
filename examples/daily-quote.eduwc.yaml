@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: daily-quote
 title: Daily quotes
 schedule: "0 8 * * *"

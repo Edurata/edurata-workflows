@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: short-story-bot
 title: Short story bot
 schedule: "0 8 * * *"

@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: hello-world
 title: Testing all runtimes with a hello-world function.
 description: |

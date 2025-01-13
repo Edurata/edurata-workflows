@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: social-media-post
 title: Alternative to services like hootsuite or buffer
 schedule: "0 8 * * *"

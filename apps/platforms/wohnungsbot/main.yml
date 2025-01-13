@@ -1,5 +1,5 @@
 name: wg-gesucht-application-bot
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 description: |
   A bot that scans WG-Gesucht for new flat listings and automatically applies to them based on user-defined preferences.
 interface:

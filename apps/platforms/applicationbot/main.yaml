@@ -1,5 +1,5 @@
 name: job-applicator
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 description: |
   Workflow that scans freelance.de for new job postings and automatically applies to them based on user-defined preferences.
 interface:

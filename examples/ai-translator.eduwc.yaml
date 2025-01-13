@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: ai-translator
 title: Ai Translator
 schedule: "0 8 * * *"

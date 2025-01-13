@@ -1,5 +1,5 @@
 name: delete-old-tweets-with-email
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 description: |
   This workflow takes a Twitter archive file, extracts it, filters out tweets older than a certain date, deletes them using the Twitter API, and sends an email update with the number of deleted tweets.
 interface:

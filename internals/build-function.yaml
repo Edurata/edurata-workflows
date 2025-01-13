@@ -1,4 +1,4 @@
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 name: build-function-code
 title: Build function code
 description: Fetches the git repo and builds the function code and then uploads it to the function registry.

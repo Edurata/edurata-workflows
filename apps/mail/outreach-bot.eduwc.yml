@@ -22,6 +22,10 @@ interface:
       gmail_sender_email:
         type: string
         description: The email address of the Gmail account used to send emails.
+      days_offset:
+        type: integer
+        description: The number of days to offset for the last sent date filter.
+        default: 3
     required:
       - airtable_base_id
       - leads_table
@@ -56,7 +60,6 @@ steps:
       params:
         filterByFormula: "email='${inputs.user_email}'"
   fetch-leads:
-    test: "test"
     description: Fetch lead records from Airtable filtered by user_id and sent_count < 3.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -68,7 +71,7 @@ steps:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       params:
         # last sent date is more that two days ago
-        filterByFormula: "AND(user_id='${fetch-user.response.data.records[0].id}', sent_count < 3, last_sent_date < DATEADD(TODAY(), -2, 'days'))" 
+        filterByFormula: "AND(user_id='${fetch-user.response.data.records[0].id}', sent_count < ${inputs.days_offset}, last_sent_date < DATEADD(TODAY(), -2, 'days'))" 
   enrich-leads-with-template:
     runtime: python3_10
     foreach: ${fetch-leads.response.data.records}

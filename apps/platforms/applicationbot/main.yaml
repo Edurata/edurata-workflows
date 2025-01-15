@@ -183,9 +183,9 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         Using the following CV and job posting information, generate an email body in html highlighting my skills and 
-        qualifications to apply for the job. The email should be tailored to the job description. 
-        Only return the completed email body in html formatting without any linebreaks and in the language of the job posting details.
-        Keep it very short and dry but friendly. Don't use corporate language. maximum 500 characters. Always mention the hourly rate and availability.
+        qualifications to apply for the job. The email should be tailored to the job description. It should only include real experience that can be found in the CV.
+        Don't use corporate language. maximum 5 sentences. Always mention the hourly rate and availability.
+        Generate the response in the language of the listing.
 
         Mention that it is in response to a job opening on ${each.fields.sourceUrl}.
 

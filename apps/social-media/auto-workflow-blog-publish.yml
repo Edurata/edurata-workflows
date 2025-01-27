@@ -76,75 +76,9 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         You are going to receive a yaml file of a workflow. 
-        you should generate a blog article that can be posted on hubspot blog.
+        you should generate a blog article that can be posted on our blog.
         The article should be about the workflow and its use case.
       message: ${get-workflow-definition}
-  generate-update-message-linkedin:
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/transform/chatgpt
-    props:
-      model: gpt-4o
-      API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        You are going to receive a yaml file of a workflow. 
-        you should generate a blog article that can be posted on hubspot blog.
-        The article should be about the workflow and its use case.
-      message: ${get-workflow-definition}
-  generate-title:
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/transform/chatgpt
-    props:
-      API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        You are going to receive a yaml file of a workflow. 
-        you should generate a matching title for a blog article describing the workflow.
-      message: ${get-workflow-definition}
-  post-blog-to-hubspot:
-    description: |
-      Publish the post to Hubspot if the user has enabled LinkedIn in their settings.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/post-blog-to-linkedin
-    props:
-      accessToken: "${secrets.LINKEDIN_API_KEY}"
-      author: "Test User"
-      title: ${generate-title.response}
-      content: ${generate-blog-content.response}
-  post-reference-to-reddit:
-    foreach: ${inputs.subreddits}
-    concurrency: 1 # Ensure we don't hit Reddit's rate limits
-    delay: 15 # Delay between requests to avoid rate limits
-    description: |
-      Post the generated content as a new post inside a subreddit.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: POST
-      url: "https://oauth.reddit.com/api/submit"
-      headers:
-        Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
-        User-Agent: "Reddit-Post-Bot/0.1 by Edurata"
-        Content-Type: "application/x-www-form-urlenco ded"
-      data:
-        api_type: "json"
-        title: "${generate-blog-title.response}" # Title of the post
-        sr: "${each}" # Subreddit to post in
-        kind: "self" # 'self' for text posts, 'link' for URL posts
-        text: "${generate-blog-content.response}" # Content of the post (for self posts)
-  post-reference-to-linkedin:
-    description: |
-      Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/send-linkedin
-    props:
-      author: "Test User"
-      title: ${generate-title.response}
-      text: ${format-content.response}
-      LINKEDIN_API_SECRET: "${secrets.LINKEDIN_API_KEY}"
   update-airtable:
     description: |
       Update the Airtable records with the published URLs for each platform and mark the post as processed.
@@ -152,12 +86,10 @@ steps:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
-      method: PATCH
+      method: POST
       url: "https://api.airtable.com/v0/${inputs.blog_posts_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}"
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       body:
         fields:
-          linkedin_url: ${post-to-linkedin.response.url}
-          medium_url: ${post-to-medium.response.url}
-          status: "processed"
+          content: ${generate-blog-content.response}

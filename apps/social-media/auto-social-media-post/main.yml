@@ -42,21 +42,28 @@ steps:
       params:
         filterByFormula: "AND({status}!='processed')"
         limit: 1
-  format-content:
+  generate-post-reddit:
+    foreach:
+      - "title"
+      - "content"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: You are going to receive a blog post or a prompt about a blog post. Format it so it can be posted to social media.
+      systemMessage: |
+        You are going to receive a blog post or a prompt about a blog post. Format it so it can be posted with a teaser to reddit and then linking to the blog link. 
+        Return only the string ${each}.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
-  generate-title:
+  generate-post-linkedin:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: You are going to receive a blog post or a prompt about a blog post. Find a suitable title.
+      systemMessage: |
+        You are going to receive a blog post or a prompt about a blog post. Make a summary so it can be posted as a teaser to linkedin.
+        Return only the content.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   post-blog-to-reddit:
     if: 
@@ -78,9 +85,9 @@ steps:
       data:
         api_type: "json"
         sr: "${secrets.REDDIT_SUBREDDIT}" # Replace with your target subreddit name
-        title: ${get-latest-unprocessed-post.response.data.records[0].fields.title} # Post title
+        title: ${generate-post-reddit[0].response} # Post title
         kind: "self" # For text posts (use "link" for link posts)
-        text: ${format-content.response} # The post content
+        text: ${generate-post-reddit[1].response} # The post content
   # post-blog-to-hubspot:
   #   if: 
   #     in: 
@@ -127,7 +134,6 @@ steps:
         Authorization: "Bearer ${secrets.LINKEDIN_API_KEY}"
       data:
         owner: "urn:li:person:123456789"
-        subject: ${generate-title.response}
         text: ${format-content.response}
   update-airtable:
     description: |
@@ -143,5 +149,5 @@ steps:
       body:
         fields:
           linkedin_url: ${post-to-linkedin.response.url}
-          medium_url: ${post-to-medium.response.url}
+          reddit_url: ${post-to-reddit.response.url}
           status: "processed"

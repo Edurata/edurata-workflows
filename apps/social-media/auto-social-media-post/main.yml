@@ -61,61 +61,55 @@ steps:
   post-blog-to-reddit:
     if: 
       in: 
-        - "hubspotBlog"
+        - "redditPost"
         - ${get-user-settings.response.data.records[0].fields.enabledTargets}
     description: |
-      Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
+      Publish a post to a specific subreddit if the user has enabled Reddit in their settings.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/post-blog-to-linkedin
+      path: general/axios
     props:
-      accessToken: "${secrets.LINKEDIN_API_KEY}"
-      author: ":"
-      title: ${generate-title.response}
-      content: ${format-content.response}
-  post-blog-to-hubspot:
-    if: 
-      in: 
-        - "hubspotBlog"
-        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-    description: |
-      Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/post-blog-to-linkedin
-    props:
-      accessToken: "${secrets.LINKEDIN_API_KEY}"
-      author: ":"
-      title: ${generate-title.response}
-      content: ${format-content.response}
-  post-post-to-linkedin:
-    if: 
-      in: 
-        - "linkedinPost"
-        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-    description: |
-      Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
-    code: |
-      exports.handler = async (inputs) => {
-        const { title, content } = inputs;
-        // Post the content to LinkedIn
-        const response = await axios.post('https://api.linkedin.com/v2/shares', {
-          owner: 'urn:li:person:123456789',
-          subject: title,
-          text: content,
-        }, {
-          headers: {
-            Authorization: `Bearer ${inputs.accessToken}`,
-          },
-        });
-        return {
-          url: response.data.url,
-        };
-      };
-    props:
-      title: ${generate-title.response}
-      content: ${format-content.response}
-      accessToken: "${secrets.LINKEDIN_API_KEY}"
+      method: POST
+      url: "https://oauth.reddit.com/api/submit"
+      headers:
+        Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
+        User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
+        Content-Type: "application/x-www-form-urlencoded"
+      data:
+        api_type: "json"
+        sr: "${secrets.REDDIT_SUBREDDIT}" # Replace with your target subreddit name
+        title: ${get-latest-unprocessed-post.response.data.records[0].fields.title} # Post title
+        kind: "self" # For text posts (use "link" for link posts)
+        text: ${format-content.response} # The post content
+  # post-blog-to-hubspot:
+  #   if: 
+  #     in: 
+  #       - "hubspotBlog"
+  #       - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+  #   description: |
+  #     Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: etl/load/post-blog-to-linkedin
+  #   props:
+  #     accessToken: "${secrets.LINKEDIN_API_KEY}"
+  #     author: ":"
+  #     title: ${generate-title.response}
+  #     content: ${format-content.response}
+  # post-to-medium:
+  #   if: 
+  #     in: 
+  #       - "mediumBlog"
+  #       - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+  #   description: |
+  #     Publish the post to Medium if the user has enabled Medium in their settings.
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: etl/load/post-to-medium
+  #   props:
+  #     title: ${generate-title.response}
+  #     content: ${format-content.response}
+  #     ACCESS_TOKEN: "Bearer ${secrets.MEDIUM_API_KEY}"
   post-to-linkedin:
     if: 
       in: 
@@ -125,26 +119,16 @@ steps:
       Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/post-blog-to-linkedin
+      path: general/axios
     props:
-      accessToken: "${secrets.LINKEDIN_API_KEY}"
-      author: ":"
-      title: ${generate-title.response}
-      content: ${format-content.response}
-  post-to-medium:
-    if: 
-      in: 
-        - "mediumBlog"
-        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-    description: |
-      Publish the post to Medium if the user has enabled Medium in their settings.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/post-to-medium
-    props:
-      title: ${generate-title.response}
-      content: ${format-content.response}
-      ACCESS_TOKEN: "Bearer ${secrets.MEDIUM_API_KEY}"
+      method: POST
+      url: "https://api.linkedin.com/v2/shares"
+      headers:
+        Authorization: "Bearer ${secrets.LINKEDIN_API_KEY}"
+      data:
+        owner: "urn:li:person:123456789"
+        subject: ${generate-title.response}
+        text: ${format-content.response}
   update-airtable:
     description: |
       Update the Airtable records with the published URLs for each platform and mark the post as processed.

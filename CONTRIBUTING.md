@@ -1,6 +1,6 @@
 # Contributing to Edurata Workflows
 
-Thank you for your interest in contributing to Edurata Workflows! This repository contains templates primarily written in YAML files. We welcome contributions from the community to help improve the templates.
+Thank you for your interest in contributing to Edurata Workflows! This repository contains open-source templates primarily written in YAML files. We welcome contributions from the community to extend the library of templates and improve existing ones.
 
 ## How to Contribute
 
@@ -41,6 +41,4 @@ Thank you for your interest in contributing to Edurata Workflows! This repositor
 
 ## Code of Conduct
 By contributing, you agree to follow our [Code of Conduct](./CODE_OF_CONDUCT.md).
-
-Thank you for helping make Edurata Workflows better!
 

@@ -36,3 +36,10 @@ Use these examples as inspiration and references for building your own apps and 
 
 Happy automating! 🚀
 
+
+
+## Quickstart to the platform
+
+Read articles about
+
+- Try to deploy and run the [hello-world function](https://docs.edurata.com/pages/examples/hello-world.html) to understand how the platform works.

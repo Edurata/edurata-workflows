@@ -52,7 +52,7 @@ steps:
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
-        You are going to receive a blog post or a prompt about a blog post. Format it so it can be posted with a teaser to reddit and then linking to the blog link. 
+        You are going to receive a blog post. Format it so it can be posted with a teaser to reddit and then linking to the blog link. 
         Return only the string ${each}.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   generate-post-linkedin:
@@ -62,14 +62,27 @@ steps:
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
-        You are going to receive a blog post or a prompt about a blog post. Make a summary so it can be posted as a teaser to linkedin.
+        You are going to receive a blog post. Make a summary so it can be posted as a teaser to linkedin.
         Return only the content.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
-  post-blog-to-reddit:
-    if: 
-      in: 
-        - "redditPost"
-        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+  generate-post-x:
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/chatgpt
+    props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        You are going to receive a blog post. Make a summary so it can be posted as a teaser to x (formerly twitter).
+        Return only the tweet.
+      message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
+  post-to-reddit:
+    if:
+      and:
+        - in:
+          - "redditPost"
+          - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+        - "!!": ${get-user-settings.response.data.records[0].fields.subReddits}
+    foreach: ${get-user-settings.response.data.records[0].fields.subReddits}
     description: |
       Publish a post to a specific subreddit if the user has enabled Reddit in their settings.
     source:
@@ -84,43 +97,14 @@ steps:
         Content-Type: "application/x-www-form-urlencoded"
       data:
         api_type: "json"
-        sr: "${secrets.REDDIT_SUBREDDIT}" # Replace with your target subreddit name
+        sr: "${each}"
         title: ${generate-post-reddit[0].response} # Post title
         kind: "self" # For text posts (use "link" for link posts)
         text: ${generate-post-reddit[1].response} # The post content
-  # post-blog-to-hubspot:
-  #   if: 
-  #     in: 
-  #       - "hubspotBlog"
-  #       - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-  #   description: |
-  #     Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: etl/load/post-blog-to-linkedin
-  #   props:
-  #     accessToken: "${secrets.LINKEDIN_API_KEY}"
-  #     author: ":"
-  #     title: ${generate-title.response}
-  #     content: ${format-content.response}
-  # post-to-medium:
-  #   if: 
-  #     in: 
-  #       - "mediumBlog"
-  #       - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-  #   description: |
-  #     Publish the post to Medium if the user has enabled Medium in their settings.
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: etl/load/post-to-medium
-  #   props:
-  #     title: ${generate-title.response}
-  #     content: ${format-content.response}
-  #     ACCESS_TOKEN: "Bearer ${secrets.MEDIUM_API_KEY}"
   post-to-linkedin:
     if: 
       in: 
-        - "linkedinBlog"
+        - "linkedinPost"
         - ${get-user-settings.response.data.records[0].fields.enabledTargets}
     description: |
       Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
@@ -135,6 +119,25 @@ steps:
       data:
         owner: "urn:li:person:123456789"
         text: ${format-content.response}
+post-to-twitter:
+  if: 
+    in: 
+      - "twitterPost"
+      - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+  description: |
+    Publish the post to Twitter if the user has enabled Twitter in their settings.
+  source:
+    repoUrl: "https://github.com/Edurata/edurata-functions.git"
+    path: general/axios
+  props:
+    method: POST
+    url: "https://api.twitter.com/2/tweets"
+    headers:
+      Authorization: "Bearer ${secrets.TWITTER_BEARER_TOKEN}"
+      Content-Type: "application/json"
+    data:
+      text: ${format-content.response}
+      # mediaPath: ${filter-for-with-media.posts[each.pictureIndex].mediaPath}
   update-airtable:
     description: |
       Update the Airtable records with the published URLs for each platform and mark the post as processed.
@@ -148,6 +151,6 @@ steps:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       body:
         fields:
-          linkedin_url: ${post-to-linkedin.response.url}
-          reddit_url: ${post-to-reddit.response.url}
+          linkedinUrl: ${post-to-linkedin.response.url}
+          redditUrl: ${post-to-reddit.response.url}
           status: "processed"

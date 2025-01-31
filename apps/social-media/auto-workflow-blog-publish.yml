@@ -91,3 +91,4 @@ steps:
       body:
         fields:
           content: ${generate-blog-content.response}
+          freeToPublish: false

@@ -119,25 +119,25 @@ steps:
       data:
         owner: "urn:li:person:123456789"
         text: ${format-content.response}
-post-to-twitter:
-  if: 
-    in: 
-      - "twitterPost"
-      - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-  description: |
-    Publish the post to Twitter if the user has enabled Twitter in their settings.
-  source:
-    repoUrl: "https://github.com/Edurata/edurata-functions.git"
-    path: general/axios
-  props:
-    method: POST
-    url: "https://api.twitter.com/2/tweets"
-    headers:
-      Authorization: "Bearer ${secrets.TWITTER_BEARER_TOKEN}"
-      Content-Type: "application/json"
-    data:
-      text: ${format-content.response}
-      # mediaPath: ${filter-for-with-media.posts[each.pictureIndex].mediaPath}
+  post-to-twitter:
+    if: 
+      in: 
+        - "twitterPost"
+        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+    description: |
+      Publish the post to Twitter if the user has enabled Twitter in their settings.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: "https://api.twitter.com/2/tweets"
+      headers:
+        Authorization: "Bearer ${secrets.TWITTER_BEARER_TOKEN}"
+        Content-Type: "application/json"
+      data:
+        text: ${format-content.response}
+        # mediaPath: ${filter-for-with-media.posts[each.pictureIndex].mediaPath}
   update-airtable:
     description: |
       Update the Airtable records with the published URLs for each platform and mark the post as processed.
@@ -153,4 +153,5 @@ post-to-twitter:
         fields:
           linkedinUrl: ${post-to-linkedin.response.url}
           redditUrl: ${post-to-reddit.response.url}
-          status: "processed"
+          xUrl: ${post-to-twitter.response.url}
+          released: true

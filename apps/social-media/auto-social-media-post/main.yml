@@ -1,5 +1,5 @@
 name: airtable-blog-to-multiple-platforms
-apiRevision: edurata.io/workflow/v1
+apiRevision: "edurata.io/workflow/v1"
 description: |
   This workflow retrieves the latest blog posts from an Airtable that have not been processed, checks the user settings to determine which platforms are enabled for publishing, formats the content if necessary through ChatGPT, and publishes to the platforms (e.g., LinkedIn, Medium). After successful publishing, it updates the Airtable with the URLs for each platform.
 # run schedule every day

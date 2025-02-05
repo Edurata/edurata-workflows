@@ -1,5 +1,5 @@
 name: workflow-blog-to-multiple-platforms
-apiRevision: edurata.io/workflow/v1
+apiRevision: edurata.io/workflow/v2
 description: |
   This workflow retrieves a workflow definition, generates a blog post and title, and posts it to multiple platforms.
 interface:

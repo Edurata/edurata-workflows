@@ -68,7 +68,7 @@ steps:
           with open(inputs['repoCode'], 'r') as file:
               return yaml.safe_load(file)
     props:
-      repoCode: ${download-git-repo.response.repoCode}
+      repoCode: ${download-git-repo.repoCode}
   generate-blog-content:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

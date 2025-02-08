@@ -81,7 +81,23 @@ steps:
         you should generate a blog article that can be posted on our blog.
         The article should be about the workflow and its use case.
       message: ${get-workflow-definition}
-  update-airtable:
+  update-airtable-workflow:
+    if:
+      "!!": ${generate-blog-content.response}
+    description: |
+      Update the Airtable records with the published URLs for each platform and mark the post as processed.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: PATCH
+      url: "https://api.airtable.com/v0/${inputs.new_workflow_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}"
+      headers:
+        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+      body:
+        fields:
+          processed: true
+  update-airtable-blog:
     description: |
       Update the Airtable records with the published URLs for each platform and mark the post as processed.
     source:

@@ -18,6 +18,7 @@ interface:
           type: string
         description: "The subreddits to post to"
 inputs:
+  new_workflow_table_id: ${variables.new_workflow_table_id}
   blog_posts_table_id: ${variables.blog_posts_table_id}
   subreddits: 
     - "r/learnprogramming"

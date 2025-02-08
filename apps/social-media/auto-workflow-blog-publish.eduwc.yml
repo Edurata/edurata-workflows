@@ -61,6 +61,8 @@ steps:
       outputs:
         type: object
         description: The workflow definition.
+    packages:
+      PyYAML: ""
     code: |
       import yaml
       

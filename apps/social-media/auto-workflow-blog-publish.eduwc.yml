@@ -37,7 +37,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       params:
-        filterByFormula: "AND({status}!='processed')"
+        filterByFormula: "AND(NOT({processed}), {workflowPath} != '')"
         limit: 1
   download-git-repo:
     description: |

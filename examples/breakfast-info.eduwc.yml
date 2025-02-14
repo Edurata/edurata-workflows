@@ -3,8 +3,9 @@ name: breakfast-info
 title: Fetch daily weather and news for your location using a few example functions..
 schedule: "0 8 * * *"
 description: |
-  Using https://openweathermap.org/api for weather data.
-  Using https://newsapi.org/ for news data.
+  Automates the retrieval of daily weather and news for a given location and sends an email with the collected data. 
+  Uses the OpenWeatherMap API for weather data and the NewsAPI for news data. 
+  Determines the country based on latitude and longitude using Google's Geocoding API, fetches relevant weather and news data, and sends an email summary via AWS SES.
 interface:
   inputs:
     properties:
@@ -19,7 +20,7 @@ interface:
       email:
         type: string
         description: |
-          A registered email from aws ses that should receive the message.
+          A registered email from AWS SES that should receive the message.
     required:
       - lat
       - long
@@ -33,6 +34,8 @@ outputs:
   news: ${fetch-news.response.data.articles}
 steps:
   geo-data:
+    description: |
+      Retrieves the country name based on the given latitude and longitude using the Google Geocoding API.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -42,6 +45,8 @@ steps:
       headers:
         "Content-Type": "application/json"
   fetch-weather:
+    description: |
+      Fetches weather data for the specified latitude and longitude using the Tomorrow.io API.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -51,6 +56,9 @@ steps:
       headers:
         "Content-Type": "application/json"
   fetch-news:
+    description: |
+      Retrieves the top news headlines for the determined country based on the geolocation step. 
+      Uses the NewsAPI to fetch news articles for the country extracted from the geo-data step.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -60,6 +68,9 @@ steps:
       headers:
         "Content-Type": "application/json"
   send-message:
+    description: |
+      Sends an email containing the weather forecast and top news headlines using AWS SES. 
+      Includes temperature, cloud coverage, rain intensity, and headlines retrieved from the fetch-weather and fetch-news steps.
     resources:
       memory: 2
       cpu: 1

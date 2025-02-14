@@ -1,9 +1,8 @@
 name: outreach-bot
 apiRevision: edurata.io/workflow/v1
 description: |
-  A workflow that fetches filtered leads from Airtable, retrieves email templates from the user object in a user table,
-  generates emails using ChatGPT based on the templates and lead information,
-  sends the emails via Gmail, and updates Airtable to track the email stage and sent count.
+  Automates the outreach process by fetching filtered leads from Airtable, retrieving email templates from user data,
+  generating personalized emails using ChatGPT, sending emails via Gmail, and updating Airtable to track outreach progress.
 interface:
   inputs:
     properties:
@@ -48,7 +47,7 @@ outputs:
   sent_emails: ${send-email[*].response.data}
 steps:
   fetch-user:
-    description: Fetch user data from Airtable for the current user.
+    description: Fetches user data from Airtable using the provided email to retrieve templates for email generation.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -60,7 +59,7 @@ steps:
       params:
         filterByFormula: "email='${inputs.user_email}'"
   fetch-leads:
-    description: Fetch lead records from Airtable filtered by user_id and sent_count < 3.
+    description: Fetches lead records from Airtable, filtering by user ID from the fetched user data, and ensuring leads have been contacted fewer times than the set threshold.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -70,12 +69,11 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       params:
-        # last sent date is more that two days ago
         filterByFormula: "AND(user_id='${fetch-user.response.data.records[0].id}', sent_count < ${inputs.days_offset}, last_sent_date < DATEADD(TODAY(), -2, 'days'))" 
   enrich-leads-with-template:
     runtime: python3_10
     foreach: ${fetch-leads.response.data.records}
-    description: Map the template of the current user to each lead
+    description: Maps the appropriate email template from the fetched user data to each lead based on the lead's sent count.
     code: |
       def handler(inputs):
           user = inputs["user"]
@@ -84,7 +82,6 @@ steps:
           template1 = user["fields"]["template_1"]
           template2 = user["fields"]["template_2"]
           for lead in leads:
-              # map depending on the sent count
               if lead["fields"]["sent_count"] == 0:
                   lead["fields"]["template"] = template0
               elif lead["fields"]["sent_count"] == 1:
@@ -96,7 +93,7 @@ steps:
       templates: ${fetch-user.response.data.records[0].fields.templates}
       user: ${fetch-user.response.data.records[0].fields}
   generate-email-content:
-    description: Generate email content using ChatGPT based on templates and lead data.
+    description: Generates a personalized email for each lead using ChatGPT, based on the assigned template and lead details.
     foreach: ${enrich-leads-with-template}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -112,7 +109,7 @@ steps:
       message: Generate personalized email content
   send-email:
     foreach: ${enrich-leads-with-template}
-    description: Send the generated email to the lead using Gmail.
+    description: Sends the generated email to each lead via Gmail, using the sender email specified in the inputs.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-gmail-email
@@ -124,7 +121,7 @@ steps:
       body: ${generate-email-content[each.index].response}
   get-update-json:
     foreach: ${send-email}
-    description: Prepare the JSON payload to update the Airtable record.
+    description: Prepares a JSON payload for updating the Airtable record with the new thread ID and incremented sent count.
     runtime: python3
     code: |
       def handler(inputs):
@@ -138,7 +135,7 @@ steps:
       threadId: ${send-email.response.threadId}
   update-airtable:
     foreach: ${send-email}
-    description: Update the Airtable record with the incremented sent count and possibly next email stage.
+    description: Updates the Airtable lead record with the incremented sent count and potentially moves the lead to the next email stage.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios

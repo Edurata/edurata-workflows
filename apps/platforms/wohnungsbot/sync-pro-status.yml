@@ -1,12 +1,12 @@
-name: wg-gesucht-application-bot
+name: wg-gesucht-application-bot-fetch-stripe-charges
 apiRevision: edurata.io/workflow/v1
 description: |
-  Fetches regulary stripe charges and updates airtable with the pro status of the user.
+  Automates the process of fetching Stripe charges from the past 24 hours, extracting relevant metadata, and updating Airtable with the user's pro status. It retrieves charges, processes metadata, triggers updates, and schedules user pro status in the system.
 steps:
   get-24h-back-epoch-time:
     runtime: python3_10
     description: |
-      Get the epoch time for yesterday.
+      Calculates and returns the epoch timestamp for 24 hours ago to filter relevant Stripe charges.
     code: |
       from datetime import datetime, timedelta
       def handler(inputs):
@@ -17,6 +17,8 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
+    description: |
+      Fetches successful Stripe charges created in the last 24 hours using the epoch time from the previous step.
     props:
       method: GET
       url: "https://api.stripe.com/v1/customers/search"
@@ -28,7 +30,7 @@ steps:
   get-metadata-from-charges:
     runtime: python3_10
     description: |
-      Extract metadata from the charges.
+      Extracts metadata from the fetched Stripe charges, including email, deployment ID, schedule, and expiration date, and maps payment amounts to deployment configurations.
     code: |
       import random
       from datetime import datetime, timedelta
@@ -71,6 +73,8 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
+    description: |
+      Iterates over the extracted metadata to check for existing deployment triggers for each user based on their email.
     props:
       url: ${meta.apiUrl}/deployment/${each.deploymentId}/trigger
       method: GET
@@ -84,6 +88,8 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
+    description: |
+      Iterates over the extracted metadata and updates the deployment trigger with a new schedule, enabling the user's pro status and setting an expiration date.
     props:
       url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsBot.deploymentId}/trigger/${get-trigger.response.data.items[0].id}
       method: POST

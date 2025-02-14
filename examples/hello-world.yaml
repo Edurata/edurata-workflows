@@ -2,7 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: hello-world
 title: Testing all runtimes with a hello-world function.
 description: |
-  Testing basic functionality of all runtimes with a hello-world print.
+  Automates the testing of basic functionality across multiple runtimes by executing a hello-world print statement. It constructs a message from input messages, processes it using Python, Node.js, and Docker-based environments, and ensures compatibility through inline and repository-based function execution. It also includes a conditional foreach loop to iterate selectively over input messages.
 interface:
   inputs:
     properties:
@@ -25,6 +25,8 @@ outputs:
   messageFromNode: ${test-node.message}
 steps:
   construct-message:
+    description: |
+      Joins the input messages into a single string to be used by subsequent steps.
     runtime: nodejs20
     code: |
       exports.handler = async (event) => {
@@ -35,6 +37,8 @@ steps:
     props:
       messages: ${inputs.messages}
   test-python-inline-code:
+    description: |
+      Executes an inline Python function that prints "Hello, World!" to the console. Uses the constructed message as input.
     runtime: python3_10
     code: |
       def handler(event):
@@ -42,6 +46,8 @@ steps:
     props:
       message: "Message from python inline: ${construct-message.string}"
   test-node-inline-code:
+    description: |
+      Executes an inline Node.js function that logs "Hello, World!" to the console. Uses the constructed message as input.
     runtime: nodejs20
     code: |
       exports.handler = async (event) => {
@@ -50,12 +56,16 @@ steps:
     props:
       message: "Message from node inline: ${construct-message.string}"
   test-python:
+    description: |
+      Runs a Python script from the Edurata repository (tests/python) using the constructed message as input.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/python
     props:
       message: "Message from python: ${construct-message.string}"
   test-node:
+    description: |
+      Runs a Node.js script from the Edurata repository (tests/node) using the constructed message as input.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: tests/node
@@ -63,7 +73,7 @@ steps:
       message: "Message from node: ${construct-message.string}"
   test-docker-upstream:
     description: |
-      This step is using a docker image from the docker hub
+      Runs a Docker container using the "docker/whalesay" image to print the constructed message using the "cowsay" command.
     runtime: docker
     source:
       imageRepoUrl: "docker/whalesay"
@@ -79,6 +89,8 @@ steps:
         - cowsay
         - "Message from docker: ${construct-message.string}"
   test-foreach-with-if:
+    description: |
+      Iterates over each input message and runs a Node.js script from the Edurata repository (tests/node) if the message is either "Hello" or "World".
     foreach: ${inputs.messages}
     if:
       or:

@@ -3,7 +3,7 @@ name: block-x-bots-by-archive
 title: 
 schedule: "0 8 * * *"
 description: |
-  Expects an archive of user data and goes through it to block bots
+  Automates the process of identifying and blocking bot followers on Twitter by analyzing an archive of user data, checking follower metrics, detecting suspicious accounts, and blocking them if necessary.
 interface:
   inputs:
     properties:
@@ -25,6 +25,8 @@ steps:
       url: 'https://api.twitter.com/2/users/by/username/${inputs.user_handle}'
       headers:
         Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+    description: |
+      Retrieves the user ID associated with the given Twitter handle to be used in subsequent API requests.
   check-follower-count:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -34,6 +36,8 @@ steps:
       url: 'https://api.twitter.com/2/users/${get-user-id.response.data.data.id}?user.fields=public_metrics'
       headers:
         Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+    description: |
+      Fetches the follower count and other public metrics for the user to determine if further analysis should proceed.
   cancel-if-too-many-followers:
     code: |
       def handler(inputs):
@@ -45,6 +49,8 @@ steps:
         }
     props:
       follower_count: '${check-follower-count.response.data.data.public_metrics.followers_count}'
+    description: |
+      If the user has more than 1,000 followers, the process is canceled to avoid unnecessary processing on large accounts.
   get-new-followers:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -54,6 +60,8 @@ steps:
       url: 'https://api.twitter.com/2/users/${get-user-id.response.data.data.id}/followers?max_results=100&user.fields=created_at,public_metrics'
       headers:
         Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+    description: |
+      Retrieves the latest followers of the user, including their creation date and public metrics, to analyze for bot activity.
   find-bots:
     foreach: ${get-new-followers.response.data.data}
     code: |
@@ -71,6 +79,8 @@ steps:
         }
     props:
       followers: '${get-new-followers.response.data.data}'
+    description: |
+      Iterates over all newly retrieved followers and identifies potential bot accounts based on an imbalance between followers and following counts.
   block-user:
     foreach: ${find-bots.bot_followers}
     source:
@@ -83,4 +93,8 @@ steps:
         Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
       data:
         target_user_id: '${each.id}'
+    description: |
+      Blocks each detected bot follower from the user's account to prevent further interaction.
   send-email:
+    description: |
+      Sends a summary email with details of the blocked accounts and the filtering criteria used.

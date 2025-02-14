@@ -1,8 +1,7 @@
 name: airtable-blog-to-multiple-platforms
 apiRevision: edurata.io/workflow/v1
 description: |
-  This workflow retrieves the latest blog posts from an Airtable that have not been processed, checks the user settings to determine which platforms are enabled for publishing, formats the content if necessary through ChatGPT, and publishes to the platforms (e.g., LinkedIn, Medium). After successful publishing, it updates the Airtable with the URLs for each platform.
-# run schedule every day
+  Automates the retrieval of the latest unprocessed blog post from Airtable, checks user settings to determine the enabled publishing platforms, formats the content appropriately for each platform using ChatGPT, and publishes the post to the selected platforms (Reddit, LinkedIn, Twitter/X). After successful publication, the workflow updates Airtable with the URLs of the published posts and marks the post as processed.
 interface:
   inputs:
     type: object
@@ -18,7 +17,8 @@ interface:
         description: "The email of the current user"
 steps:
   get-user-settings:
-    description: Fetch user settings from Airtable to determine enabled platforms.
+    description: |
+      Fetches user settings from Airtable to determine which platforms (Reddit, LinkedIn, Twitter/X) are enabled for publishing.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -30,7 +30,8 @@ steps:
       params:
         filterByFormula: "{email}='${inputs.user_email}'"
   get-latest-unprocessed-post:
-    description: Retrieve the latest unprocessed post from the Airtable.
+    description: |
+      Retrieves the latest blog post from Airtable that has not yet been processed, limiting the response to one post.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -43,6 +44,8 @@ steps:
         filterByFormula: "AND({status}!='processed')"
         limit: 1
   generate-post-reddit:
+    description: |
+      Formats the blog post for Reddit by creating a teaser and linking back to the full blog post. Iterates over both the title and content of the retrieved post.
     foreach:
       - "title"
       - "content"
@@ -56,6 +59,8 @@ steps:
         Return only the string ${each}.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   generate-post-linkedin:
+    description: |
+      Formats the blog post for LinkedIn by creating a summarized teaser.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
@@ -66,6 +71,8 @@ steps:
         Return only the content.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   generate-post-x:
+    description: |
+      Formats the blog post for Twitter/X by creating a concise teaser suitable for a tweet.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
@@ -76,6 +83,8 @@ steps:
         Return only the tweet.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   post-to-reddit:
+    description: |
+      Publishes the formatted post to Reddit if the user has enabled Reddit in their settings. Iterates over all specified subreddits.
     if:
       and:
         - in:
@@ -83,8 +92,6 @@ steps:
           - ${get-user-settings.response.data.records[0].fields.enabledTargets}
         - "!!": ${get-user-settings.response.data.records[0].fields.subReddits}
     foreach: ${get-user-settings.response.data.records[0].fields.subReddits}
-    description: |
-      Publish a post to a specific subreddit if the user has enabled Reddit in their settings.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -98,16 +105,16 @@ steps:
       data:
         api_type: "json"
         sr: "${each}"
-        title: ${generate-post-reddit[0].response} # Post title
-        kind: "self" # For text posts (use "link" for link posts)
-        text: ${generate-post-reddit[1].response} # The post content
+        title: ${generate-post-reddit[0].response}
+        kind: "self"
+        text: ${generate-post-reddit[1].response}
   post-to-linkedin:
-    if: 
-      in: 
+    description: |
+      Publishes the formatted post to LinkedIn if the user has enabled LinkedIn in their settings.
+    if:
+      in:
         - "linkedinPost"
         - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-    description: |
-      Publish the post to LinkedIn if the user has enabled LinkedIn in their settings.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -118,14 +125,14 @@ steps:
         Authorization: "Bearer ${secrets.LINKEDIN_API_KEY}"
       data:
         owner: "urn:li:person:123456789"
-        text: ${format-content.response}
+        text: ${generate-post-linkedin.response}
   post-to-twitter:
-    if: 
-      in: 
+    description: |
+      Publishes the formatted post to Twitter/X if the user has enabled Twitter/X in their settings.
+    if:
+      in:
         - "twitterPost"
         - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-    description: |
-      Publish the post to Twitter if the user has enabled Twitter in their settings.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -136,11 +143,10 @@ steps:
         Authorization: "Bearer ${secrets.TWITTER_BEARER_TOKEN}"
         Content-Type: "application/json"
       data:
-        text: ${format-content.response}
-        # mediaPath: ${filter-for-with-media.posts[each.pictureIndex].mediaPath}
+        text: ${generate-post-x.response}
   update-airtable:
     description: |
-      Update the Airtable records with the published URLs for each platform and mark the post as processed.
+      Updates Airtable with the URLs of the published posts on LinkedIn, Reddit, and Twitter/X and marks the post as processed.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

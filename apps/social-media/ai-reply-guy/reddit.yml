@@ -1,7 +1,7 @@
 name: reddit-reply-bot
 apiRevision: edurata.io/workflow/v1
 description: |
-  A bot that searches Reddit for posts containing specified keywords and replies with contextually relevant responses generated using AI, using additional context from Airtable.
+  Automates the process of searching Reddit for posts containing specific keywords and replying with AI-generated responses. The bot retrieves contextual information from Airtable, formats a Reddit search query, finds relevant posts, generates replies using AI, and posts them as comments while adhering to Reddit's rate limits.
 interface:
   inputs:
     properties:
@@ -19,7 +19,7 @@ inputs:
 steps:
   retrieve-context:
     description: |
-      Retrieve context data from Airtable to use in generating AI responses.
+      Fetch user-specific contextual data from Airtable, including search terms and business details, to personalize AI-generated Reddit replies.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -30,9 +30,10 @@ steps:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
-  #https://support.reddithelp.com/hc/en-us/articles/19696541895316-Available-search-features
+  
   prepare-reddit-query:
-    description: Takes a string of terms and formats them as a Reddit search query.
+    description: |
+      Convert a list of search terms retrieved from Airtable into a properly formatted Reddit search query for finding relevant posts.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -49,9 +50,10 @@ steps:
           }
     props:
       terms_string: ${retrieve-context.response.data.records[0].fields.searchTerms}
+  
   search-reddit:
     description: |
-      Search Reddit for posts that contain the specified keywords.
+      Execute a Reddit search using the formatted query to find posts that match the specified keywords, retrieving the top 10 results.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -65,11 +67,12 @@ steps:
         q: ${prepare-reddit-query.reddit_query}
         limit: 10
         sort: "top"
+  
   generate-reply:
     model: gpt-4o
     foreach: ${search-reddit.response.data.data.children}
     description: |
-      Use AI to generate a contextual reply based on the Reddit post and data from Airtable.
+      Generate a short, contextually relevant AI response to each retrieved Reddit post, using business context from Airtable to craft appropriate suggestions.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
@@ -85,12 +88,13 @@ steps:
         The majority of the response should be about the post itself.
         The comment should be no longer than 5 sentences and in general very short.
       message: "Generate a reply."
+  
   post-reply:
     foreach: ${search-reddit.response.data.data.children}
     concurrency: 1 # Ensure we don't hit Reddit's rate limits
     delay: 15 # Delay between requests to avoid rate limits
     description: |
-      Post the generated reply to Reddit as a comment on the relevant post.
+      Post each AI-generated reply as a comment on the corresponding Reddit post, ensuring compliance with Reddit’s rate-limiting policies.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

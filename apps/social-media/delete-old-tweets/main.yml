@@ -1,7 +1,7 @@
 name: delete-old-tweets-with-email
 apiRevision: edurata.io/workflow/v1
 description: |
-  This workflow takes a Twitter archive file, extracts it, filters out tweets older than a certain date, deletes them using the Twitter API, and sends an email update with the number of deleted tweets.
+  Automates the deletion of old tweets from a Twitter archive file. The workflow extracts the archive, filters tweets older than a given date, deletes them via the Twitter API, and sends an email update with the count of deleted tweets.
 interface:
   inputs:
     type: object
@@ -28,7 +28,7 @@ interface:
         description: "The number of deleted tweets."
 steps:
   extract-archive:
-    description: "Extract the contents of the Twitter archive file."
+    description: "Extracts the contents of the Twitter archive file to obtain the tweets in JSON format."
     runtime: python3_10
     interface:
       inputs:
@@ -57,7 +57,7 @@ steps:
           }
 
   filter-old-tweets:
-    description: "Filter tweets that are older than the specified cutoff date."
+    description: "Filters tweets that are older than the specified cutoff date from the extracted file."
     runtime: python3_10
     interface:
       inputs:
@@ -103,8 +103,9 @@ steps:
           return {
               "old_tweets": old_tweets
           }
+
   delete-tweets:
-    description: "Delete the filtered tweets using the Twitter API."
+    description: "Deletes each filtered tweet using the Twitter API. If there are multiple tweets, it iterates over all of them and deletes them one by one."
     foreach: ${filter-old-tweets.old_tweets}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -120,7 +121,7 @@ steps:
         description: "The number of tweets deleted."
 
   summarize:
-    description: "Summarize the result of the deleted tweets."
+    description: "Counts the number of tweets deleted and outputs the total count."
     runtime: python3_10
     interface:
       inputs:
@@ -137,7 +138,7 @@ steps:
           }
 
   send-email-update:
-    description: "Send an email update with the number of deleted tweets."
+    description: "Sends an email update containing the number of deleted tweets to the specified email address."
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses  # You can replace this with any email-sending service

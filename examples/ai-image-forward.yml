@@ -2,7 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: quote-forwarder
 title: Prepare text content
 description: |
-  Generating a quote plus a picture from telegram and forwards it to social media..
+  Automates the process of fetching images from a Telegram channel, filtering for media content, analyzing images for labels and text, generating inspirational quotes based on labels, and posting the resulting content to social media.
 interface:
   inputs:
     properties:
@@ -14,7 +14,8 @@ interface:
       - sourceTelegramAccount
 steps:
   get-telegram-pictures-today:
-    description: Fetching the latest posts from a telegram channel
+    description: |
+      Fetches the latest posts from a specified Telegram channel, retrieving media content posted today.
     cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -27,7 +28,8 @@ steps:
       channelId: ${inputs.sourceTelegramAccount}
       imageDir: ${meta.cacheMountDir}/images/telegram/${meta.executionId}
   filter-for-with-media:
-    description: Filter for posts with media.
+    description: |
+      Filters the retrieved Telegram posts to include only those that contain media files.
     runtime: python3_10
     interface:
       inputs:
@@ -57,7 +59,8 @@ steps:
       posts: ${get-telegram-pictures-today.posts}
   extract-info:
     foreach: ${filter-for-with-media.posts[*].mediaPath}
-    description: Try to extract the content text and labels
+    description: |
+      Extracts text content and image labels using AWS Rekognition to analyze the media files.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/analyse-image-aws-rekognition
@@ -68,7 +71,8 @@ steps:
       image_file: ${each}
       types: ["labels", "text"]
   extract-usable-images:
-    description: Extracting the usable images
+    description: |
+      Filters out images containing text and excludes certain labels such as "Person" and "Cartoon." Returns a set of images deemed suitable for generating quotes.
     runtime: python3_10
     code: |
       def handler(event):
@@ -82,12 +86,13 @@ steps:
                       "pictureIndex": index
                   }
                   useful_pictures.append(combi)
-          # Return only eight for now
           return {"useful_pictures": useful_pictures[:8]}
     props:
       picture_info: ${extract-info}
   generate-quotes:
     foreach: ${extract-usable-images.useful_pictures}
+    description: |
+      Generates an inspirational quote related to the extracted labels of the selected images.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
@@ -98,7 +103,8 @@ steps:
         Find a suitable inspiring quote for the labels: ${each.labels}
   push-to-x:
     foreach: ${extract-usable-images.useful_pictures}
-    description: Pushing the translated texts to an X account
+    description: |
+      Posts the generated quote along with the corresponding image to an X (formerly Twitter) account.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/tweet

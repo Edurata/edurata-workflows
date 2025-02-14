@@ -1,7 +1,7 @@
 name: wg-gesucht-application-bot
 apiRevision: edurata.io/workflow/v1
 description: |
-  A bot that scans WG-Gesucht for new flat listings and automatically applies to them based on user-defined preferences.
+  Automates the process of scanning WG-Gesucht for new flat listings based on user-defined preferences, generating personalized applications using ChatGPT, and automatically submitting them.
 interface:
   inputs:
     properties:
@@ -15,7 +15,7 @@ interface:
         description: The email address of the user of the workflow.
 steps:
   get-customer-details:
-    description: "Retrieve customer details (email and CV) from the second Airtable table."
+    description: Retrieves customer details, including email, CV, and login credentials, from an Airtable database.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -29,7 +29,7 @@ steps:
   set-defaults-filter:
     runtime: python3_10
     description: |
-      Set default values for the search filter.
+      Sets default values for the search filter, adjusting parameters based on user subscription status.
     code: |
       from datetime import datetime, timedelta
       def handler(inputs):
@@ -57,7 +57,7 @@ steps:
       is_pro: ${inputs.isPro}
   search-flat-listings:
     description: |
-      Fetch flat listings from WG-Gesucht using the specified search parameters.
+      Fetches flat listings from WG-Gesucht using the specified search parameters retrieved from the user profile.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: apps/platforms/wohnungsbot/wg-gesucht/search
@@ -68,7 +68,7 @@ steps:
   generate-applications:
     foreach: ${search-flat-listings.listings}
     description: |
-      Generate applications for the filtered flat listings with chatgpt
+      Generates personalized application messages for each flat listing using ChatGPT, ensuring the language matches the listing description and personalizing the message with the lister's name.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
@@ -89,7 +89,7 @@ steps:
   merge-info:
     runtime: python3_10
     description: |
-      Merge the flat listings with the generated applications.
+      Merges the flat listings with the corresponding generated applications to create a structured list of applications ready for submission.
     code: |
       def handler(inputs):
           listings = inputs['listings']
@@ -109,7 +109,7 @@ steps:
     if:
       "!!": "${merge-info.merged_listings}"
     description: |
-      Automatically apply to the filtered flat listings.
+      Automatically submits applications to the selected flat listings on WG-Gesucht using the generated messages and user credentials.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: apps/platforms/wohnungsbot/wg-gesucht/apply

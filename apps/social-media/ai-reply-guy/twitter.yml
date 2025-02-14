@@ -1,7 +1,7 @@
 name: twitter-reply-bot
 apiRevision: edurata.io/workflow/v1
 description: |
-  A bot that searches Twitter for posts containing specified keywords and replies with contextually relevant responses generated using AI, with additional context from Airtable.
+  Automates the process of searching Twitter for posts containing specified keywords, retrieving contextual data from Airtable, generating AI-powered replies based on that context, and posting the replies back to Twitter. The bot ensures responses are relevant and aligned with a business/product description.
 interface:
   inputs:
     properties:
@@ -19,7 +19,7 @@ interface:
 steps:
   retrieve-context:
     description: |
-      Retrieve context data from Airtable to use in generating AI responses.
+      Retrieves context data from Airtable using the provided table ID. The retrieved data includes relevant business or product descriptions that will be used to generate contextual AI responses.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -31,7 +31,8 @@ steps:
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
   split-keywords:
-    description: Split the keywords from the context data into an array.
+    description: |
+      Extracts and splits keywords from the retrieved Airtable context data into an array, ensuring they can be individually processed in later steps.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -44,7 +45,7 @@ steps:
   search-twitter:
     foreach: ${inputs.keywords}
     description: |
-      Search Twitter for posts that contain the specified keywords.
+      Searches Twitter for recent tweets that contain each of the specified keywords. This step runs for each keyword provided in the input list.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -59,7 +60,7 @@ steps:
   generate-reply:
     foreach: ${search-twitter.response.data}
     description: |
-      Use AI to generate a contextual reply based on the Twitter post and data from Airtable.
+      Generates an AI-powered contextual reply for each retrieved tweet. The AI model uses data from Airtable, including business/product descriptions, to craft relevant responses. The reply aims to be helpful while subtly promoting the product.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
@@ -76,7 +77,7 @@ steps:
   post-reply:
     foreach: ${generate-reply.response}
     description: |
-      Post the generated reply to Twitter as a response to the relevant tweet.
+      Posts the AI-generated replies to Twitter as responses to the relevant tweets. Each reply is associated with the corresponding tweet ID to ensure contextual accuracy.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

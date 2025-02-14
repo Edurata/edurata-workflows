@@ -1,7 +1,7 @@
 name: workflow-blog-to-multiple-platforms
 apiRevision: "edurata.io/workflow/v1"
 description: |
-  This workflow retrieves a workflow definition, generates a blog post and title, and posts it to multiple platforms.
+  Automates the process of retrieving a workflow definition, generating a blog post about it, and publishing it across multiple platforms, including Reddit and an internal blog. The workflow ensures that unprocessed posts are fetched, processed, and marked as published in Airtable.
 interface:
   inputs:
     type: object
@@ -27,7 +27,8 @@ inputs:
     - "r/programmingcirclejerk"
 steps:
   get-latest-unprocessed-post:
-    description: Retrieve the latest unprocessed post from the Airtable.
+    description: |
+      Retrieve the latest workflow entry from Airtable that has not yet been processed.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -39,18 +40,20 @@ steps:
       params:
         filterByFormula: "AND(NOT({processed}), {workflowPath} != '')"
         limit: 1
+
   download-git-repo:
     description: |
-      Clone the Git repository containing the workflow definition.
+      Clone the Git repository containing the workflow definition from the retrieved workflow entry.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/clone-git
     props:
       repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: ${get-latest-unprocessed-post.response.data.records[0].fields.workflowPath}
+
   get-workflow-definition:
     description: |
-      Read the workflow definition from the cloned repository.
+      Extract and read the workflow definition from the cloned repository to use as the basis for generating a blog post.
     runtime: python3_10
     interface:
       inputs:
@@ -60,7 +63,6 @@ steps:
             description: The path to the cloned repository.
       outputs:
         type: object
-        description: The workflow definition.
     packages:
       PyYAML: ""
     code: |
@@ -71,7 +73,10 @@ steps:
               return yaml.safe_load(file)
     props:
       repoCode: ${download-git-repo.repoCode}
+
   generate-blog-content:
+    description: |
+      Use AI to generate a blog article about the workflow, including its use case and significance, based on the extracted YAML definition.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
@@ -80,14 +85,15 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         You are going to receive a yaml file of a workflow. 
-        you should generate a blog article that can be posted on our blog.
+        You should generate a blog article that can be posted on our blog.
         The article should be about the workflow and its use case.
       message: ${get-workflow-definition}
+
   update-airtable-workflow:
     if:
       "!!": ${generate-blog-content.response}
     description: |
-      Update the Airtable records with the published URLs for each platform and mark the post as processed.
+      Mark the workflow entry in Airtable as processed after generating the blog content.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -99,9 +105,10 @@ steps:
       body:
         fields:
           processed: true
+
   update-airtable-blog:
     description: |
-      Update the Airtable records with the published URLs for each platform and mark the post as processed.
+      Store the generated blog post in the Airtable blog posts table for publishing and tracking.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

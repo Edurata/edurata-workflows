@@ -1,7 +1,7 @@
 name: hot-post-keyword-responder
 apiRevision: "edurata.io/workflow/v1"
 description: |
-  This workflow searches for hot posts containing specific keywords on a platform (like Reddit), sends the post content to ChatGPT to generate a helpful response, and then posts the generated response as a comment on the post.
+  Automates the process of identifying hot posts on a platform (like Reddit) containing specific keywords, generating responses using ChatGPT, and posting them as comments. The workflow searches for posts, filters them based on upvotes, constructs a query, generates responses, and posts them back as comments.
 interface:
   inputs:
     type: object
@@ -35,6 +35,7 @@ interface:
         description: "List of comments posted with their post and comment IDs"
 steps:
   get-people-data:
+    description: Retrieves user-specific search terms from an Airtable database to be used for querying posts.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -43,22 +44,17 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   construct-reddit-query:
-    description: Construct a query to search for posts on Reddit.
+    description: Constructs a search query for Reddit by formatting the keywords into a query string using OR logic.
     runtime: python3_10
     code: |
       def handler(inputs):
-          # Split the comma-separated string and strip extra whitespace
           terms = [term.strip() for term in inputs["search_terms"].split(",")]
-          
-          # Create the formatted string
           output_string = ' OR '.join([f'selftext:"{term}"' for term in terms])
-          
-          # Return the output
           return {"formatted_string": output_string}
     props:
       search_terms: "${get-people-data.response.data.records[0].fields.searchTerms}"
   search-posts:
-    description: Search for posts with specified keywords on the platform.
+    description: Searches for posts on Reddit using the constructed query and retrieves up to 50 of the hottest results.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -72,7 +68,7 @@ steps:
       headers:
         User-Agent: "EdurataBot/1.0"
   filter-hot-posts:
-    description: Filter posts to include only those considered "hot" based on minimum upvotes.
+    description: Filters the search results to include only posts that meet or exceed the specified minimum upvotes.
     if: "${each.data.ups} >= ${inputs.min_upvotes}"
     runtime: python3_10
     code: |
@@ -87,7 +83,7 @@ steps:
     props:
       posts: "${search-posts.response.data.data.children}"
   generate-chatgpt-response:
-    description: Generate a helpful response using ChatGPT for each filtered post.
+    description: Generates an AI-generated response using ChatGPT for each filtered hot post by replacing placeholders in the prompt with the post title and content.
     foreach: "${filter-hot-posts.filtered_post}"
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -103,7 +99,7 @@ steps:
           - role: "user"
             content: "${inputs.chatgpt_prompt.replace('{title}', each.title).replace('{content}', each.content)}"
   post-comment:
-    description: Post the generated response as a comment on the post.
+    description: Posts the AI-generated response as a comment on the corresponding Reddit post.
     foreach: "${generate-chatgpt-response.generated_reply}"
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -119,7 +115,7 @@ steps:
     outputs:
       comment_id: "${post-comment.response.data.json.data.things[0].data.id}"
   collect-comments:
-    description: Collects all posted comments with their IDs and post IDs.
+    description: Collects all posted comments with their respective post IDs and comment IDs for tracking purposes.
     runtime: python3_10
     code: |
       def handler(inputs):

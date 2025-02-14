@@ -2,13 +2,13 @@ apiRevision: edurata.io/workflow/v1
 name: ai-translator
 title: Ai Translator
 schedule: "0 8 * * *"
-description: Fetching the latest posts from an X account and translates them to a target language and then pushes it to another X account.
+description: Automates the process of fetching the latest posts from a Telegram channel, extracting text from media, translating the content into a target language, and posting the translated text along with media to an X (formerly Twitter) account.
 interface:
   inputs:
     properties:
       sourceLanguage:
         type: string
-        description: The language of the posts..
+        description: The language of the posts.
       targetLanguage:
         type: string
         description: The language to translate the posts to.
@@ -20,7 +20,7 @@ interface:
       - sourceTelegramAccount
 steps:
   fetch-from-telegram:
-    description: Fetching the latest posts from a telegram channel
+    description: Fetches the latest posts from a Telegram channel using the provided channel ID. It retrieves text, media, and other relevant content while storing images in a cache directory for further processing.
     cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -33,7 +33,7 @@ steps:
       channelId: ${inputs.sourceTelegramAccount}
       imageDir: ${meta.cacheMountDir}/images/telegram/${meta.executionId}
   extract-text:
-    description: Try to extract the content text
+    description: Extracts text content from the media files retrieved in the previous step using OCR (Tesseract). This step processes all media files associated with the fetched Telegram posts and attempts to recognize text in the specified source language.
     cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -42,7 +42,7 @@ steps:
       SOURCE_LANG: ${inputs.sourceLanguage}
       SOURCE_PATHS: ${fetch-from-telegram.posts[*].mediaPath}
   translating-text:
-    description: Translating the text from the source language to the target language
+    description: Translates the extracted text from the source language to the target language using the DeepL API. It takes the recognized text from the previous step and converts it into the specified target language.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/translate-deepl
@@ -51,7 +51,7 @@ steps:
       targetLanguage: ${inputs.targetLanguage}
       DEEPL_API_KEY: ${secrets.DEEPL_API_KEY}
   push-to-x:
-    description: Pushing the translated texts to an X account
+    description: Pushes the translated texts along with their respective media files to an X (formerly Twitter) account. It posts the messages translated in the previous step and attaches any associated media from the original Telegram posts.
     cache: true
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

@@ -1,7 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: build-function-code
 title: Build function code
-description: Fetches the git repo and builds the function code and then uploads it to the function registry.
+description: Automates the process of fetching a git repository, determining the runtime, building the function code based on its runtime, and uploading the built code to a function registry.
 interface:
   inputs:
     properties:
@@ -26,7 +26,7 @@ interface:
 steps:
   git-clone:
     foreach: ${inputs.functionsToBuild}
-    description: Cloning a repo
+    description: Clones the specified git repository for each function to build, using the provided repository URL, path, and reference.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/clone-git
@@ -37,45 +37,32 @@ steps:
       auth: ${each.auth}
   get-runtime:
     runtime: python3_10
+    description: Determines the runtime of each cloned function by reading the `.edufc.yaml` or `.edufc.yml` file in the repository. Outputs a sorted list of functions with their runtime and repository code path.
     code: |
       import os
 
       def load_definition(filepath):
           runtime = ""
-          # Possible file names for the configuration
           for filename in (".edufc.yaml", ".edufc.yml"):
               definition_path = os.path.join(filepath, filename)
               if os.path.exists(definition_path):
                   with open(definition_path, "r") as file:
-                      # Load the YAML content manually, line by line
                       for line in file:
                           line = line.strip()
-                          # Look for the runtime declaration in the YAML file
                           if line.startswith("runtime:"):
-                              # Extract the value after "runtime:" and clean up any quotes or backticks
                               runtime = line.split(":", 1)[1].strip("`'\" ").strip()
-                              break  # Stop after finding the runtime
-                  break  # Stop iterating if a file is found
+                              break
+                  break
           return runtime
 
       def handler(event):
           runtime_and_files = []
-          
-          # Iterate over the files and associated rest properties
           for index, filepath in enumerate(event["files"]):
-              # Access the corresponding "rest" element for the current file
               rest = event["rest"][index]
-              # Log the contents of the directory for debugging
               print(os.listdir(filepath))
-
-              # Try to open either .edufc.yaml or .edufc.yml and extract the runtime
               runtime = load_definition(filepath)
-              # Append the runtime and other details to the result
               runtime_and_files.append({"runtime": runtime, "repoCode": filepath, **rest})
-
-          # Sort the results to ensure Python-related files are prioritized
           sorted_runtime_and_files = sorted(runtime_and_files, key=lambda x: (x["runtime"] != "python", x["runtime"]))
-
           return {"runtime_and_files": sorted_runtime_and_files}
     interface:
       inputs:
@@ -104,7 +91,7 @@ steps:
     foreach: ${get-runtime.runtime_and_files}
     if:
       "===": ["${each.runtime}", "nodejs20"]
-    description: Building the python10 code
+    description: Builds the function code for Node.js 20 runtime by processing the cloned repository.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: internals/build-nodejs20
@@ -114,14 +101,14 @@ steps:
     foreach: ${get-runtime.runtime_and_files}
     if:
       "===": ["${each.runtime}", "python3_10"]
-    description: Building the python10 code
+    description: Builds the function code for Python 3.10 runtime by processing the cloned repository.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: internals/build-python3_10
     props:
       code: ${each.repoCode}
   merge-results:
-    description: Merging the information again so that we can upload the code in an array. Interface only necessary bc of files integration.
+    description: Merges the results from the Node.js 20 and Python 3.10 build steps to create a single array of built function code files.
     runtime: nodejs20
     props:
       results:
@@ -154,7 +141,6 @@ steps:
       const handler = async (event) => {
         console.log(event, event.results)
         const { results } = event;
-
         return {results: results.flat().filter(result => result && !result.__pass__)}
       }
       module.exports = {handler}
@@ -162,6 +148,7 @@ steps:
     foreach: ${get-runtime.runtime_and_files}
     if:
       "!==": ["${each.runtime}", "docker"]
+    description: Retrieves an upload URL for each function (excluding Docker-based functions) to upload the built code.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -173,6 +160,7 @@ steps:
     foreach: ${merge-results.results}
     if:
       "!==": ["${get-runtime.runtime_and_files[each.index].runtime}", "docker"]
+    description: Compresses the built function code files into zip archives for uploading, excluding Docker-based functions.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/zip
@@ -182,6 +170,7 @@ steps:
     foreach: ${merge-results.results}
     if:
       "!==": ["${get-runtime.runtime_and_files[each.index].runtime}", "docker"]
+    description: Uploads the zipped function code to the function registry using the pre-generated upload URL, excluding Docker-based functions.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

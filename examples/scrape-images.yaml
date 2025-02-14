@@ -1,7 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: scrape-images
 title: scrape-images
-description: Scraping images for a list of people and uploading them to the s3 bucket
+description: Automates the process of scraping images for a list of people and uploading them to an S3 bucket. The workflow retrieves a configuration file containing a list of people and previously processed images, scrapes new images using an external repository, and then uploads the updated processed images list back to the S3 bucket.
 schedule: 0 */3 * * *
 interface:
   inputs:
@@ -9,15 +9,16 @@ interface:
       cursor:
         type: string
         title: cursor
-        description: if to start from a specific element in the array
+        description: If specified, starts processing from a specific element in the array.
         default: 0
       limit:
         type: number
         title: limit
-        description: if to break after a specific number of elements processed
+        description: Defines the maximum number of elements to process before stopping.
         default: 100
 steps:
   get-config:
+    description: Downloads the configuration files (people.json and processed-images.json) from the S3 bucket to retrieve the list of people and previously processed images.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/download-s3
@@ -29,6 +30,7 @@ steps:
         - key: people.json
         - key: processed-images.json
   scrape-images:
+    description: Scrapes images for the people listed in the downloaded configuration file (people.json) while avoiding already processed entries (processed-images.json). Uses Google Search API for image retrieval and saves the updated list of processed images.
     timeout: -1
     source:
       repoUrl: https://github.com/juliandm/penetratethecabinet.git
@@ -43,6 +45,7 @@ steps:
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
   upload-config:
+    description: Uploads the updated processed-images.json file back to the S3 bucket to keep track of processed images for future runs.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/upload-s3

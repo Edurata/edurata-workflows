@@ -1,7 +1,9 @@
 name: email-unsubscribe-service
 apiRevision: edurata.io/workflow/v1
 description: |
-  Workflow scans all recent emails from the last three months, identifies subscription services with their unsubscribe links, and sends a single email containing those links.
+  Automates the process of identifying and consolidating unsubscribe links from recent emails. 
+  The workflow retrieves customer details, scans the last three months of emails, extracts unsubscribe links, 
+  consolidates them into a single list, and generates an email containing these links for easy access.
 interface:
   inputs:
     type: object
@@ -21,7 +23,8 @@ inputs:
   customerTableId: ${variables.applicationConfig.unsubscribeBot.peopleTableId}
 steps:
   get-customer-details:
-    description: "Retrieve customer details (email and CV) from the second Airtable table."
+    description: |
+      Retrieves customer details, including email and CV, from the Airtable database using the provided user email.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -34,7 +37,8 @@ steps:
         filterByFormula: "email = '${inputs.userEmail}'"
   get-recent-emails:
     description: |
-      Retrieve all emails from the last three months.
+      Fetches all emails received in the past three months from the user's Gmail account.
+      The emails are retrieved using the Gmail API and filtered based on the timestamp.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -48,7 +52,8 @@ steps:
   extract-unsubscribe-links:
     foreach: ${get-recent-emails.messages}
     description: |
-      Scan the body of each email for unsubscribe links.
+      Scans the body of each retrieved email for unsubscribe links and extracts them.
+      If multiple unsubscribe links are found in an email, they are all collected.
     runtime: python3_10
     code: |
       import re
@@ -70,7 +75,7 @@ steps:
             description: "List of unsubscribe links found in the email"
   collect-all-links:
     description: |
-      Collects all unsubscribe links from emails and consolidates them into one list.
+      Aggregates all unsubscribe links extracted from multiple emails and removes duplicates.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -97,7 +102,8 @@ steps:
             type: string
   generate-html-body:
     description: |
-      Generate an HTML body with the unsubscribe links for the email.
+      Creates an HTML-formatted email body containing all extracted unsubscribe links, 
+      making it easy for the user to review and unsubscribe from unwanted services.
     runtime: python3_10
     code: |
       def handler(inputs):

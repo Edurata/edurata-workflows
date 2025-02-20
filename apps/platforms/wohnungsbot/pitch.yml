@@ -1,11 +1,11 @@
 name: wohnungsbot-pitch
 apiRevision: edurata.io/workflow/v1
 description: |
-  A bot that scans WG-Gesucht for people who search for flats and recommends the bot to them.
+  Automates the process of identifying flat seekers on WG-Gesucht, generating personalized recommendations for the Wohnungsbot software, and applying to listings on their behalf.
 steps:
   get-random-credentials:
     description: |
-      Get random credentials from the list of WG-Gesucht logins.
+      Retrieves a random set of login credentials from a predefined list of WG-Gesucht logins. These credentials will be used to access the WG-Gesucht platform in subsequent steps.
     runtime: python3_10
     code: |
       import random
@@ -17,7 +17,7 @@ steps:
       wgGesuchtLogins: "${secrets.wgGesuchtLogins}"
   search-users:
     description: |
-      Fetch users that are searching for flats.
+      Logs into WG-Gesucht using the selected credentials and fetches a list of users actively searching for flats within the specified city and timeframe.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: apps/platforms/wohnungsbot/wg-gesucht/pitch-search
@@ -29,7 +29,7 @@ steps:
   generate-recommendations:
     foreach: ${search-users.people_listings}
     description: |
-      Generate applications for the filtered flat listings with chatgpt
+      Iterates over all retrieved flat seekers and generates a personalized recommendation message using ChatGPT. The message introduces Wohnungsbot, explains its benefits, and includes a link to the website. It is generated in either German or English based on the user's description language preference.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
@@ -52,7 +52,7 @@ steps:
   merge-info:
     runtime: python3_10
     description: |
-      Merge the flat listings with the generated applications.
+      Merges the retrieved flat listings with the generated recommendation messages. This ensures that each flat seeker is matched with their personalized application message before proceeding to the application step.
     code: |
       def handler(inputs):
           listings = inputs['listings']
@@ -70,7 +70,7 @@ steps:
       applications: "${generate-recommendations[*].response}"
   apply-to-listings:  
     description: |
-      Automatically apply to the filtered flat listings.
+      Uses the merged listings and generated messages to automatically apply to the filtered flat listings on behalf of the identified seekers, using the previously retrieved WG-Gesucht credentials.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: apps/platforms/wohnungsbot/wg-gesucht/apply

@@ -3,7 +3,7 @@ name: invoice-processor
 title: Invoice Processor
 schedule: "0 9 * * *"
 description: |
-  Searches through the inbox and saves, tags and forwards invoices. More info on https://contact.edurata.com/accountingbot
+  Automates the process of scanning inbox emails for invoices, extracting and downloading attachments, tagging emails in Gmail, saving invoices to a structured Google Drive folder, and forwarding them to a specified email address for further processing.
 interface:
   inputs:
     properties:
@@ -51,6 +51,7 @@ inputs:
   peopleTableId: ${variables.accountingbot_people_table_id}
 steps:
   get-people-data:
+    description: Retrieves user data from an Airtable database using the provided table ID and user email to filter active users.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -59,6 +60,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   merge-config:
+    description: Merges the user's specific configuration settings with the base configuration to create a final configuration for processing invoices.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -71,6 +73,7 @@ steps:
       user_config: ${get-people-data.response.data.records[0].fields}
       base_config: ${inputs.config}
   create-labels:
+    description: "Creates the necessary Gmail labels for tagging processed invoices: success, failure, and skipped."
     foreach: 
       - ${merge-config.config.successTag}
       - ${merge-config.config.failTag}
@@ -86,6 +89,7 @@ steps:
       data:
         name: ${each}
   get-label-ids:
+    description: Retrieves the IDs of the created Gmail labels to use in subsequent tagging operations.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -95,6 +99,7 @@ steps:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
       __create-labels: ${create-labels}
   transform-tags-to-label-ids:
+    description: Maps label names to their corresponding Gmail label IDs for accurate tagging of emails.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -112,8 +117,8 @@ steps:
       successTag: ${merge-config.config.successTag}
       failTag: ${merge-config.config.failTag}
       skipTag: ${merge-config.config.skipTag}
-  # filter people for interval and today's day
   get-new-mails-without-tag:
+    description: Searches Gmail for new emails containing PDF attachments that haven't been processed yet (not tagged with success, failure, or skipped labels).
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -126,6 +131,7 @@ steps:
         maxResults: 10
       __create-labels: ${create-labels}
   continue-if-new-mails:
+    description: Continues processing only if new unprocessed emails with attachments are found.
     if:
       and:
         - ">":
@@ -139,6 +145,7 @@ steps:
     props:
       get-new-mails-without-tag: ${get-new-mails-without-tag}
   get-mails-info:
+    description: Retrieves detailed information about each email, including its payload, to extract relevant attachments.
     foreach: ${continue-if-new-mails.mails}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -151,6 +158,7 @@ steps:
         format: "full"
         fields: "id,payload"
   filter-attachments:
+    description: Filters the retrieved emails to extract only those that contain valid invoice attachments.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: apps/mail/invoice-forwarder/filter-attachments
@@ -158,6 +166,7 @@ steps:
       messages: ${get-mails-info[*].response.data}
       # additional_keywords: ${merge-config.config.additionalKeywords}
   download-attachments:
+    description: Downloads the filtered PDF attachments from the retrieved emails for further processing.
     foreach: ${filter-attachments.filtered_attachments}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -167,6 +176,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
   save-attachments:
+    description: Decodes and saves the invoice PDF attachments locally for further processing, such as forwarding or archiving.
     runtime: python3_10
     props:
       attachments_data: ${download-attachments[*].response.data}
@@ -221,8 +231,7 @@ steps:
                   # Handle the error as needed, e.g., skip the file or return an error response
           return {"new_files": new_files}
   forward-pdf:
-    description: |
-      Forward the PDF attachments to the specified email address using Gmail API.
+    description: Forwards the extracted invoice PDFs to the specified email address using the Gmail API.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -235,6 +244,7 @@ steps:
         raw: ${encode_email_attachments.raw}
   # Inline step to encode the email with attachment in base64 format
   encode_email_attachments:
+    description: Encodes the extracted invoices into a base64 format to be sent via the Gmail API.
     if: 
       "!!": ${merge-config.config.forwardEmail}
     else: success
@@ -314,6 +324,7 @@ steps:
   #     AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
   #     AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   get-folder-id:
+    description: Generates a folder name based on the current date for organizing invoices in Google Drive.
     runtime: python3_10
     if: 
       "!!": ${merge-config.config.gdriveFolderName}
@@ -327,7 +338,7 @@ steps:
     if: 
       "!!": ${filter-attachments.filtered_attachments}
     description: |
-      Create the folder path like invoices/2021-01-01 in Google Drive
+      Creates the necessary folder structure in Google Drive to store invoice PDFs.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/create-gdrive-folderpath
@@ -335,6 +346,7 @@ steps:
       OAUTH_TOKEN: ${secrets.GMAIL_API_KEY}
       folder_path: ${merge-config.config.gdriveFolderName}/${get-folder-id.folder_name}
   get-parent-folder-id:
+    description: Retrieves the ID of the parent folder in Google Drive where invoices will be stored.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -347,9 +359,8 @@ steps:
         q: name='${get-folder-id.folder_name}' and mimeType='application/vnd.google-apps.folder'
       __create-folderpath: ${create-folderpath}
   upload-files-in-gdrive:
+    description: Uploads the processed invoice PDFs to the designated Google Drive folder for archival purposes.
     foreach: ${save-attachments.new_files}
-    description: |
-      Archive the PDF attachments in the specified Google Drive folder
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: clients/gdrive
@@ -360,6 +371,7 @@ steps:
       parent_folder_id: "${get-parent-folder-id.response.data.files[0].id}"
       file_path: "${each}"
   map-tags-to-threads:
+    description: Associates each email thread with the appropriate tag (success, failure, or skipped) based on whether an invoice was found.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -387,6 +399,7 @@ steps:
       failTag: ${transform-tags-to-label-ids.label_ids.failTag}
       skipTag: ${transform-tags-to-label-ids.label_ids.skipTag}
   tag-emails:
+    description: Updates Gmail threads with the appropriate labels to indicate the processing status of each invoice.
     foreach: ${map-tags-to-threads}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

@@ -3,14 +3,14 @@ name: prepare-content
 title: Prepare text content
 schedule: "0 8 * * *"
 description: |
-  Taking drafts from one table and suggesting a blog post and social media posts.
+  Automates the process of extracting drafts from an Airtable, generating blog and social media posts, creating relevant images, uploading them to S3, and updating the Airtable with the generated content.
 interface:
   inputs:
     properties:
       airtable_id:
         type: string
         description: |
-          The base id + table_id from which to take the raw data
+          The base id + table_id from which to take the raw data.
       s3_content_path:
         type: string
         description: |
@@ -34,6 +34,8 @@ interface:
       - s3_content_path
 steps:
   get-airtable-data:
+    description: |
+      Fetches unprocessed records from Airtable using the provided Airtable ID. These records serve as the input data for generating blog and social media posts.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -41,24 +43,9 @@ steps:
       url: "https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)"
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
-  # add-chatgbt-command:
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: general/eval-nodejs
-  #   props:
-  #     code: |
-  #       return input.map(record => record.fields.Type === "Blog" ? {
-  #         ...record,
-  #         instaType: "feed",
-  #         command: typeToCommand[record.fields.Type]
-  #       } : {
-  #         ...record,
-  #         instaType: "story",
-  #         command: typeToCommand[record.fields.Type]
-  #       });
-  #     input: ${get-airtable-data.response.data.records}
   generate-text:
-    description: Generating a second summary with fixed length
+    description: |
+      Uses ChatGPT to generate summarized text in German for the news messages. The text includes icons and hashtags while ensuring each summary stays within 280 characters. The generated content is used for social media posts and blogs.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
@@ -72,7 +59,8 @@ steps:
         ${generate-command.command}
   text-to-image:
     foreach: ${get-chatgpt-response.output}
-    description: Image to text
+    description: |
+      Converts the generated text summaries into corresponding images. Each output from the ChatGPT response is processed to create a visual representation.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/text-to-image
@@ -81,6 +69,8 @@ steps:
       type: story
   upload-image-s3:
     foreach: ${text-to-image}
+    description: |
+      Uploads the generated images to an S3 bucket. Each image is stored with a unique key based on the execution ID.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/upload-s3
@@ -93,6 +83,8 @@ steps:
           key: ${meta.executionId}.jpg
   push-to-airtable:
     foreach: ${get-chatgpt-response}
+    description: |
+      Updates Airtable with the generated content for different social media platforms, including Instagram, X, Facebook, LinkedIn, and Medium. Ensures that all processed records are marked appropriately.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

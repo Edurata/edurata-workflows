@@ -1,7 +1,7 @@
 name: job-applicator
 apiRevision: edurata.io/workflow/v1
 description: |
-  Workflow that scans freelance.de for new job postings and automatically applies to them based on user-defined preferences.
+  Automates the process of scanning freelance.de for new job postings, filtering them based on user-defined preferences, and automatically applying to relevant jobs by generating personalized email applications.
 interface:
   inputs:
     type: object
@@ -62,7 +62,7 @@ steps:
       FREELANCE_DE_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancedePw}
       query_url: ${get-customer-details.response.data.records[0].fields.freelancedeQueryUrl}
   merge-job-postings:
-    description: "Merge job postings from different sources."
+    description: Merges job postings from freelancermap.com and freelance.de into a single list, ensuring uniform structure and adding source links where needed.
     runtime: python3_10
     code: |
         def handler(inputs):
@@ -79,12 +79,12 @@ steps:
       extract-freelancede-job-postings: "${extract-freelancede-job-postings.projects}"
   check-if-record-exists:
     foreach: "${merge-job-postings.projects}"
+    description: Checks if a job posting already exists in Airtable to prevent duplicate entries.
     if:
       "!":
         "in":
           - "freelancermap"
           - "${each.link}"
-    description: "Check if the job posting already exists in the Airtable."
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -96,6 +96,7 @@ steps:
       params:
         filterByFormula: "{sourceUrl} = '${each.link}'"
   add-new-jobs-to-airtable:
+    description: Adds new job postings to Airtable for tracking and later application.
     foreach: "${merge-job-postings.projects}"
     if: 
       and:
@@ -103,7 +104,6 @@ steps:
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedePw}
         - "!":
             "!!": ${check-if-record-exists[each.index].response.data.records?}
-    description: Add new job postings to the Airtable.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -119,7 +119,7 @@ steps:
           sourceUrl: "${each.link}"
           processed: false
   get-job-postings:
-    description: "Retrieve job postings from Airtable where 'processed' is not true."
+    description: Retrieves job postings from Airtable where the 'processed' field is false, indicating they are yet to be applied to.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -133,7 +133,7 @@ steps:
         limit: 100
         filterByFormula: "AND(NOT({processed}),{userEmail}='${inputs.userEmail}')"
   get-customer-details:
-    description: "Retrieve customer details (email and CV) from the second Airtable table."
+    description: Retrieves the user's details, including email and CV, from Airtable for use in job applications.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -145,7 +145,7 @@ steps:
       params:
         filterByFormula: "email = '${inputs.userEmail}'"
   download-CV:
-    description: "Download the CV of the user from the customer table."
+    description: Retrieves the user's CV from the customer table in Airtable and downloads it as a file for further processing
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -154,12 +154,14 @@ steps:
       url: "${get-customer-details.response.data.records[0].fields.CV[0].url}"
       streamToFile: true
   extract-CV-content:
+    description: Extracts the text content from the user's CV for use in generating job applications.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/extract-text
     props:
       input_file: "${download-CV.response.file}"
   extract-target-address:
+    description: dentifies and extracts the email address of the original job posting author from the job listing text, ensuring it is not the user's own email.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
@@ -172,7 +174,7 @@ steps:
          Job Posting Details: ${each.fields.raw} 
       message: Find the address
   generate-email-content:
-    description: "Generate a personalized job application email using ChatGPT."
+    description: Uses ChatGPT to create a personalized job application email in HTML format, tailoring it to the job description, the user's CV, and availability.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
@@ -202,6 +204,7 @@ steps:
         My CV: ${extract-CV-content.extracted_text}.
       message: "Create the email in html and only return the email body without markup formatting."
   generate-email-subject:
+    description: Generates a concise, relevant email subject line based on the job posting details, ensuring it matches the language of the listing.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
@@ -214,10 +217,10 @@ steps:
          Job Posting Details: ${each.fields.raw} 
       message: "Create the email subject and return only text without formatting."
   prepare-gmail-raw:
+    description: Constructs a base64-encoded raw email, including the generated content, subject, recipient address, and attached CV, for sending via the Gmail API.
     if:
       "!!": "${extract-target-address[each.index].response}"
     foreach: "${generate-email-content}"
-    description: "Prepare the base64 encoded raw email content for sending using Gmail API."
     runtime: python3_10
     interface:
       inputs:
@@ -272,8 +275,8 @@ steps:
       html_body: "${each.response}"
       cv_filepath: "${download-CV.response.file}"
   send-email:
+    description: Sends the prepared job application email using Gmail API, delivering it to the extracted recipient address.
     foreach: "${prepare-gmail-raw}"
-    description: "Send the generated email using Gmail API."
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -285,7 +288,7 @@ steps:
       data:
         raw: "${each.raw}"
   mark-as-processed:
-    description: "Mark the processed records in Airtable to prevent duplicate applications."
+    description: Updates the job posting entry in Airtable to mark it as processed, preventing duplicate applications.
     foreach: "${get-job-postings.response.data.records}"
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

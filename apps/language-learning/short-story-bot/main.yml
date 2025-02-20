@@ -3,7 +3,7 @@ name: short-story-bot
 title: Short story bot
 schedule: "0 8 * * *"
 description: |
-  Generates short stories based on things. More info on https://contact.edurata.com/short-story-bot
+  Automates the generation and delivery of short stories in different languages and proficiency levels to users based on their preferences. It retrieves user data, determines unique language combinations, fetches a daily topic, generates short stories, assigns them to users, and sends them via email. More info on https://contact.edurata.com/short-story-bot
 interface:
   inputs:
     properties:
@@ -14,7 +14,6 @@ interface:
 inputs:
   people_table_id: ${variables.short_story_people_table_id}
 steps:
-  # filter people for interval and today's day
   get-current-day:
     runtime: python3_10
     code: |
@@ -24,6 +23,9 @@ steps:
           return {
               "day": datetime.datetime.now().strftime("%A")
           }
+    description: |
+      Retrieves the current day of the week to filter users who should receive a short story on this day.
+  
   get-current-iso-time:
     runtime: python3_10
     code: |
@@ -33,6 +35,9 @@ steps:
           return {
               "iso_time": datetime.datetime.now().isoformat()
           }
+    description: |
+      Retrieves the current timestamp in ISO format for logging and time-based operations.
+  
   get-people-data:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -41,7 +46,12 @@ steps:
       url: 'https://api.airtable.com/v0/${inputs.people_table_id}?filterByFormula=AND(NOT(disabled),FIND("${get-current-day.day}",{interval}))'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+    description: |
+      Fetches user data from Airtable, filtering by users who are scheduled to receive a short story on the current day.
+  
   get-unique-combinations:
+    description: |
+      Extracts unique language and proficiency level combinations from the list of users, ensuring that stories are generated efficiently without redundancy.
     runtime: python3_10
     props:
       objects: ${get-people-data.response.data.records}
@@ -49,7 +59,6 @@ steps:
       import logging
       from itertools import combinations
 
-      # Configure logging
       logging.basicConfig(level=logging.DEBUG)
 
       def get_unique_combinations(objects):
@@ -116,10 +125,13 @@ steps:
       url: https://api.api-ninjas.com/v1/randomword
       headers:
         X-Api-Key: ${secrets.API_NINJAS_API_KEY}
+    description: |
+      Fetches a random daily topic to serve as the theme for the generated short stories.
+  
   generate-short-stories:
     foreach: ${get-unique-combinations.combinations}
     source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
@@ -135,6 +147,9 @@ steps:
         Return only html and the html body content without any additional formatting so it can be sent by email. Make sure to only use html tags like <a> <p> <ul> <ol> <h3> etc.. 
       message: |
         Generate a short story about the topic ${get-daily-topic.response.data.word[0]} in the language ${each.toLanguage} in the level ${each.level}. 
+    description: |
+      Generates short stories for each unique language-level combination using GPT-4, incorporating translations, vocabulary lists, and grammar explanations.
+  
   add-short-story-index-to-people:
     runtime: python3_10
     code: |
@@ -143,24 +158,19 @@ steps:
           combinations = inputs['combinations']
           stories = inputs['stories']
           
-          # Map the short stories to people array
           for person in people:
-              # Ensure the 'fields' dictionary exists and then check 'name' field
               if 'fields' not in person:
-                  person['fields'] = {}  # Initialize 'fields' if it does not exist
-              
-              if 'name' not in person['fields'] or not person['fields']['name']:
-                  person['fields']['name'] = "there"  # Assign a default or placeholder name
-              
+                  person['fields'] = {}
+              if 'name' not in person['fields']:
+                  person['fields']['name'] = "there"
               person['short_story_index'] = find_short_story_index(person, combinations)
           
           for person in people:
               index = person['short_story_index']
-              if index != -1:  # Ensure a valid index is obtained
+              if index != -1:
                   person['story'] = stories[index]
               else:
-                  person['story'] = None  # Or any default value you prefer for cases where no matching short story is found
-
+                  person['story'] = None
           return people
 
       def find_short_story_index(person, combinations):
@@ -177,6 +187,9 @@ steps:
       people: ${get-people-data.response.data.records}
       combinations: ${get-unique-combinations.combinations}
       stories: ${generate-short-stories[*].response}
+    description: |
+      Assigns each user the correct short story based on their language and proficiency level preferences.
+  
   send-message:
     foreach: ${add-short-story-index-to-people}
     source:
@@ -195,3 +208,5 @@ steps:
         <a href="https://tally.so/r/wvNKXv">Unsubscribe</a>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
+    description: |
+      Sends the generated short story via email to each user, ensuring they receive personalized content based on their preferences.

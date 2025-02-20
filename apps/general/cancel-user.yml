@@ -2,7 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: delete-microapp-user
 title: Deletes a user from a microapp
 description: |
-  Deletes a user from several systems after a webhook call from Tally.
+  Automates the process of deleting a user from multiple systems after receiving a webhook call from Tally. The workflow extracts user information from the event data, identifies the associated microapp, retrieves the corresponding application configuration, finds the user in Airtable, deletes deployment triggers, removes the user record from Airtable, and sends a confirmation email upon successful deletion.
 interface:
   inputs:
     properties:
@@ -40,6 +40,8 @@ inputs:
   applicationConfig: ${variables.applicationConfig}
 steps:
   extract-data-from-event:
+    description: |
+      Extracts the email of the user from the webhook event data and encodes it for use in API requests.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
@@ -55,6 +57,8 @@ steps:
       appName: ${extract-application-name-from-event.applicationName}
       data: ${inputs.data}
   extract-application-name-from-event:
+    description: |
+      Extracts the selected microapp's name from the webhook event data using the provided dropdown field.
     runtime: nodejs20
     interface:
       inputs:
@@ -97,20 +101,18 @@ steps:
     props:
       appNameField: ${inputs.data.fields[1]}
   get-application-config-from-name:
+    description: |
+      Retrieves the application configuration for the selected microapp by matching the application name.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
         const { applicationName, applicationConfig } = inputs;
 
-        // Find the configuration for the given applicationName
         const appConfig = Object.entries(applicationConfig)
           .find(([id, config]) => config.appName === applicationName)?.[1];
-        // Throw an error if no configuration is found
         if (!appConfig) {
           throw new Error(`No configuration found for applicationName ${applicationName}`);
         }
-
-        // Return the found configuration
         return {
           appConfig,
         };
@@ -119,6 +121,8 @@ steps:
       applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}
   find-in-airtable:
+    description: |
+      Searches for the user in Airtable by matching the email and filtering out disabled users.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -126,17 +130,9 @@ steps:
       url: 'https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
-  # Don't delete in case it is used by other apps
-  # delete-environment:
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: general/axios
-  #   props:
-  #     url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.uriEncodedId}
-  #     method: DELETE
-  #     headers:
-  #       Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
   get-deployment-triggers:
+    description: |
+      Fetches deployment triggers associated with the user to identify any active deployments.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -149,6 +145,8 @@ steps:
         name:
           eq: ${extract-data-from-event.email}
   delete-trigger:
+    description: |
+      Deletes the first deployment trigger found for the user to remove their access.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -158,6 +156,8 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
   delete-airtable-record:
+    description: |
+      If the deployment trigger deletion is successful, deletes the user's record from Airtable.
     if: 
       "===": ["${delete-trigger.response.status}", 200]
     source:
@@ -169,15 +169,14 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   send-delete-email:
+    description: |
+      If the user record deletion is successful, sends a confirmation email notifying them of the removal.
     if: 
       "===": ["${delete-airtable-record.response.status}", 200]
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-ses
     props:
-      _delete-trigger: ${delete-trigger}
-      # _delete-environment: ${delete-environment}
-      _delete-airtable-record: ${delete-airtable-record}
       sender: ${get-application-config-from-name.appConfig.senderEmail}
       to: ${extract-data-from-event.email}
       subject: "${get-application-config-from-name.appConfig.appName}: All resources for your subscription were deleted"
@@ -191,5 +190,3 @@ steps:
         All the best,<br>
         The Edurata team
         <br><br>
-      AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
-      AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

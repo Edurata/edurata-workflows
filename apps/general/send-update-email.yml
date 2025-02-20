@@ -2,7 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: update-microapp-user
 title: Update Bot Info
 description: |
-  Takes an email and applicationId, looks up the corresponding configuration (sender email, subject, peopleTableId), and sends an update link.
+  Automates the process of retrieving user information based on an email and applicationId, finding the corresponding configuration (sender email, subject, peopleTableId), and sending an update link via email.
 interface:
   inputs:
     properties:
@@ -41,6 +41,8 @@ steps:
     props:
       appName: ${extract-application-name-from-event.applicationName}
       data: ${inputs.data}
+    description: |
+      Extracts the email address from the provided event data to be used in subsequent steps.
   extract-application-name-from-event:
     runtime: nodejs20
     interface:
@@ -83,6 +85,8 @@ steps:
       }
     props:
       appNameField: ${inputs.data.fields[1]}
+    description: |
+      Extracts the application name from the provided event data by matching the selected application ID to its corresponding text label.
   get-application-config-from-name:
     runtime: nodejs20
     code: |
@@ -106,6 +110,8 @@ steps:
     props:
       applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}
+    description: |
+      Retrieves the application configuration (sender email, subject, peopleTableId) based on the extracted application name. Throws an error if no configuration is found.
   find-in-airtable:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -114,6 +120,8 @@ steps:
       url: 'https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+    description: |
+      Searches for the user in the Airtable database using the extracted email and ensures the user is not disabled.
   send-email:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -132,3 +140,5 @@ steps:
         <br><br>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
+    description: |
+      Sends an email with an update link to the user using AWS SES. The sender, subject, and recipient email are dynamically retrieved from previous steps.

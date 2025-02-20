@@ -2,7 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: fill-in-vocabulary
 title: Fill in Vocabulary
 description: |
-  Takes vocabulary from an airtable and fills in the translation in other languages.	
+  Automates the process of retrieving untranslated vocabulary from an Airtable, generating missing translations using OpenAI's API, and updating Airtable with the completed translations.
 interface:
   inputs:
     properties:
@@ -12,6 +12,8 @@ interface:
           The base id + table_id in which to save the vocabulary
 steps:
   get-people-data:
+    description: |
+      Retrieves user data from Airtable using the provided email and filters out disabled users. This ensures that only active users are processed.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -20,6 +22,8 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   get-not-translated-rows:
+    description: |
+      Fetches all vocabulary entries from Airtable that have not yet been processed. These entries are missing translations and need to be completed.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -28,6 +32,8 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   fill-out-missing-translations:
+    description: |
+      Iterates over each vocabulary entry that needs translation and uses OpenAI's API to generate missing translations. The API is provided with a JSON object containing existing translations, and it fills in the gaps, returning a complete translation set.
     foreach: ${get-not-translated-rows.response.data}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -39,6 +45,8 @@ steps:
       message: |
         ${each}
   update-airtable:
+    description: |
+      Iterates over the newly translated vocabulary entries and updates Airtable with the completed translations. Each entry is posted back to Airtable with its respective translations.
     foreach: ${fill-out-missing-translations}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

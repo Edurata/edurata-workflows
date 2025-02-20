@@ -2,8 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: setup-microapp-user
 title: Setup Bot
 description: |
-  Setup a bot that uses OAuth after a webhook call from Tally. The first two fields in Tally must be name and email. 
-  The fields except data should be filled on deployment as variables or in the webhook.
+  Automates the setup of a bot using OAuth after a webhook call from Tally. The first two fields in Tally must be name and email. The workflow extracts data from the webhook, retrieves application configurations, creates or retrieves an environment, schedules a trigger, and sends an appropriate email based on whether OAuth authorization is required.
 interface:
   inputs:
     properties:
@@ -43,6 +42,7 @@ inputs:
   applicationConfig: ${variables.applicationConfig}
 steps:
   extract-data-from-event:
+    description: Extracts the name and email from the first two fields of the webhook event and creates a URI-encoded email identifier.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
@@ -59,41 +59,31 @@ steps:
     props:
       data: ${inputs.data}
   extract-application-id-from-event:
+    description: Extracts the applicationId from the webhook event fields.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
           const fields = inputs.fields;
-
-          // Find the field with the label "applicationId"
           const applicationIdField = fields.find(field => field.label === "applicationId");
-
           if (!applicationIdField) {
               throw new Error("Field with label 'applicationId' not found.");
           }
-
-          // Extract the applicationId directly as a string
-          const applicationId = applicationIdField.value;
-
           return {
-              applicationId: applicationId
+              applicationId: applicationIdField.value
           };
       };
     props:
       fields: ${inputs.data.fields}
   get-application-config-from-name:
+    description: Retrieves the application configuration for the extracted applicationId from the provided configuration mapping.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
         const { applicationId, applicationConfig } = inputs;
-
         const appConfig = applicationConfig[applicationId];
-
-        // Throw an error if no configuration is found
         if (!appConfig) {
-          throw new Error(`No configuration found for applicationName ${applicationName}`);
+          throw new Error(`No configuration found for applicationName ${applicationId}`);
         }
-
-        // Return the found configuration
         return {
           appConfig,
         };
@@ -102,6 +92,7 @@ steps:
       applicationId: ${extract-application-id-from-event.applicationId}
       applicationConfig: ${inputs.applicationConfig}
   create-environment:
+    description: Creates a new environment for the user based on their email.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -113,7 +104,7 @@ steps:
       data:
         name: "${extract-data-from-event.email}"
   get-environment:
-    description: Get the environment details for the user again in case it was created before.
+    description: Retrieves the environment details for the user if it already exists, otherwise references the newly created environment.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -124,29 +115,24 @@ steps:
         Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
       __create-environment: ${create-environment}
   get-schedule:
+    description: Determines the appropriate cron schedule for the bot based on the application's normal schedule rate.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
           const scheduleRate = inputs.scheduleRate;
-
           let schedule;
-
           if (scheduleRate === 'hourly') {
-              // Every hour at a random minute
               const minute = Math.floor(Math.random() * 60);
               schedule = `${minute} * * * *`;
           } else if (scheduleRate === 'daily') {
-              // Generate daily schedule at a random hour and minute
               const hour = Math.floor(Math.random() * 24);
               const minute = Math.floor(Math.random() * 60);
               schedule = `${minute} ${hour} * * *`;
           } else if (scheduleRate === 'never') {
-              // Special cron expression for "never" (non-functional schedule)
-              schedule = null; // or an empty string, depending on your system's requirements
+              schedule = null;
           } else {
-              throw new Error(`Invalid scheduleRate: ${scheduleRate}. Expected 'hourly', 'daily', or 'never'.`);
+              throw new Error(`Invalid scheduleRate: ${scheduleRate}`);
           }
-
           return {
               schedule,
           };
@@ -154,19 +140,13 @@ steps:
     props:
       scheduleRate: ${get-application-config-from-name.appConfig.normalScheduleRate}
   translate-schedule-to-readable:
+    description: Converts a cron schedule expression into a human-readable format.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
         const { schedule } = inputs;
         const [minute, hour] = schedule.split(' ');
-
-        let readableSchedule;
-        if (hour === '*') {
-          readableSchedule = `every hour at minute ${minute}`;
-        } else {
-          readableSchedule = `every day at ${hour}:${minute}`;
-        }
-
+        let readableSchedule = hour === '*' ? `every hour at minute ${minute}` : `every day at ${hour}:${minute}`;
         return {
           readableSchedule,
         };
@@ -174,6 +154,7 @@ steps:
     props:
       schedule: ${get-schedule.schedule}
   create-trigger:
+    description: Creates a deployment trigger for the environment using the extracted user email and generated schedule.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -185,10 +166,11 @@ steps:
       data:
         name: "${extract-data-from-event.email}"
         environmentId: ${get-environment.response.data.id}
-        variables: 
+        variables:
           userEmail: "${extract-data-from-event.email}"
         schedule: ${get-schedule.schedule}
   send-finished-email:
+    description: Sends a completion email if OAuth is not required.
     if: 
       "!":
         "!!": "${get-application-config-from-name.appConfig.oauthSecretName?}"
@@ -199,9 +181,6 @@ steps:
       sender: ${get-application-config-from-name.appConfig.senderEmail}
       to: ${extract-data-from-event.email}
       subject: "${get-application-config-from-name.appConfig.appName}: Setup complete"
-      
-      # To update your configuration click <a href="${variables.updateTallyUrl}">here</a>.
-      # To delete your configuration click <a href="${variables.deleteTallyUrl}">here</a>.
       html_body: >
         Hey ${extract-data-from-event.name}!,
         <br><br>
@@ -216,6 +195,7 @@ steps:
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   send-oauth-email:
+    description: Sends an OAuth authorization request email if OAuth is required for the bot setup.
     if: 
       "!!": "${get-application-config-from-name.appConfig.oauthSecretName?}"
     source:

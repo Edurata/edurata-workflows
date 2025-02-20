@@ -3,15 +3,14 @@ name: social-media-post
 title: Alternative to services like hootsuite or buffer
 schedule: "0 8 * * *"
 description: |
-  Using airtable to fetch data and google drive to fetch images.
-  Using twitter and linkedin to post the data..
+  Automates the process of fetching social media post data from Airtable, filtering it based on release date, and posting it to Twitter (X), LinkedIn, and Medium. Uses Google Drive to retrieve images for the posts. The workflow ensures that only unprocessed posts scheduled for release are considered and iterates over them to push content to the appropriate platforms.
 interface:
   inputs:
     properties:
       airtable_id:
         type: string
         description: |
-          The base id and table id of the airtable to fetch data from...
+          The base id and table id of the airtable to fetch data from.
       img_drive_folder:
         type: string
         description: |
@@ -27,6 +26,8 @@ interface:
         description: Weather data
 steps:
   get-airtable-data:
+    description: |
+      Fetches unprocessed social media post data from the specified Airtable base and table using the API. The request filters out records that have already been marked as processed.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -35,6 +36,8 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
   filter-for-release-date:
+    description: |
+      Filters the retrieved Airtable records to only include those that are scheduled for release but have not been marked as released. The filtering logic checks if today's date is later than the scheduled release date.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/eval-nodejs
@@ -49,26 +52,11 @@ steps:
           return today > releaseDate;
         });
       input: ${get-airtable-data.response.data.records}
-  # upload-image-container-insta:
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: general/axios
-  #   props:
-  #     url: "${variables.INSTA_BUSINESS_ACC_ID}/media?image_url=${upload-image-s3}&media_type=STORIES"
-  #     headers:
-  #       Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
-  # post-insta-story:
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: general/axios
-  #   props:
-  #     url: "${variables.INSTA_BUSINESS_ACC_ID}/media_publish?creation_id=${upload-image-container-insta.response.data.id}"
-  #     headers:
-  #       Authorization: "Bearer ${secrets.INSTAGRAM_TOKEN}"
   push-to-x:
+    description: |
+      Iterates over the filtered Airtable records and posts them to Twitter (X) if the "X" field is defined in the record. Uses API authentication credentials to send the post.
     foreach: ${filter-for-release-date.output}
     if: ${each.fields.X} !== undefined
-    description: Pushing the social post to x
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/tweet
@@ -80,9 +68,9 @@ steps:
       BEARER_TOKEN: ${secrets.TWITTER_BEARER_TOKEN}
       messages:
         - ${each.response}
-      # mediaPaths:
-      #   - ${each[1]}
   push-to-linkedin:
+    description: |
+      Iterates over the filtered Airtable records and posts them to LinkedIn if the "Linkedin" field is defined in the record. Uses the LinkedIn API token for authentication.
     foreach: ${filter-for-release-date.output}
     if: ${each.fields.Linkedin} !== undefined
     source:
@@ -92,9 +80,9 @@ steps:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
       text: ${each.response}
       author: urn:li:organization:30718435
-      # mediaPaths:
-      #   - ${each[1]}
   push-to-medium:
+    description: |
+      Iterates over the filtered Airtable records and posts them to Medium if the "Linkedin" field is defined in the record. Uses the LinkedIn API token for authentication but posts to Medium instead.
     foreach: ${filter-for-release-date.output}
     if: ${each.fields.Linkedin} !== undefined
     source:
@@ -104,5 +92,3 @@ steps:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
       text: ${each.response}
       author: urn:li:organization:30718435
-      # mediaPaths:
-      #   - ${each[1]}

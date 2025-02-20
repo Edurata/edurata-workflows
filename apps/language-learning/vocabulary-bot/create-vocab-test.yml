@@ -48,7 +48,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    packages:
       method: GET
       url: 'https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}'
       headers:
@@ -81,7 +81,7 @@ steps:
               'vocabulary_words': vocab_words
           }
 
-    dependencies:
+    packages:
       - openai==0.27.0
     env:
       OPENAI_API_KEY: ${secrets.OPENAI_API_KEY}
@@ -133,7 +133,7 @@ steps:
 
           return {"form_url": form_url}
 
-    dependencies:
+    packages:
       google-api-python-client: ""
       google-auth: ""
       google-auth-httplib2: ""
@@ -146,7 +146,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/load/send-email
-    dependencies:
+    packages:
       to: ${inputs.user_email}
       subject: "Your Vocabulary Test"
       html_body: "Please complete your vocabulary test by visiting the following link: ${create-google-form.form_url}"
@@ -157,7 +157,7 @@ steps:
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
-    dependencies:
+    packages:
       method: PATCH
       url: 'https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}/${each.id}'
       headers:

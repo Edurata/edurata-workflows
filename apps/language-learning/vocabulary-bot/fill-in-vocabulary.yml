@@ -12,41 +12,36 @@ interface:
           The base id + table_id in which to save the vocabulary
 steps:
   get-people-data:
-    description: |
-      Retrieves user data from Airtable using the provided email and filters out disabled users. This ensures that only active users are processed.
+    description: This step retrieves data from an Airtable API for people who are not disabled and whose email matches the input email, using the provided API key for authorization.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")'
+      url: https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
   get-not-translated-rows:
-    description: |
-      Fetches all vocabulary entries from Airtable that have not yet been processed. These entries are missing translations and need to be completed.
+    description: This step retrieves rows from a specified Airtable URL that have not yet been processed, using an API key for authorization.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${inputs.vocabulary_table_id}?filterByFormula=NOT(processed)'
+      url: https://api.airtable.com/v0/${inputs.vocabulary_table_id}?filterByFormula=NOT(processed)
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
   fill-out-missing-translations:
-    description: |
-      Iterates over each vocabulary entry that needs translation and uses OpenAI's API to generate missing translations. The API is provided with a JSON object containing existing translations, and it fills in the gaps, returning a complete translation set.
+    description: This step involves filling out missing translations in a JSON object that represents languages and their respective words, using an API key and the provided system message, and returning the original object with the completed translations.
     foreach: ${get-not-translated-rows.response.data}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        You get a json object that has keys that represent languages in a language code and values that are the words in that language. You should fill in the missing translations for the words in the other languages. Return the original object with the filled in translations. Return only a json object directly. 
+      systemMessage: "You get a json object that has keys that represent languages in a language code and values that are the words in that language. You should fill in the missing translations for the words in the other languages. Return the original object with the filled in translations. Return only a json object directly. \n"
       message: |
         ${each}
   update-airtable:
-    description: |
-      Iterates over the newly translated vocabulary entries and updates Airtable with the completed translations. Each entry is posted back to Airtable with its respective translations.
+    description: This step updates each record in the Airtable identified by the ID from the 'fill-out-missing-translations' input, using a POST method with the provided authorization and content type headers.
     foreach: ${fill-out-missing-translations}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

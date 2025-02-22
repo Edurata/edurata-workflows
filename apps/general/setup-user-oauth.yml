@@ -36,13 +36,13 @@ interface:
           deploymentRepoPath:
             type: string
     required:
-      - data
-      - applicationConfig
+    - data
+    - applicationConfig
 inputs:
   applicationConfig: ${variables.applicationConfig}
 steps:
   extract-data-from-event:
-    description: Extracts the name and email from the first two fields of the webhook event and creates a URI-encoded email identifier.
+    description: This step involves extracting data from a specific event using the provided input data.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
@@ -59,7 +59,7 @@ steps:
     props:
       data: ${inputs.data}
   extract-application-id-from-event:
-    description: Extracts the applicationId from the webhook event fields.
+    description: This step involves extracting the application ID from event data.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
@@ -75,7 +75,7 @@ steps:
     props:
       fields: ${inputs.data.fields}
   get-application-config-from-name:
-    description: Retrieves the application configuration for the extracted applicationId from the provided configuration mapping.
+    description: This step involves retrieving the application configuration using the application ID extracted from the event.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
@@ -92,30 +92,30 @@ steps:
       applicationId: ${extract-application-id-from-event.applicationId}
       applicationConfig: ${inputs.applicationConfig}
   create-environment:
-    description: Creates a new environment for the user based on their email.
+    description: This step creates a new environment by making a POST request to the specified URL, using the name extracted from the event email as data, and authenticating with a given API key.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: ${meta.apiUrl}/environment
       method: POST
       headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+        Authorization: Bearer ${secrets.EDURATA_API_KEY}
       data:
-        name: "${extract-data-from-event.email}"
+        name: ${extract-data-from-event.email}
   get-environment:
-    description: Retrieves the environment details for the user if it already exists, otherwise references the newly created environment.
+    description: This step retrieves the environment details associated with a specific email from a given API endpoint, using an authorization token.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: ${meta.apiUrl}/environment/byname/${extract-data-from-event.email}
       method: GET
       headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+        Authorization: Bearer ${secrets.EDURATA_API_KEY}
       __create-environment: ${create-environment}
   get-schedule:
-    description: Determines the appropriate cron schedule for the bot based on the application's normal schedule rate.
+    description: This step retrieves the normal schedule rate from the application configuration.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
@@ -140,7 +140,7 @@ steps:
     props:
       scheduleRate: ${get-application-config-from-name.appConfig.normalScheduleRate}
   translate-schedule-to-readable:
-    description: Converts a cron schedule expression into a human-readable format.
+    description: This step involves translating the retrieved schedule into a readable format.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
@@ -154,68 +154,53 @@ steps:
     props:
       schedule: ${get-schedule.schedule}
   create-trigger:
-    description: Creates a deployment trigger for the environment using the extracted user email and generated schedule.
+    description: This step involves creating a trigger by sending a POST request to a specific URL with certain headers and data, which includes the name, environment ID, variables, and schedule.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: ${meta.apiUrl}/deployment/${get-application-config-from-name.appConfig.deploymentId}/trigger
       method: POST
       headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+        Authorization: Bearer ${secrets.EDURATA_API_KEY}
       data:
-        name: "${extract-data-from-event.email}"
+        name: ${extract-data-from-event.email}
         environmentId: ${get-environment.response.data.id}
         variables:
-          userEmail: "${extract-data-from-event.email}"
+          userEmail: ${extract-data-from-event.email}
         schedule: ${get-schedule.schedule}
   send-finished-email:
-    description: Sends a completion email if OAuth is not required.
-    if: 
-      "!":
-        "!!": "${get-application-config-from-name.appConfig.oauthSecretName?}"
+    description: This step sends an email to the user notifying them that their bot setup is complete, providing a schedule for the bot's operation and links to update or delete their configuration, only if the application configuration does not have an 'oauthSecretName'.
+    if:
+      '!':
+        '!!': ${get-application-config-from-name.appConfig.oauthSecretName?}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-ses
     props:
       sender: ${get-application-config-from-name.appConfig.senderEmail}
       to: ${extract-data-from-event.email}
-      subject: "${get-application-config-from-name.appConfig.appName}: Setup complete"
-      html_body: >
-        Hey ${extract-data-from-event.name}!,
-        <br><br>
-        Your bot is ready to go and will run ${translate-schedule-to-readable.readableSchedule}.
-
-        If you want to update your configuration, click <a href="https://tally.so/r/m6RKrB">here</a>.
-        <br>
-        If you want to delete your configuration, click <a href="https://tally.so/r/3lLdzX">here</a>.
-        Best wishes,
-        Edurata Team
-        <br><br>
+      subject: '${get-application-config-from-name.appConfig.appName}: Setup complete'
+      html_body: |
+        Hey ${extract-data-from-event.name}!, <br><br> Your bot is ready to go and will run ${translate-schedule-to-readable.readableSchedule}.
+        If you want to update your configuration, click <a href="https://tally.so/r/m6RKrB">here</a>. <br> If you want to delete your configuration, click <a href="https://tally.so/r/3lLdzX">here</a>. Best wishes, Edurata Team <br><br>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   send-oauth-email:
-    description: Sends an OAuth authorization request email if OAuth is required for the bot setup.
-    if: 
-      "!!": "${get-application-config-from-name.appConfig.oauthSecretName?}"
+    description: This step sends an OAuth authorization email to the user, asking for necessary permissions, if the OAuth secret name is present in the application configuration.
+    if:
+      '!!': ${get-application-config-from-name.appConfig.oauthSecretName?}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-ses
     props:
       __create-environment: ${create-environment}
       __create-trigger: ${create-trigger}
       sender: ${get-application-config-from-name.appConfig.senderEmail}
       to: ${extract-data-from-event.email}
-      subject: "${get-application-config-from-name.appConfig.appName}: Authorization needed"
-      html_body: >
-        Hey ${extract-data-from-event.name}!,
-        <br><br>
-        The setup is almost complete.
-        We still need OAuth permissions to ${get-application-config-from-name.appConfig.oauthPurposeDescription?}. Please click <a href="${meta.apiUrl}/oauth/google?s=${get-application-config-from-name.appConfig.oauthSecretName?}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedId}">here</a> to authorize us.
-        You will be redirected to a page where you can authorize the third-party app.
-
-        Best wishes,
-        Edurata Team
-        <br><br>
+      subject: '${get-application-config-from-name.appConfig.appName}: Authorization needed'
+      html_body: |
+        Hey ${extract-data-from-event.name}!, <br><br> The setup is almost complete. We still need OAuth permissions to ${get-application-config-from-name.appConfig.oauthPurposeDescription?}. Please click <a href="${meta.apiUrl}/oauth/google?s=${get-application-config-from-name.appConfig.oauthSecretName?}&u=${meta.userId}&e=${extract-data-from-event.uriEncodedId}">here</a> to authorize us. You will be redirected to a page where you can authorize the third-party app.
+        Best wishes, Edurata Team <br><br>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}

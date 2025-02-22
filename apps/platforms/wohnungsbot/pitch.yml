@@ -4,8 +4,7 @@ description: |
   Automates the process of identifying flat seekers on WG-Gesucht, generating personalized recommendations for the Wohnungsbot software, and applying to listings on their behalf.
 steps:
   get-random-credentials:
-    description: |
-      Retrieves a random set of login credentials from a predefined list of WG-Gesucht logins. These credentials will be used to access the WG-Gesucht platform in subsequent steps.
+    description: This step retrieves random credentials from the secret 'wgGesuchtLogins'.
     runtime: python3_10
     code: |
       import random
@@ -14,12 +13,11 @@ steps:
           logins = inputs['wgGesuchtLogins']
           return {'login': random.choice(logins)}
     props:
-      wgGesuchtLogins: "${secrets.wgGesuchtLogins}"
+      wgGesuchtLogins: ${secrets.wgGesuchtLogins}
   search-users:
-    description: |
-      Logs into WG-Gesucht using the selected credentials and fetches a list of users actively searching for flats within the specified city and timeframe.
+    description: This step involves searching for users based on certain criteria, such as city_id and max_online_hours, using provided login credentials (WG_USERNAME and WG_PASSWORD).
     source:
-      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: apps/platforms/wohnungsbot/wg-gesucht/pitch-search
     props:
       city_id: 8
@@ -28,31 +26,17 @@ steps:
       WG_PASSWORD: ${get-random-credentials.login.wgPassword}
   generate-recommendations:
     foreach: ${search-users.people_listings}
-    description: |
-      Iterates over all retrieved flat seekers and generates a personalized recommendation message using ChatGPT. The message introduces Wohnungsbot, explains its benefits, and includes a link to the website. It is generated in either German or English based on the user's description language preference.
+    description: Generate personalized recommendations for each person in the people_listings, suggesting them to use the software "Wohnungsbot" developed by Julian, while also mentioning its AI functionality, full access for testing, and Julian's availability for any queries. The recommendation should be in English if the person's description is in English.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        Empfehle der folgenden person ${each.name} eine Software zu verwenden, die ich (Julian) entwickelt habe. 
-        Die Software heißt Wohnungsbot mit der man automatisch bewerbungen auf wohnungsinserate schreiben kann. 
-        Die Website ist https://apps.edurata.com/de/wohnungsbot 
-        Schreibe auch dazu, dass die Empfehlung AI generiert ist und der wohnungsbot auch so funktioniert.
-        Schreibe auch, dass falls fragen aufkommen, die Person mich gerne fragen kann.
-        Außerdem bekommt er die volle Funktionalität, weil der Bot gerade ausprobiert wird. Vermeide Corporate Floskeln. 
-
-        Wenn die Person eine englische Beschreibung hat, schreibe die Empfehlung auf Englisch.
-        Steckbrief der Person:
-        - Alter der Person: ${each.age}
-        - Name: ${each.name}
-        - Beschreibung: ${each.description}
-      message: "Schreibe die Text Nachricht an ${each.name}"
+      systemMessage: "Empfehle der folgenden person ${each.name} eine Software zu verwenden, die ich (Julian) entwickelt habe. \nDie Software heißt Wohnungsbot mit der man automatisch bewerbungen auf wohnungsinserate schreiben kann. \nDie Website ist https://apps.edurata.com/de/wohnungsbot \nSchreibe auch dazu, dass die Empfehlung AI generiert ist und der wohnungsbot auch so funktioniert.\nSchreibe auch, dass falls fragen aufkommen, die Person mich gerne fragen kann.\nAußerdem bekommt er die volle Funktionalität, weil der Bot gerade ausprobiert wird. Vermeide Corporate Floskeln. \n\nWenn die Person eine englische Beschreibung hat, schreibe die Empfehlung auf Englisch.\nSteckbrief der Person:\n- Alter der Person: ${each.age}\n- Name: ${each.name}\n- Beschreibung: ${each.description}\n"
+      message: Schreibe die Text Nachricht an ${each.name}
   merge-info:
     runtime: python3_10
-    description: |
-      Merges the retrieved flat listings with the generated recommendation messages. This ensures that each flat seeker is matched with their personalized application message before proceeding to the application step.
+    description: This step merges information from the 'people_listings' obtained from 'search-users' and the responses generated from 'generate-recommendations'.
     code: |
       def handler(inputs):
           listings = inputs['listings']
@@ -66,13 +50,12 @@ steps:
               })
           return {'merged_listings': merged_listings}
     props:
-      listings: "${search-users.people_listings}"
-      applications: "${generate-recommendations[*].response}"
-  apply-to-listings:  
-    description: |
-      Uses the merged listings and generated messages to automatically apply to the filtered flat listings on behalf of the identified seekers, using the previously retrieved WG-Gesucht credentials.
+      listings: ${search-users.people_listings}
+      applications: ${generate-recommendations[*].response}
+  apply-to-listings:
+    description: This step involves applying to listings using the provided 'WG_USERNAME' and 'WG_PASSWORD' from the 'get-random-credentials.login' and the 'application_list' from the 'merge-info.merged_listings'.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: apps/platforms/wohnungsbot/wg-gesucht/apply
     props:
       WG_USERNAME: ${get-random-credentials.login.wgUsername}

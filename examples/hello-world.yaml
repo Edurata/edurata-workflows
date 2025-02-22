@@ -10,7 +10,9 @@ interface:
         type: array
         items:
           type: string
-        default: ["Hello", "World"]
+        default:
+        - Hello
+        - World
   outputs:
     properties:
       messageFromDocker:
@@ -25,8 +27,7 @@ outputs:
   messageFromNode: ${test-node.message}
 steps:
   construct-message:
-    description: |
-      Joins the input messages into a single string to be used by subsequent steps.
+    description: This step involves constructing a message based on the inputted messages.
     runtime: nodejs20
     code: |
       exports.handler = async (event) => {
@@ -37,47 +38,42 @@ steps:
     props:
       messages: ${inputs.messages}
   test-python-inline-code:
-    description: |
-      Executes an inline Python function that prints "Hello, World!" to the console. Uses the constructed message as input.
+    description: This step involves testing python inline code with a dependency on a message constructed from a string.
     runtime: python3_10
     code: |
       def handler(event):
         print("Hello, World!")
     props:
-      message: "Message from python inline: ${construct-message.string}"
+      message: 'Message from python inline: ${construct-message.string}'
   test-node-inline-code:
-    description: |
-      Executes an inline Node.js function that logs "Hello, World!" to the console. Uses the constructed message as input.
+    description: This step involves executing an inline code that uses a message constructed from a previous node as a dependency.
     runtime: nodejs20
     code: |
       exports.handler = async (event) => {
         console.log("Hello, World!");
       };
     props:
-      message: "Message from node inline: ${construct-message.string}"
+      message: 'Message from node inline: ${construct-message.string}'
   test-python:
-    description: |
-      Runs a Python script from the Edurata repository (tests/python) using the constructed message as input.
+    description: This step, identified as "test-python", depends on a message constructed from python, which is received and processed as a part of the workflow automation.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/python
     props:
-      message: "Message from python: ${construct-message.string}"
+      message: 'Message from python: ${construct-message.string}'
   test-node:
-    description: |
-      Runs a Node.js script from the Edurata repository (tests/node) using the constructed message as input.
+    description: This step, identified as "test-node", depends on the output of the "construct-message" step and uses its output string to create a message.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/node
     props:
-      message: "Message from node: ${construct-message.string}"
+      message: 'Message from node: ${construct-message.string}'
   test-docker-upstream:
-    description: |
-      Runs a Docker container using the "docker/whalesay" image to print the constructed message using the "cowsay" command.
+    description: This step involves testing a Docker upstream by executing a command that displays a message from Docker, which is dependent on the 'construct-message.string'.
     runtime: docker
     source:
-      imageRepoUrl: "docker/whalesay"
-      tag: "latest"
+      imageRepoUrl: docker/whalesay
+      tag: latest
     interface:
       inputs:
         properties:
@@ -86,22 +82,21 @@ steps:
             description: The command to run
     props:
       cmd:
-        - cowsay
-        - "Message from docker: ${construct-message.string}"
+      - cowsay
+      - 'Message from docker: ${construct-message.string}'
   test-foreach-with-if:
-    description: |
-      Iterates over each input message and runs a Node.js script from the Edurata repository (tests/node) if the message is either "Hello" or "World".
+    description: 'This step iterates over each item in the ''messages'' input, and if the item is either ''Hello'' or ''World'', it returns a message saying "Message from if foreach: " followed by the item.'
     foreach: ${inputs.messages}
     if:
       or:
-        - ===:
-            - ${each}
-            - "Hello"
-        - ===:
-            - ${each}
-            - "World"
+      - ===:
+        - ${each}
+        - Hello
+      - ===:
+        - ${each}
+        - World
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/node
     props:
-      message: "Message from if foreach: ${each}"
+      message: 'Message from if foreach: ${each}'

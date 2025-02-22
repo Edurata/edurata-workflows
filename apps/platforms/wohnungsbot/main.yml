@@ -8,28 +8,27 @@ interface:
       isPro:
         default: false
         type: boolean
-        description: >
+        description: |
           If the user is pro subscribed.
       userEmail:
         type: string
         description: The email address of the user of the workflow.
 steps:
   get-customer-details:
-    description: Retrieves customer details, including email, CV, and login credentials, from an Airtable database.
+    description: This step retrieves customer details from an Airtable database using a GET request, filtering by the user's email.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${variables.applicationConfig.wohnungsBot.peopleTableId}"
+      url: https://api.airtable.com/v0/${variables.applicationConfig.wohnungsBot.peopleTableId}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       params:
-        filterByFormula: "email = '${inputs.userEmail}'"
+        filterByFormula: email = '${inputs.userEmail}'
   set-defaults-filter:
     runtime: python3_10
-    description: |
-      Sets default values for the search filter, adjusting parameters based on user subscription status.
+    description: This step is setting default filters using the first record's fields from the customer details data and the input of whether the user is a professional or not.
     code: |
       from datetime import datetime, timedelta
       def handler(inputs):
@@ -56,10 +55,9 @@ steps:
       search_params: ${get-customer-details.response.data.records[0].fields}
       is_pro: ${inputs.isPro}
   search-flat-listings:
-    description: |
-      Fetches flat listings from WG-Gesucht using the specified search parameters retrieved from the user profile.
+    description: This step involves searching for flat listings using the filter set in 'set-defaults-filter.filter' and the customer's username and password obtained from 'get-customer-details.response.data.records[0].fields'.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: apps/platforms/wohnungsbot/wg-gesucht/search
     props:
       filter: ${set-defaults-filter.filter}
@@ -67,29 +65,17 @@ steps:
       WG_PASSWORD: ${get-customer-details.response.data.records[0].fields.wgPassword}
   generate-applications:
     foreach: ${search-flat-listings.listings}
-    description: |
-      Generates personalized application messages for each flat listing using ChatGPT, ensuring the language matches the listing description and personalizing the message with the lister's name.
+    description: This step generates personalized application messages for each flat listing using the title, description, lister's name, and the applicant's details.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        "Write a personalized message to apply for the flat listing. 
-        Write it in the language of listing description. 
-        Don't use emoticons.
-        If the name of lister consists of multiple words, use the first word only to make it more personal.
-
-        Take the following information into account:
-        - Title: ${each.title}
-        - Description: ${each.description}
-        - Name of lister: ${each.lister_name}
-        - About the applicant: ${get-customer-details.response.data.records[0].fields.applicantDescription}
-      message: "Create the message."
+      systemMessage: "\"Write a personalized message to apply for the flat listing. \nWrite it in the language of listing description. \nDon't use emoticons.\nIf the name of lister consists of multiple words, use the first word only to make it more personal.\n\nTake the following information into account:\n- Title: ${each.title}\n- Description: ${each.description}\n- Name of lister: ${each.lister_name}\n- About the applicant: ${get-customer-details.response.data.records[0].fields.applicantDescription}\n"
+      message: Create the message.
   merge-info:
     runtime: python3_10
-    description: |
-      Merges the flat listings with the corresponding generated applications to create a structured list of applications ready for submission.
+    description: This step merges information from the flat listings search and the generated applications responses.
     code: |
       def handler(inputs):
           listings = inputs['listings']
@@ -103,15 +89,14 @@ steps:
               })
           return {'merged_listings': merged_listings}
     props:
-      listings: "${search-flat-listings.listings}"
-      applications: "${generate-applications[*].response}"
+      listings: ${search-flat-listings.listings}
+      applications: ${generate-applications[*].response}
   apply-to-listings:
     if:
-      "!!": "${merge-info.merged_listings}"
-    description: |
-      Automatically submits applications to the selected flat listings on WG-Gesucht using the generated messages and user credentials.
+      '!!': ${merge-info.merged_listings}
+    description: This step involves applying to listings using the customer's username and password, provided there are merged listings available.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: apps/platforms/wohnungsbot/wg-gesucht/apply
     props:
       WG_USERNAME: ${get-customer-details.response.data.records[0].fields.wgUsername}

@@ -1,7 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: social-media-post
 title: Alternative to services like hootsuite or buffer
-schedule: "0 8 * * *"
+schedule: 0 8 * * *
 description: |
   Automates the process of fetching social media post data from Airtable, filtering it based on release date, and posting it to Twitter (X), LinkedIn, and Medium. Uses Google Drive to retrieve images for the posts. The workflow ensures that only unprocessed posts scheduled for release are considered and iterates over them to push content to the appropriate platforms.
 interface:
@@ -16,9 +16,9 @@ interface:
         description: |
           The folder id of the google drive to fetch the image from.
     required:
-      - airtable_base
-      - post_table_id
-      - img_drive_folder
+    - airtable_base
+    - post_table_id
+    - img_drive_folder
   outputs:
     properties:
       weather:
@@ -26,20 +26,18 @@ interface:
         description: Weather data
 steps:
   get-airtable-data:
-    description: |
-      Fetches unprocessed social media post data from the specified Airtable base and table using the API. The request filters out records that have already been marked as processed.
+    description: This step retrieves data from a specific Airtable URL, filtering for records that have not been processed, using an authorization key.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: "https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)"
+      url: https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
   filter-for-release-date:
-    description: |
-      Filters the retrieved Airtable records to only include those that are scheduled for release but have not been marked as released. The filtering logic checks if today's date is later than the scheduled release date.
+    description: This step filters out records from the input data that have already been released or do not have a scheduled release date, and only keeps those records that are scheduled for release in the future.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/eval-nodejs
     props:
       code: |
@@ -53,12 +51,11 @@ steps:
         });
       input: ${get-airtable-data.response.data.records}
   push-to-x:
-    description: |
-      Iterates over the filtered Airtable records and posts them to Twitter (X) if the "X" field is defined in the record. Uses API authentication credentials to send the post.
+    description: This step pushes a message to platform 'X' if the field 'X' is not undefined for each output from the 'filter-for-release-date' step, using various Twitter API credentials and tokens.
     foreach: ${filter-for-release-date.output}
     if: ${each.fields.X} !== undefined
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/tweet
     props:
       API_KEY: ${secrets.TWITTER_API_KEY}
@@ -67,26 +64,24 @@ steps:
       ACCESS_TOKEN_SECRET: ${secrets.TWITTER_ACCESS_TOKEN_SECRET}
       BEARER_TOKEN: ${secrets.TWITTER_BEARER_TOKEN}
       messages:
-        - ${each.response}
+      - ${each.response}
   push-to-linkedin:
-    description: |
-      Iterates over the filtered Airtable records and posts them to LinkedIn if the "Linkedin" field is defined in the record. Uses the LinkedIn API token for authentication.
+    description: This step is designed to automatically push content to LinkedIn using the provided API token, text, and author information, for each output filtered by release date, given that the LinkedIn field is not undefined.
     foreach: ${filter-for-release-date.output}
     if: ${each.fields.Linkedin} !== undefined
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-linkedin
     props:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}
       text: ${each.response}
       author: urn:li:organization:30718435
   push-to-medium:
-    description: |
-      Iterates over the filtered Airtable records and posts them to Medium if the "Linkedin" field is defined in the record. Uses the LinkedIn API token for authentication but posts to Medium instead.
+    description: This step pushes content to Medium if the LinkedIn field is not undefined, iterating over each output filtered for release date, using the LinkedIn API token, text response, and a specific author.
     foreach: ${filter-for-release-date.output}
     if: ${each.fields.Linkedin} !== undefined
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-linkedin
     props:
       LINKEDIN_API_TOKEN: ${secrets.LINKEDIN_API_TOKEN}

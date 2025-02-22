@@ -1,11 +1,8 @@
 apiRevision: edurata.io/workflow/v1
 name: breakfast-info
 title: Fetch daily weather and news for your location using a few example functions..
-schedule: "0 8 * * *"
-description: |
-  Automates the retrieval of daily weather and news for a given location and sends an email with the collected data. 
-  Uses the OpenWeatherMap API for weather data and the NewsAPI for news data. 
-  Determines the country based on latitude and longitude using Google's Geocoding API, fetches relevant weather and news data, and sends an email summary via AWS SES.
+schedule: 0 8 * * *
+description: "Automates the retrieval of daily weather and news for a given location and sends an email with the collected data. \nUses the OpenWeatherMap API for weather data and the NewsAPI for news data. \nDetermines the country based on latitude and longitude using Google's Geocoding API, fetches relevant weather and news data, and sends an email summary via AWS SES.\n"
 interface:
   inputs:
     properties:
@@ -22,8 +19,8 @@ interface:
         description: |
           A registered email from AWS SES that should receive the message.
     required:
-      - lat
-      - long
+    - lat
+    - long
   outputs:
     properties:
       weather:
@@ -34,62 +31,47 @@ outputs:
   news: ${fetch-news.response.data.articles}
 steps:
   geo-data:
-    description: |
-      Retrieves the country name based on the given latitude and longitude using the Google Geocoding API.
+    description: This step involves making a GET request to the Google Maps Geocoding API, using a specific latitude and longitude to retrieve the corresponding country information, with the API key stored securely.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: "https://maps.googleapis.com/maps/api/geocode/json?latlng=${inputs.lat},${inputs.long}&result_type=country&key=${secrets.GOOGLE_API_KEY}"
-      method: "GET"
+      url: https://maps.googleapis.com/maps/api/geocode/json?latlng=${inputs.lat},${inputs.long}&result_type=country&key=${secrets.GOOGLE_API_KEY}
+      method: GET
       headers:
-        "Content-Type": "application/json"
+        Content-Type: application/json
   fetch-weather:
-    description: |
-      Fetches weather data for the specified latitude and longitude using the Tomorrow.io API.
+    description: This step fetches the weather forecast for a specified location from the Tomorrow.io API using a GET request.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: "https://api.tomorrow.io/v4/weather/forecast?location=${inputs.lat},${inputs.long}&apikey=${secrets.WEATHER_API_KEY}"
-      method: "GET"
+      url: https://api.tomorrow.io/v4/weather/forecast?location=${inputs.lat},${inputs.long}&apikey=${secrets.WEATHER_API_KEY}
+      method: GET
       headers:
-        "Content-Type": "application/json"
+        Content-Type: application/json
   fetch-news:
-    description: |
-      Retrieves the top news headlines for the determined country based on the geolocation step. 
-      Uses the NewsAPI to fetch news articles for the country extracted from the geo-data step.
+    description: This step fetches the top news headlines based on the country derived from the geo-data, using a GET request to the specified URL and the provided News API key.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: "https://newsapi.org/v2/top-headlines?country=${geo-data.response.data.results[0].address_components[0].short_name}&apiKey=${secrets.NEWS_API_KEY}"
-      method: "GET"
+      url: https://newsapi.org/v2/top-headlines?country=${geo-data.response.data.results[0].address_components[0].short_name}&apiKey=${secrets.NEWS_API_KEY}
+      method: GET
       headers:
-        "Content-Type": "application/json"
+        Content-Type: application/json
   send-message:
-    description: |
-      Sends an email containing the weather forecast and top news headlines using AWS SES. 
-      Includes temperature, cloud coverage, rain intensity, and headlines retrieved from the fetch-weather and fetch-news steps.
+    description: This step sends an email containing the day's weather and news headlines to the provided email address, using AWS for email sending.
     resources:
       memory: 2
       cpu: 1
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-ses
     props:
       sender: ${inputs.email}
       to: ${inputs.email}
-      subject: "Weather and news for today ${fetch-weather.response.data.timelines.daily[0].time}"
-      body: |
-        Temperature: ${fetch-weather.response.data.timelines.daily[0].values.temperatureAvg}°C
-        Cloud coverage: ${fetch-weather.response.data.timelines.daily[0].values.cloudCoverAvg}%
-        Rain intensity: ${fetch-weather.response.data.timelines.daily[0].values.rainIntensityAvg}%
-        News: 
-          - ${fetch-news.response.data.articles[0].title}
-          - ${fetch-news.response.data.articles[1].title}
-          - ${fetch-news.response.data.articles[2].title}
-          - ${fetch-news.response.data.articles[3].title}
-          - ${fetch-news.response.data.articles[4].title}
+      subject: Weather and news for today ${fetch-weather.response.data.timelines.daily[0].time}
+      body: "Temperature: ${fetch-weather.response.data.timelines.daily[0].values.temperatureAvg}°C\nCloud coverage: ${fetch-weather.response.data.timelines.daily[0].values.cloudCoverAvg}%\nRain intensity: ${fetch-weather.response.data.timelines.daily[0].values.rainIntensityAvg}%\nNews: \n  - ${fetch-news.response.data.articles[0].title}\n  - ${fetch-news.response.data.articles[1].title}\n  - ${fetch-news.response.data.articles[2].title}\n  - ${fetch-news.response.data.articles[3].title}\n  - ${fetch-news.response.data.articles[4].title}\n"
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}

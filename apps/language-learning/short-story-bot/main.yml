@@ -1,7 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: short-story-bot
 title: Short story bot
-schedule: "0 8 * * *"
+schedule: 0 8 * * *
 description: |
   Automates the generation and delivery of short stories in different languages and proficiency levels to users based on their preferences. It retrieves user data, determines unique language combinations, fetches a daily topic, generates short stories, assigns them to users, and sends them via email. More info on https://contact.edurata.com/short-story-bot
 interface:
@@ -23,9 +23,7 @@ steps:
           return {
               "day": datetime.datetime.now().strftime("%A")
           }
-    description: |
-      Retrieves the current day of the week to filter users who should receive a short story on this day.
-  
+    description: This step involves determining the current day.
   get-current-iso-time:
     runtime: python3_10
     code: |
@@ -35,50 +33,22 @@ steps:
           return {
               "iso_time": datetime.datetime.now().isoformat()
           }
-    description: |
-      Retrieves the current timestamp in ISO format for logging and time-based operations.
-  
+    description: This step retrieves the current time in ISO format.
   get-people-data:
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${inputs.people_table_id}?filterByFormula=AND(NOT(disabled),FIND("${get-current-day.day}",{interval}))'
+      url: https://api.airtable.com/v0/${inputs.people_table_id}?filterByFormula=AND(NOT(disabled),FIND("${get-current-day.day}",{interval}))
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
-    description: |
-      Fetches user data from Airtable, filtering by users who are scheduled to receive a short story on the current day.
-  
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+    description: This step fetches data from an Airtable API of people who are not disabled and whose interval includes the current day, using the provided Airtable API key for authorization.
   get-unique-combinations:
-    description: |
-      Extracts unique language and proficiency level combinations from the list of users, ensuring that stories are generated efficiently without redundancy.
+    description: This step involves obtaining unique combinations from the data records of people obtained from the 'get-people-data' response.
     runtime: python3_10
     props:
       objects: ${get-people-data.response.data.records}
-    code: |
-      import logging
-      from itertools import combinations
-
-      logging.basicConfig(level=logging.DEBUG)
-
-      def get_unique_combinations(objects):
-          unique_combinations = set()
-          for obj in objects:
-              from_language = obj.get('fields', {}).get('fromLanguage')
-              to_language = obj.get('fields', {}).get('toLanguage')
-              level = obj.get('fields', {}).get('level')
-              unique_combinations.add((from_language, to_language, level))
-          
-          unique_combinations_list = [{'fromLanguage': combo[0], 'toLanguage': combo[1], 'level': combo[2]} for combo in unique_combinations]
-          logging.debug("Unique combinations: %s", unique_combinations_list)
-          return unique_combinations_list
-
-      def handler(input):
-          objects = input["objects"]
-          logging.debug("Input objects: %s", objects)
-          combinations = get_unique_combinations(objects)
-          logging.debug("Final combinations: %s", combinations)
-          return {"combinations": combinations}
+    code: "import logging\nfrom itertools import combinations\n\nlogging.basicConfig(level=logging.DEBUG)\n\ndef get_unique_combinations(objects):\n    unique_combinations = set()\n    for obj in objects:\n        from_language = obj.get('fields', {}).get('fromLanguage')\n        to_language = obj.get('fields', {}).get('toLanguage')\n        level = obj.get('fields', {}).get('level')\n        unique_combinations.add((from_language, to_language, level))\n    \n    unique_combinations_list = [{'fromLanguage': combo[0], 'toLanguage': combo[1], 'level': combo[2]} for combo in unique_combinations]\n    logging.debug(\"Unique combinations: %s\", unique_combinations_list)\n    return unique_combinations_list\n\ndef handler(input):\n    objects = input[\"objects\"]\n    logging.debug(\"Input objects: %s\", objects)\n    combinations = get_unique_combinations(objects)\n    logging.debug(\"Final combinations: %s\", combinations)\n    return {\"combinations\": combinations}\n"
     interface:
       inputs:
         properties:
@@ -87,20 +57,14 @@ steps:
             description: |
               The objects to generate unique combinations from
             example:
-              [
-                {
-                  "fromLanguage": "en",
-                  "toLanguage": "es",
-                  "level": "A1",
-                  "other_key": "value1",
-                },
-                {
-                  "fromLanguage": "en",
-                  "toLanguage": "es",
-                  "level": "A2",
-                  "other_key": "value2",
-                },
-              ]
+            - fromLanguage: en
+              toLanguage: es
+              level: A1
+              other_key: value1
+            - fromLanguage: en
+              toLanguage: es
+              level: A2
+              other_key: value2
       outputs:
         properties:
           combinations:
@@ -119,94 +83,43 @@ steps:
                   description: The level of the language
   get-daily-topic:
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: https://api.api-ninjas.com/v1/randomword
       headers:
         X-Api-Key: ${secrets.API_NINJAS_API_KEY}
-    description: |
-      Fetches a random daily topic to serve as the theme for the generated short stories.
-  
+    description: This step retrieves a random word from the API-Ninjas website using a specific API key.
   generate-short-stories:
     foreach: ${get-unique-combinations.combinations}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       model: gpt-4o
-      systemMessage: |
-        For a native speaker of the language english generate a short story in the language in a certain level (A1, A2 is beginner, B1, B2 is intermediate and C1, C2 is advanced grammar and vocabulary). 
-        Write first the short story in the desired language, then the translation in english, finally write a vocabulary list and a grammar notes section. Between each sections make a h3 header.
-        The words of the story should be between 100 and 200 words long excluding the ones from the translation or other tags.
-        Also write behind nouns or pronouns of the short story that are in a grammatical case (genitive, accusative, etc.. except nominative) a short id in brackets signifying its case, like (acc.), (gen.) etc.. This should help the reader to learn the grammar of the language. For russian and german this is especially important.
-        For the vocabulary list also link each of the words in the list to the linguee translation. behind the vocabulary write information about 1. its gender (feminine, masculine, neutral) 2. its type (noun, verb, adverb etc..) in brackets behind. Write the words in the infinitive, nominative form always in the vocabulary list.
-        A link to linguee looks like this for example for russian to english https://www.linguee.com/english-russian/search?source=auto&query=%D1%81%D0%BB%D0%B8%D1%88%D0%BA%D0%BE%D0%BC+%D0%BF%D0%B5%D1%80%D0%B5%D0%B4 or german to english https://www.linguee.com/english-german/search?source=auto&query=dies+ist+ein+test
-        For the grammar notes section repeat parts of the short story that are in a grammatical case and explain them.
-        Return only html and the html body content without any additional formatting so it can be sent by email. Make sure to only use html tags like <a> <p> <ul> <ol> <h3> etc.. 
-      message: |
-        Generate a short story about the topic ${get-daily-topic.response.data.word[0]} in the language ${each.toLanguage} in the level ${each.level}. 
-    description: |
-      Generates short stories for each unique language-level combination using GPT-4, incorporating translations, vocabulary lists, and grammar explanations.
-  
+      systemMessage: "For a native speaker of the language english generate a short story in the language in a certain level (A1, A2 is beginner, B1, B2 is intermediate and C1, C2 is advanced grammar and vocabulary). \nWrite first the short story in the desired language, then the translation in english, finally write a vocabulary list and a grammar notes section. Between each sections make a h3 header.\nThe words of the story should be between 100 and 200 words long excluding the ones from the translation or other tags.\nAlso write behind nouns or pronouns of the short story that are in a grammatical case (genitive, accusative, etc.. except nominative) a short id in brackets signifying its case, like (acc.), (gen.) etc.. This should help the reader to learn the grammar of the language. For russian and german this is especially important.\nFor the vocabulary list also link each of the words in the list to the linguee translation. behind the vocabulary write information about 1. its gender (feminine, masculine, neutral) 2. its type (noun, verb, adverb etc..) in brackets behind. Write the words in the infinitive, nominative form always in the vocabulary list.\nA link to linguee looks like this for example for russian to english https://www.linguee.com/english-russian/search?source=auto&query=%D1%81%D0%BB%D0%B8%D1%88%D0%BA%D0%BE%D0%BC+%D0%BF%D0%B5%D1%80%D0%B5%D0%B4 or german to english https://www.linguee.com/english-german/search?source=auto&query=dies+ist+ein+test\nFor the grammar notes section repeat parts of the short story that are in a grammatical case and explain them.\nReturn only html and the html body content without any additional formatting so it can be sent by email. Make sure to only use html tags like <a> <p> <ul> <ol> <h3> etc.. \n"
+      message: "Generate a short story about the topic ${get-daily-topic.response.data.word[0]} in the language ${each.toLanguage} in the level ${each.level}. \n"
+    description: This step generates a short story in a specified language and level about a given topic, provides its English translation, a vocabulary list with links to the Linguee translation, and a grammar notes section. The story is formatted in HTML and suitable for email sending.
   add-short-story-index-to-people:
     runtime: python3_10
-    code: |
-      def handler(inputs):
-          people = inputs['people']
-          combinations = inputs['combinations']
-          stories = inputs['stories']
-          
-          for person in people:
-              if 'fields' not in person:
-                  person['fields'] = {}
-              if 'name' not in person['fields']:
-                  person['fields']['name'] = "there"
-              person['short_story_index'] = find_short_story_index(person, combinations)
-          
-          for person in people:
-              index = person['short_story_index']
-              if index != -1:
-                  person['story'] = stories[index]
-              else:
-                  person['story'] = None
-          return people
-
-      def find_short_story_index(person, combinations):
-          # Your logic to find the index of the short story for the person
-          # This could involve matching some attribute of the person with the short story data
-          # For example:
-          for i, short_story in enumerate(combinations):
-              if (short_story['fromLanguage'] == person.get('fields', {}).get('fromLanguage') and
-                  short_story['toLanguage'] == person.get('fields', {}).get('toLanguage') and
-                  short_story['level'] == person.get('fields', {}).get('level')):
-                  return i
-          return -1  # If no matching short story is found.
+    code: "def handler(inputs):\n    people = inputs['people']\n    combinations = inputs['combinations']\n    stories = inputs['stories']\n    \n    for person in people:\n        if 'fields' not in person:\n            person['fields'] = {}\n        if 'name' not in person['fields']:\n            person['fields']['name'] = \"there\"\n        person['short_story_index'] = find_short_story_index(person, combinations)\n    \n    for person in people:\n        index = person['short_story_index']\n        if index != -1:\n            person['story'] = stories[index]\n        else:\n            person['story'] = None\n    return people\n\ndef find_short_story_index(person, combinations):\n    # Your logic to find the index of the short story for the person\n    # This could involve matching some attribute of the person with the short story data\n    # For example:\n    for i, short_story in enumerate(combinations):\n        if (short_story['fromLanguage'] == person.get('fields', {}).get('fromLanguage') and\n            short_story['toLanguage'] == person.get('fields', {}).get('toLanguage') and\n            short_story['level'] == person.get('fields', {}).get('level')):\n            return i\n    return -1  # If no matching short story is found.\n"
     props:
       people: ${get-people-data.response.data.records}
       combinations: ${get-unique-combinations.combinations}
       stories: ${generate-short-stories[*].response}
-    description: |
-      Assigns each user the correct short story based on their language and proficiency level preferences.
-  
+    description: This step involves adding a short story index to people's data, using the unique combinations and generated short stories as dependencies.
   send-message:
     foreach: ${add-short-story-index-to-people}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-ses
     props:
       sender: storybot@edurata.com
       to: ${each.fields.email}
       subject: Short story
-      html_body: >
-        Hey ${each.fields.name}!,
-        <br><br>
-        Here is your short story for level ${each.fields.level} in ${each.fields.toLanguage}. Now with added links to linguee. Enjoy!:
-        <br><br>
-        ${each.story}
-        <a href="https://tally.so/r/wvNKXv">Unsubscribe</a>
+      html_body: |
+        Hey ${each.fields.name}!, <br><br> Here is your short story for level ${each.fields.level} in ${each.fields.toLanguage}. Now with added links to linguee. Enjoy!: <br><br> ${each.story} <a href="https://tally.so/r/wvNKXv">Unsubscribe</a>
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
-    description: |
-      Sends the generated short story via email to each user, ensuring they receive personalized content based on their preferences.
+    description: This step sends an email with a short story to each person in the list, using their specific name, level, and language, with added links to Linguee and an unsubscribe option. The email is sent via AWS using specific access keys.

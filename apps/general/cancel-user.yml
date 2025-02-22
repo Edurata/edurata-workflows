@@ -34,14 +34,13 @@ interface:
             peopleTableId:
               type: string
     required:
-      - data
-      - applicationConfig
+    - data
+    - applicationConfig
 inputs:
   applicationConfig: ${variables.applicationConfig}
 steps:
   extract-data-from-event:
-    description: |
-      Extracts the email of the user from the webhook event data and encodes it for use in API requests.
+    description: This step involves extracting data from an event depending on the application name and the input data.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
@@ -57,39 +56,28 @@ steps:
       appName: ${extract-application-name-from-event.applicationName}
       data: ${inputs.data}
   extract-application-name-from-event:
-    description: |
-      Extracts the selected microapp's name from the webhook event data using the provided dropdown field.
+    description: This step involves extracting the application name from an event, using the second field of the input data as the application name field.
     runtime: nodejs20
     interface:
       inputs:
         properties:
           appNameField:
             example:
-              {
-                "key": "question_0dDJAA",
-                "label": "Which microapp do you want to update?",
-                "type": "DROPDOWN",
-                "value": [
-                  "c426210f-e82e-4259-ac93-f1bf3951da32"
-                ],
-                "options": [
-                  {
-                    "id": "c09e221a-dbdb-4c04-a9cb-1b78e72e4a26",
-                    "text": "Short story bot"
-                  },
-                  {
-                    "id": "c426210f-e82e-4259-ac93-f1bf3951da32",
-                    "text": "Accounting bot"
-                  },
-                  {
-                    "id": "d45666ba-7026-4067-841a-5ba51bb04ffb",
-                    "text": "Application bot"
-                  }
-                ]
-              }
+              key: question_0dDJAA
+              label: Which microapp do you want to update?
+              type: DROPDOWN
+              value:
+              - c426210f-e82e-4259-ac93-f1bf3951da32
+              options:
+              - id: c09e221a-dbdb-4c04-a9cb-1b78e72e4a26
+                text: Short story bot
+              - id: c426210f-e82e-4259-ac93-f1bf3951da32
+                text: Accounting bot
+              - id: d45666ba-7026-4067-841a-5ba51bb04ffb
+                text: Application bot
             type: object
         required:
-          - appNameField
+        - appNameField
     code: |
       exports.handler = async (inputs) => {
         const appNameField = inputs.appNameField;
@@ -101,8 +89,7 @@ steps:
     props:
       appNameField: ${inputs.data.fields[1]}
   get-application-config-from-name:
-    description: |
-      Retrieves the application configuration for the selected microapp by matching the application name.
+    description: This step involves retrieving the configuration of a specified application using the application's name.
     runtime: nodejs20
     code: |
       exports.handler = async (inputs) => {
@@ -121,72 +108,63 @@ steps:
       applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}
   find-in-airtable:
-    description: |
-      Searches for the user in Airtable by matching the email and filtering out disabled users.
+    description: This step fetches data from an Airtable using a specific URL and authorization, filtering for records that are not disabled and have an email that matches the one extracted from the event.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")'
+      url: https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${extract-data-from-event.email}")
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
   get-deployment-triggers:
-    description: |
-      Fetches deployment triggers associated with the user to identify any active deployments.
+    description: This step involves retrieving deployment triggers from a specific URL, using a GET method with authorization, where the data is filtered based on the name being equal to the extracted email from the event.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: ${meta.apiUrl}/deployment/${get-application-config-from-name.appConfig.deploymentId}/trigger
       method: GET
       headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-      data: 
+        Authorization: Bearer ${secrets.EDURATA_API_KEY}
+      data:
         name:
           eq: ${extract-data-from-event.email}
   delete-trigger:
-    description: |
-      Deletes the first deployment trigger found for the user to remove their access.
+    description: This step involves deleting a specific trigger from a deployment using a DELETE request, authorized by a Bearer token.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: ${meta.apiUrl}/deployment/${get-application-config-from-name.appConfig.deploymentId}/trigger/${get-deployment-triggers.response.data.items[0].id}
       method: DELETE
       headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+        Authorization: Bearer ${secrets.EDURATA_API_KEY}
   delete-airtable-record:
-    description: |
-      If the deployment trigger deletion is successful, deletes the user's record from Airtable.
-    if: 
-      "===": ["${delete-trigger.response.status}", 200]
+    description: This step involves deleting a record from Airtable using a DELETE method if the status response from the 'delete-trigger' is 200, indicating a successful operation.
+    if:
+      ===:
+      - ${delete-trigger.response.status}
+      - 200
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: DELETE
       url: https://api.airtable.com/v0/${get-application-config-from-name.appConfig.peopleTableId}/${find-in-airtable.response.data.records[0].id}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
   send-delete-email:
-    description: |
-      If the user record deletion is successful, sends a confirmation email notifying them of the removal.
-    if: 
-      "===": ["${delete-airtable-record.response.status}", 200]
+    description: If the deletion of the Airtable record is successful (status 200), an email is sent to the user notifying them that all resources related to their subscription have been deleted and inviting them to start a new subscription if desired.
+    if:
+      ===:
+      - ${delete-airtable-record.response.status}
+      - 200
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-ses
     props:
       sender: ${get-application-config-from-name.appConfig.senderEmail}
       to: ${extract-data-from-event.email}
-      subject: "${get-application-config-from-name.appConfig.appName}: All resources for your subscription were deleted"
-      html_body: >
-        Hey ${find-in-airtable.response.data.records[0].fields.name}!,
-        <br><br>
-        We have deleted all resources related to your subscription.
-        <br>
-        If you want to start a new subscription visit <a href="${get-application-config-from-name.appConfig.appUrl}">${get-application-config-from-name.appConfig.appName} online</a>.
-        <br>
-        All the best,<br>
-        The Edurata team
-        <br><br>
+      subject: '${get-application-config-from-name.appConfig.appName}: All resources for your subscription were deleted'
+      html_body: |
+        Hey ${find-in-airtable.response.data.records[0].fields.name}!, <br><br> We have deleted all resources related to your subscription. <br> If you want to start a new subscription visit <a href="${get-application-config-from-name.appConfig.appUrl}">${get-application-config-from-name.appConfig.appName} online</a>. <br> All the best,<br> The Edurata team <br><br>

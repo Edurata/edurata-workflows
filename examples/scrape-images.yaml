@@ -18,7 +18,7 @@ interface:
         default: 100
 steps:
   get-config:
-    description: Downloads the configuration files (people.json and processed-images.json) from the S3 bucket to retrieve the list of people and previously processed images.
+    description: This step retrieves configuration details such as AWS access keys and bucket name, and specifies files to be accessed in the AWS S3 bucket for further processing.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/download-s3
@@ -27,10 +27,10 @@ steps:
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
       bucket_name: test-images
       files:
-        - key: people.json
-        - key: processed-images.json
+      - key: people.json
+      - key: processed-images.json
   scrape-images:
-    description: Scrapes images for the people listed in the downloaded configuration file (people.json) while avoiding already processed entries (processed-images.json). Uses Google Search API for image retrieval and saves the updated list of processed images.
+    description: This step involves scraping images using specified dependencies such as limit, people, processed, Google API key, Google Project CX, AWS access key ID, and AWS secret access key.
     timeout: -1
     source:
       repoUrl: https://github.com/juliandm/penetratethecabinet.git
@@ -45,7 +45,7 @@ steps:
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
   upload-config:
-    description: Uploads the updated processed-images.json file back to the S3 bucket to keep track of processed images for future runs.
+    description: This step involves uploading a configuration file to a specified AWS S3 bucket, using provided AWS access keys.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/upload-s3
@@ -54,5 +54,5 @@ steps:
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
       bucket_name: test-images
       files:
-        - path: ${scrape-images.processed}
-          key: processed-images.json
+      - path: ${scrape-images.processed}
+        key: processed-images.json

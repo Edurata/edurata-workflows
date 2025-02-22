@@ -1,7 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: invoice-processor
 title: Invoice Processor
-schedule: "0 9 * * *"
+schedule: 0 9 * * *
 description: |
   Automates the process of scanning inbox emails for invoices, extracting and downloading attachments, tagging emails in Gmail, saving invoices to a structured Google Drive folder, and forwarding them to a specified email address for further processing.
 interface:
@@ -30,37 +30,37 @@ interface:
               The email address to forward the invoices to
           successTag:
             type: string
-            default: "to-datev/processed"
+            default: to-datev/processed
           failTag:
             type: string
-            default: "to-datev/failed"
+            default: to-datev/failed
           skipTag:
             type: string
-            default: "to-datev/skipped"
+            default: to-datev/skipped
           additionalQuery:
             type: string
             description: |
               Additional query to filter the emails
-            default: ""
+            default: ''
     required:
-      - config
-      - userEmail
-      - peopleTableId
+    - config
+    - userEmail
+    - peopleTableId
 inputs:
   config: ${variables.invoices_forward_config}
   peopleTableId: ${variables.accountingbot_people_table_id}
 steps:
   get-people-data:
-    description: Retrieves user data from an Airtable database using the provided table ID and user email to filter active users.
+    description: This step retrieves data from an Airtable API for a specific user's email, provided the user is not disabled, using the Airtable API key for authorization.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: 'https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")'
+      url: https://api.airtable.com/v0/${inputs.peopleTableId}?filterByFormula=AND(NOT(disabled),{email}="${inputs.userEmail}")
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
   merge-config:
-    description: Merges the user's specific configuration settings with the base configuration to create a final configuration for processing invoices.
+    description: This step is merging the user configuration data retrieved from the 'get-people-data' response with the base configuration input.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -73,33 +73,33 @@ steps:
       user_config: ${get-people-data.response.data.records[0].fields}
       base_config: ${inputs.config}
   create-labels:
-    description: "Creates the necessary Gmail labels for tagging processed invoices: success, failure, and skipped."
-    foreach: 
-      - ${merge-config.config.successTag}
-      - ${merge-config.config.failTag}
-      - ${merge-config.config.skipTag}
+    description: This step creates labels in Gmail for success, failure, and skip tags, using a POST request to the Gmail API.
+    foreach:
+    - ${merge-config.config.successTag}
+    - ${merge-config.config.failTag}
+    - ${merge-config.config.skipTag}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: https://gmail.googleapis.com/gmail/v1/users/me/labels
       method: POST
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
       data:
         name: ${each}
   get-label-ids:
-    description: Retrieves the IDs of the created Gmail labels to use in subsequent tagging operations.
+    description: This step retrieves the label IDs from Gmail's API using a specified URL and authorization headers, depending on the creation of labels.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: https://gmail.googleapis.com/gmail/v1/users/me/labels
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
       __create-labels: ${create-labels}
   transform-tags-to-label-ids:
-    description: Maps label names to their corresponding Gmail label IDs for accurate tagging of emails.
+    description: This step transforms tags into label IDs, using the label IDs obtained from the 'get-label-ids' step and the tags specified in the merge-config configuration (successTag, failTag, skipTag).
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -118,26 +118,26 @@ steps:
       failTag: ${merge-config.config.failTag}
       skipTag: ${merge-config.config.skipTag}
   get-new-mails-without-tag:
-    description: Searches Gmail for new emails containing PDF attachments that haven't been processed yet (not tagged with success, failure, or skipped labels).
+    description: This step is retrieving the ten most recent emails from the user's Gmail account that were received after January 1, 2021, have a PDF attachment, and do not have specific labels, using a provided API key for authorization.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: https://www.googleapis.com/gmail/v1/users/me/messages
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
       params:
-        q: "after:2021/01/01 ${merge-config.config.addFilter} -label:${merge-config.config.successTag} -label:${merge-config.config.failTag} -label:${merge-config.config.skipTag} has:attachment filename:pdf" 
+        q: after:2021/01/01 ${merge-config.config.addFilter} -label:${merge-config.config.successTag} -label:${merge-config.config.failTag} -label:${merge-config.config.skipTag} has:attachment filename:pdf
         maxResults: 10
       __create-labels: ${create-labels}
   continue-if-new-mails:
-    description: Continues processing only if new unprocessed emails with attachments are found.
+    description: This step continues the process if there are new emails without tags.
     if:
       and:
-        - ">":
-            - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
-            - 0
-        - "!!": ${get-new-mails-without-tag.response.data.messages}
+      - '>':
+        - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
+        - 0
+      - '!!': ${get-new-mails-without-tag.response.data.messages}
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -145,38 +145,37 @@ steps:
     props:
       get-new-mails-without-tag: ${get-new-mails-without-tag}
   get-mails-info:
-    description: Retrieves detailed information about each email, including its payload, to extract relevant attachments.
+    description: This step fetches detailed information for each new email message from the Gmail API, using the message ID, in a full format with specific fields such as 'id' and 'payload'.
     foreach: ${continue-if-new-mails.mails}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.id}
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
       params:
-        format: "full"
-        fields: "id,payload"
+        format: full
+        fields: id,payload
   filter-attachments:
-    description: Filters the retrieved emails to extract only those that contain valid invoice attachments.
+    description: This step involves filtering attachments from the data received from the 'get-mails-info' responses.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: apps/mail/invoice-forwarder/filter-attachments
     props:
       messages: ${get-mails-info[*].response.data}
-      # additional_keywords: ${merge-config.config.additionalKeywords}
   download-attachments:
-    description: Downloads the filtered PDF attachments from the retrieved emails for further processing.
+    description: This step is downloading attachments from specific messages using the Gmail API, iterating over each filtered attachment from the previous step.
     foreach: ${filter-attachments.filtered_attachments}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.message_id}/attachments/${each.attachment_id}"
+      url: https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.message_id}/attachments/${each.attachment_id}
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
   save-attachments:
-    description: Decodes and saves the invoice PDF attachments locally for further processing, such as forwarding or archiving.
+    description: This step involves saving the data from downloaded attachments.
     runtime: python3_10
     props:
       attachments_data: ${download-attachments[*].response.data}
@@ -185,7 +184,7 @@ steps:
         properties:
           attachments_data:
             type: array
-            items: 
+            items:
               type: object
               properties:
                 attachmentId:
@@ -231,22 +230,21 @@ steps:
                   # Handle the error as needed, e.g., skip the file or return an error response
           return {"new_files": new_files}
   forward-pdf:
-    description: Forwards the extracted invoice PDFs to the specified email address using the Gmail API.
+    description: This step forwards a PDF by making a POST request to the Gmail API, using an encoded email attachment.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+      url: https://gmail.googleapis.com/gmail/v1/users/me/messages/send
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
       data:
         raw: ${encode_email_attachments.raw}
-  # Inline step to encode the email with attachment in base64 format
   encode_email_attachments:
-    description: Encodes the extracted invoices into a base64 format to be sent via the Gmail API.
-    if: 
-      "!!": ${merge-config.config.forwardEmail}
+    description: This step involves encoding email attachments for a specific user and forwarding them to a configured email address, given that the forward email configuration is set.
+    if:
+      '!!': ${merge-config.config.forwardEmail}
     else: success
     runtime: python3_10
     interface:
@@ -265,69 +263,16 @@ steps:
           raw:
             type: string
             description: The base64 encoded email message with multiple attachments
-    code: |
-      import base64
-      import email
-      from email.mime.multipart import MIMEMultipart
-      from email.mime.text import MIMEText
-      from email.mime.base import MIMEBase
-      from email import encoders
-      import os
-
-      def handler(inputs):
-          sender = inputs["userEmail"]
-          to = inputs["forwardEmail"]
-          subject = "Invoice"
-          body = "Please find the attached invoices."
-
-          # Create email message
-          msg = MIMEMultipart()
-          msg['From'] = sender
-          msg['To'] = to
-          msg['Subject'] = subject
-          msg.attach(MIMEText(body, 'plain'))
-
-          # Iterate over attachments and encode each one
-          for attachment_path in inputs["attachments"]:
-              attachment_name = os.path.basename(attachment_path)
-              
-              with open(attachment_path, "rb") as attachment_file:
-                  part = MIMEBase('application', 'octet-stream')
-                  part.set_payload(attachment_file.read())
-                  encoders.encode_base64(part)
-                  part.add_header('Content-Disposition', f"attachment; filename= {attachment_name}")
-                  msg.attach(part)
-
-          # Encode the message in base64 and prepare it for Gmail API
-          raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-          return {"raw": raw_message}
+    code: "import base64\nimport email\nfrom email.mime.multipart import MIMEMultipart\nfrom email.mime.text import MIMEText\nfrom email.mime.base import MIMEBase\nfrom email import encoders\nimport os\n\ndef handler(inputs):\n    sender = inputs[\"userEmail\"]\n    to = inputs[\"forwardEmail\"]\n    subject = \"Invoice\"\n    body = \"Please find the attached invoices.\"\n\n    # Create email message\n    msg = MIMEMultipart()\n    msg['From'] = sender\n    msg['To'] = to\n    msg['Subject'] = subject\n    msg.attach(MIMEText(body, 'plain'))\n\n    # Iterate over attachments and encode each one\n    for attachment_path in inputs[\"attachments\"]:\n        attachment_name = os.path.basename(attachment_path)\n        \n        with open(attachment_path, \"rb\") as attachment_file:\n            part = MIMEBase('application', 'octet-stream')\n            part.set_payload(attachment_file.read())\n            encoders.encode_base64(part)\n            part.add_header('Content-Disposition', f\"attachment; filename= {attachment_name}\")\n            msg.attach(part)\n\n    # Encode the message in base64 and prepare it for Gmail API\n    raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()\n    return {\"raw\": raw_message}\n"
     props:
       userEmail: ${inputs.userEmail}
       forwardEmail: ${merge-config.config.forwardEmail}
       attachments: ${save-attachments.new_files}
-  # forward-pdf:
-  #   foreach: ${save-attachments.new_files}
-  #   if: ('${merge-config.config.forwardEmail}').length > 0
-  #   description: |
-  #     Forward the PDF attachments to the specified email address
-  #   source:
-  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
-  #     path: etl/load/send-ses
-  #   props:
-  #     sender: accountingbot@edurata.com
-  #     to: ${merge-config.config.forwardEmail}
-  #     subject: "Invoice"
-  #     html_body: "Please find the attached invoice"
-  #     attachments: 
-  #       - ${each}
-  #     AWS_REGION: "eu-central-1"
-  #     AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
-  #     AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
   get-folder-id:
-    description: Generates a folder name based on the current date for organizing invoices in Google Drive.
+    description: This step involves obtaining the folder ID, provided that the Google Drive folder name in the merge-config is not null.
     runtime: python3_10
-    if: 
-      "!!": ${merge-config.config.gdriveFolderName}
+    if:
+      '!!': ${merge-config.config.gdriveFolderName}
     code: |
       import datetime
       def handler(inputs):
@@ -335,81 +280,62 @@ steps:
           today = datetime.datetime.now().strftime("%Y-%m-%d")
           return {"folder_name": today}
   create-folderpath:
-    if: 
-      "!!": ${filter-attachments.filtered_attachments}
-    description: |
-      Creates the necessary folder structure in Google Drive to store invoice PDFs.
+    if:
+      '!!': ${filter-attachments.filtered_attachments}
+    description: This step creates a new folder path in Google Drive using the provided OAuth token and folder name, only if there are filtered attachments present.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/create-gdrive-folderpath
     props:
       OAUTH_TOKEN: ${secrets.GMAIL_API_KEY}
       folder_path: ${merge-config.config.gdriveFolderName}/${get-folder-id.folder_name}
   get-parent-folder-id:
-    description: Retrieves the ID of the parent folder in Google Drive where invoices will be stored.
+    description: This step is retrieving the ID of a parent folder from Google Drive using a GET request, with the folder name and API key as parameters.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "https://www.googleapis.com/drive/v3/files"
+      url: https://www.googleapis.com/drive/v3/files
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
       params:
         q: name='${get-folder-id.folder_name}' and mimeType='application/vnd.google-apps.folder'
       __create-folderpath: ${create-folderpath}
   upload-files-in-gdrive:
-    description: Uploads the processed invoice PDFs to the designated Google Drive folder for archival purposes.
+    description: This step uploads files to Google Drive, specifically to a parent folder, by iterating through each new file saved in the 'save-attachments' step, using the Gmail API key for authorization.
     foreach: ${save-attachments.new_files}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: clients/gdrive
     props:
       OAUTH_TOKEN: ${secrets.GMAIL_API_KEY}
-      action: "upload"
-      upload_file_name: "${filter-attachments.filtered_attachments[each.index].attachment_id}"
-      parent_folder_id: "${get-parent-folder-id.response.data.files[0].id}"
-      file_path: "${each}"
+      action: upload
+      upload_file_name: ${filter-attachments.filtered_attachments[each.index].attachment_id}
+      parent_folder_id: ${get-parent-folder-id.response.data.files[0].id}
+      file_path: ${each}
   map-tags-to-threads:
-    description: Associates each email thread with the appropriate tag (success, failure, or skipped) based on whether an invoice was found.
+    description: This step involves mapping tags to threads based on the properties of new emails without tags, filtered attachments, and specific success, fail, and skip tags.
     runtime: python3_10
-    code: |
-      def handler(inputs):
-          thread_to_tags = {}
-          for message in inputs["all_messages"]:
-              thread_id = message["threadId"]
-
-              # continue if already processed
-              if thread_id in thread_to_tags:
-                  continue
-
-              is_in_filtered_attachments = False
-              for attachment in inputs["filtered_attachments"]:
-                  if attachment["message_id"] == message["id"]:
-                      is_in_filtered_attachments = True
-                      break
-              thread_to_tags[thread_id] = inputs["successTag"] if is_in_filtered_attachments else inputs["skipTag"]
-          
-          # make into list of objects
-          return [{"threadId": thread_id, "tag": tag} for thread_id, tag in thread_to_tags.items()]
+    code: "def handler(inputs):\n    thread_to_tags = {}\n    for message in inputs[\"all_messages\"]:\n        thread_id = message[\"threadId\"]\n\n        # continue if already processed\n        if thread_id in thread_to_tags:\n            continue\n\n        is_in_filtered_attachments = False\n        for attachment in inputs[\"filtered_attachments\"]:\n            if attachment[\"message_id\"] == message[\"id\"]:\n                is_in_filtered_attachments = True\n                break\n        thread_to_tags[thread_id] = inputs[\"successTag\"] if is_in_filtered_attachments else inputs[\"skipTag\"]\n    \n    # make into list of objects\n    return [{\"threadId\": thread_id, \"tag\": tag} for thread_id, tag in thread_to_tags.items()]\n"
     props:
       all_messages: ${get-new-mails-without-tag.response.data.messages}
-      filtered_attachments: ${filter-attachments.filtered_attachments} 
+      filtered_attachments: ${filter-attachments.filtered_attachments}
       successTag: ${transform-tags-to-label-ids.label_ids.successTag}
       failTag: ${transform-tags-to-label-ids.label_ids.failTag}
       skipTag: ${transform-tags-to-label-ids.label_ids.skipTag}
   tag-emails:
-    description: Updates Gmail threads with the appropriate labels to indicate the processing status of each invoice.
+    description: This step automates the process of tagging emails by posting a request to the Gmail API for each thread specified in the 'map-tags-to-threads' object, using the 'GMAIL_API_KEY' for authorization.
     foreach: ${map-tags-to-threads}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: "https://gmail.googleapis.com/gmail/v1/users/me/threads/${each.threadId}/modify"
+      url: https://gmail.googleapis.com/gmail/v1/users/me/threads/${each.threadId}/modify
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
       data:
-        addLabelIds: 
-          - ${each.tag}
+        addLabelIds:
+        - ${each.tag}
         removeLabelIds: []

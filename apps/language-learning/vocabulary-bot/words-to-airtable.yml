@@ -3,7 +3,6 @@ name: words-to-airtable
 title: Vocabulary enricher
 description: |
   Automates the extraction of vocabulary from a Google Docs document, processes it using ChatGPT, and updates an Airtable table with the extracted words. It ensures that only new changes in the document are considered and systematically enriches the vocabulary database.
-
 interface:
   inputs:
     properties:
@@ -15,40 +14,28 @@ interface:
         type: string
         description: |
           The ID of the document to retrieve vocabulary from.
-
 steps:
   get-new-changes-from-docs:
-    description: |
-      Retrieves new changes from the specified Google Docs document using its document ID. 
-      This step ensures that only newly added content is processed for vocabulary extraction.
+    description: This step retrieves new changes from a specific document using the Google Docs API, given a document ID and API token.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/diff-google-docs
     props:
       documentId: ${inputs.vocabulary_document_id}
       API_TOKEN: ${secrets.GOOGLE_DOCS_API_KEY}
-
   extract-vocabulary:
-    description: |
-      Uses ChatGPT to extract vocabulary words from the new changes retrieved from the document.
-      The model processes the provided text and returns an array of words in the extracted language.
+    description: This step involves extracting vocabulary from a given text from a Google Docs document and returning it as an array of words in the extracted language, using the OpenAI API key.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      # model: gpt-4o
-      systemMessage: |
-        You get a text from a Google Docs document and you should extract vocabulary from that text 
-        and return it in an array of words in the extracted language. Only return the array of words.
+      systemMessage: "You get a text from a Google Docs document and you should extract vocabulary from that text \nand return it in an array of words in the extracted language. Only return the array of words.\n"
       message: |
         Extract vocabulary from the following text:
         ${get-new-changes-from-docs.differences}
-
   parse-from-chatgpt-response:
-    description: |
-      Parses the response from ChatGPT to extract the vocabulary words into a structured format.
-      It ensures that the extracted words are correctly formatted for further processing.
+    description: This step involves parsing responses from ChatGPT, with the help of the 'extract-vocabulary' dependency.
     runtime: python3_10
     code: |
       import json
@@ -59,11 +46,8 @@ steps:
           }
     props:
       extract-vocabulary: ${extract-vocabulary}
-
   update-airtable:
-    description: |
-      Iterates over the extracted vocabulary words and updates Airtable by making a POST request for each word. 
-      If multiple words are extracted, they are individually added to the specified Airtable table.
+    description: This step is posting the words parsed from a ChatGPT response to an Airtable using a POST method, iterating through each word in the response.
     foreach: ${parse-from-chatgpt-response.words}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

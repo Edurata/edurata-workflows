@@ -1,8 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: hello-world
 title: Testing all runtimes with a hello-world function.
-description: |
-  Automates the testing of basic functionality across multiple runtimes by executing a hello-world print statement. It constructs a message from input messages, processes it using Python, Node.js, and Docker-based environments, and ensures compatibility through inline and repository-based function execution. It also includes a conditional foreach loop to iterate selectively over input messages.
+description: The workflow starts with creating a message from provided inputs. This message is then used to test Python inline code, with the execution depending on a message from a previous node. The steps "test-python" and "test-node" depend on messages created from Python and the output of the "construct-message" step respectively. The workflow also includes testing a Docker upstream that displays a message from Docker dependent on the 'construct-message.string'. Lastly, it iterates over each item in the 'messages' input, returning a specific message if the item is either 'Hello' or 'World'.
 interface:
   inputs:
     properties:

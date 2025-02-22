@@ -1,7 +1,6 @@
 name: job-applicator
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of scanning freelance.de for new job postings, filtering them based on user-defined preferences, and automatically applying to relevant jobs by generating personalized email applications.
+description: The workflow automation process begins by extracting job postings from Freelancermap and Freelance.de platforms using the customer's credentials. It then merges these job postings, checks if the record exists in an Airtable database, and adds new job postings accordingly. The process continues by retrieving job postings and customer details from the Airtable database, downloading the customer's CV, and extracting the content. It then extracts the email address of the job author, generates an email content tailored to the job posting, and prepares the email data. Finally, the process sends the email via the Gmail API and marks each job posting as processed in the Airtable database.
 interface:
   inputs:
     type: object

@@ -1,7 +1,6 @@
 name: workflow-blog-to-multiple-platforms
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of retrieving a workflow definition, generating a blog post about it, and publishing it across multiple platforms, including Reddit and an internal blog. The workflow ensures that unprocessed posts are fetched, processed, and marked as published in Airtable.
+description: The process retrieves the latest unprocessed post from an Airtable table and downloads a Git repository based on the post's workflow path. It then obtains the workflow definition from the downloaded repository. The system generates blog content about the workflow using a specific model and API key. If successful, it marks the record as processed in the Airtable workflow table. Lastly, it updates a blog post in an Airtable database with the generated content and sets its 'freeToPublish' field to False.
 interface:
   inputs:
     type: object

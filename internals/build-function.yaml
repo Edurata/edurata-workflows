@@ -1,7 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: build-function-code
 title: Build function code
-description: Automates the process of fetching a git repository, determining the runtime, building the function code based on its runtime, and uploading the built code to a function registry.
+description: The workflow begins by cloning a Git repository for each function to be built. It then identifies the runtime for the functions using the cloned code. Depending on the runtime, it builds either Node.js 20 or Python 3.10 code. The results of both builds are merged. Finally, for each non-docker runtime, an upload URL is obtained and the zipped code is uploaded to it.
 interface:
   inputs:
     properties:

@@ -2,7 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: ai-translator
 title: Ai Translator
 schedule: 0 8 * * *
-description: Automates the process of fetching the latest posts from a Telegram channel, extracting text from media, translating the content into a target language, and posting the translated text along with media to an X (formerly Twitter) account.
+description: The workflow named 'Ai Translator' fetches images and text from a specified Telegram account using the Telegram API and stores them in a designated directory. It then extracts text from these posts in a given source language. The extracted text is subsequently translated into a target language using the DEEPL API key. Finally, the workflow posts the translated text and images onto Twitter using stored API keys, access tokens, and bearer tokens. The process is scheduled to run daily at 8 am.
 interface:
   inputs:
     properties:

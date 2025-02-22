@@ -1,8 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: delete-microapp-user
 title: Deletes a user from a microapp
-description: |
-  Automates the process of deleting a user from multiple systems after receiving a webhook call from Tally. The workflow extracts user information from the event data, identifies the associated microapp, retrieves the corresponding application configuration, finds the user in Airtable, deletes deployment triggers, removes the user record from Airtable, and sends a confirmation email upon successful deletion.
+description: The automated workflow begins by extracting data from an event based on the application name and input data. It then retrieves the application's configuration using its name and fetches data from an Airtable using specific URL and authorization. The workflow also retrieves and deletes deployment triggers from a specific URL using GET and DELETE methods respectively. If the trigger deletion is successful, a record is deleted from the Airtable. Finally, if the Airtable record deletion is successful, an email is sent to the user notifying them of the deletion of all resources related to their subscription.
 interface:
   inputs:
     properties:

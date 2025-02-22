@@ -2,8 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: invoice-processor
 title: Invoice Processor
 schedule: 0 9 * * *
-description: |
-  Automates the process of scanning inbox emails for invoices, extracting and downloading attachments, tagging emails in Gmail, saving invoices to a structured Google Drive folder, and forwarding them to a specified email address for further processing.
+description: The workflow automates the process of scanning inbox emails for invoices, extracting and downloading attachments, tagging emails in Gmail, saving invoices to a structured Google Drive folder, and forwarding them to a specified email address. It retrieves user data from Airtable API and merges it with base configuration. It creates labels in Gmail for success, failure, and skip tags and retrieves label IDs from Gmail's API. The workflow also retrieves the ten most recent emails from the user's Gmail account that were received after January 1, 2021, have a PDF attachment, and do not have specific labels. It then fetches detailed information for each new email message, filters attachments, downloads and saves them, forwards a PDF by making a POST request to the Gmail API, creates a new folder path in Google Drive, uploads files to Google Drive, and automates the process of tagging emails.
 interface:
   inputs:
     properties:

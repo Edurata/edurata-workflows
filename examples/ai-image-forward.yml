@@ -1,8 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: quote-forwarder
 title: Prepare text content
-description: |
-  Automates the process of fetching images from a Telegram channel, filtering for media content, analyzing images for labels and text, generating inspirational quotes based on labels, and posting the resulting content to social media.
+description: The workflow starts by fetching today's pictures from a specified Telegram account and saving them in a designated directory. It then filters the pictures to select those containing media. Using AWS credentials, it processes the selected media files to extract labels and text. Following this, it generates an inspiring quote for each label using the OpenAI API. Finally, the workflow pushes these images and messages to a specific platform using a bearer token for authentication.
 interface:
   inputs:
     properties:

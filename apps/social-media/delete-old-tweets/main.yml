@@ -1,7 +1,6 @@
 name: delete-old-tweets-with-email
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the deletion of old tweets from a Twitter archive file. The workflow extracts the archive, filters tweets older than a given date, deletes them via the Twitter API, and sends an email update with the count of deleted tweets.
+description: The process starts with extracting data from an archive file and filtering out old tweets from the dataset. Each old tweet, identified by its ID, is deleted using a DELETE request to the Twitter API, authorized with a bearer token. A summary of the operation is then created. Finally, an email, detailing the completion of the Twitter archive cleanup process and the total number of tweets deleted, is sent using AWS email service. This workflow is defined in a configuration with detailed steps and associated code.
 interface:
   inputs:
     type: object

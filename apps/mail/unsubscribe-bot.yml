@@ -1,6 +1,6 @@
 name: email-unsubscribe-service
 apiRevision: edurata.io/workflow/v1
-description: "Automates the process of identifying and consolidating unsubscribe links from recent emails. \nThe workflow retrieves customer details, scans the last three months of emails, extracts unsubscribe links, \nconsolidates them into a single list, and generates an email containing these links for easy access.\n"
+description: The workflow automates the process of identifying and consolidating unsubscribe links from recent emails. It retrieves customer details from a specific Airtable using the user's email. Then, it fetches the 100 most recent emails from the user's Gmail account that match a certain query and were received in the last three months. The workflow extracts unsubscribe links from each email and gathers them into a single list. Finally, it generates an HTML document body containing these links.
 interface:
   inputs:
     type: object

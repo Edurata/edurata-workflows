@@ -1,7 +1,6 @@
 name: airtable-blog-to-multiple-platforms
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the retrieval of the latest unprocessed blog post from Airtable, checks user settings to determine the enabled publishing platforms, formats the content appropriately for each platform using ChatGPT, and publishes the post to the selected platforms (Reddit, LinkedIn, Twitter/X). After successful publication, the workflow updates Airtable with the URLs of the published posts and marks the post as processed.
+description: The workflow automates the process of posting blog content across various platforms. It retrieves user settings and the latest unprocessed blog post from an Airtable database. Depending on user settings, it generates and posts content on Reddit, LinkedIn, and Twitter. The content includes a Reddit post with a blog teaser, a summarized version of the blog for LinkedIn, and a teaser for Twitter. Lastly, the workflow updates the Airtable record with the URLs of the shared posts and marks the post as released.
 interface:
   inputs:
     type: object

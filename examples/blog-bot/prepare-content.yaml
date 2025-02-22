@@ -2,8 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: prepare-content
 title: Prepare text content
 schedule: 0 8 * * *
-description: |
-  Automates the process of extracting drafts from an Airtable, generating blog and social media posts, creating relevant images, uploading them to S3, and updating the Airtable with the generated content.
+description: The workflow starts by fetching unprocessed data from a specific Airtable URL using an API key. It then uses OpenAI API to create summarized German news articles, adding icons, ensuring character limits, and including hashtags. The responses are then transformed into images as part of a story-type workflow. These images are uploaded to an AWS S3 bucket using AWS access keys, with the file path determined by each execution ID. Lastly, data from various social platforms obtained from ChatGPT is pushed to Airtable via its API, excluding any previously processed entries.
 interface:
   inputs:
     properties:

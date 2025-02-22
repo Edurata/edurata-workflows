@@ -2,8 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: pitch-bot
 title: Pitch Bot
 schedule: '*/10 8-20 * * *'
-description: |
-  Automates the process of identifying potential clients, extracting company information from their websites, generating personalized pitch emails, sending them out, and updating CRM systems (HubSpot and Airtable) accordingly.
+description: The workflow retrieves unprocessed company data from a specific Airtable URL, adds a website from an email based on this data, and extracts further company information by crawling these websites. It generates a personalized pitch email in German for each company, including an AI-generated, attention-grabbing subject line. The personalized emails are sent to each company using the sender's email. It also prepares HubSpot contacts and companies using the retrieved website data, creating new contact entries in HubSpot for each contact, linked to the corresponding company ID. Finally, the 'processed' field for each record in the Airtable is updated to true, indicating completion.
 inputs:
   company_table_id: ${variables.company_table_id}
   sender_name: ${variables.ceo_name}

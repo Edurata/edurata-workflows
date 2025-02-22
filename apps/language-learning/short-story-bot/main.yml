@@ -2,8 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: short-story-bot
 title: Short story bot
 schedule: 0 8 * * *
-description: |
-  Automates the generation and delivery of short stories in different languages and proficiency levels to users based on their preferences. It retrieves user data, determines unique language combinations, fetches a daily topic, generates short stories, assigns them to users, and sends them via email. More info on https://contact.edurata.com/short-story-bot
+description: The workflow automates the generation and delivery of short stories in different languages and proficiency levels. It starts by determining the current day and time, then fetches user data from an Airtable API, filtering for non-disabled users whose interval includes the current day. It then retrieves a random word from the API-Ninjas website to serve as a topic, and generates a short story about this topic, providing an English translation, a vocabulary list with links to the Linguee translation, and a grammar notes section. The stories are then assigned to users based on unique combinations of language and proficiency level. Finally, the stories are sent to each user via email, with personalization based on their name, level, and language, along with added links to Linguee and an unsubscribe option.
 interface:
   inputs:
     properties:

@@ -2,8 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: block-x-bots-by-archive
 title: null
 schedule: 0 8 * * *
-description: |
-  Automates the process of identifying and blocking bot followers on Twitter by analyzing an archive of user data, checking follower metrics, detecting suspicious accounts, and blocking them if necessary.
+description: The process begins by retrieving a Twitter user's ID and checking their follower count through GET requests to the Twitter API. If the follower count exceeds a limit, the process is cancelled. If not, the latest 100 followers of the user are fetched, including their join date and public metrics. Using a specific algorithm, bots are identified from these new followers and are blocked via a POST request to the Twitter API. Finally, an email is sent as part of the workflow automation process.
 interface:
   inputs:
     properties:

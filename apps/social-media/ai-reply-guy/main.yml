@@ -1,7 +1,6 @@
 name: hot-post-keyword-responder
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of identifying hot posts on a platform (like Reddit) containing specific keywords, generating responses using ChatGPT, and posting them as comments. The workflow searches for posts, filters them based on upvotes, constructs a query, generates responses, and posts them back as comments.
+description: The workflow begins by extracting user data from an Airtable database, which is used to create a Reddit search query. This query is executed to find 'hot' posts, limited to 50 results. The posts are then filtered by a minimum upvote threshold. For each qualifying post, a response is generated using OpenAI's GPT-3 model. Finally, comments are posted on Reddit using these responses, and all feedback is captured and organized.
 interface:
   inputs:
     type: object

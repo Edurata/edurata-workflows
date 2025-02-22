@@ -1,8 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: setup-microapp-user
 title: Setup Bot
-description: |
-  Automates the setup of a bot using OAuth after a webhook call from Tally. The first two fields in Tally must be name and email. The workflow extracts data from the webhook, retrieves application configurations, creates or retrieves an environment, schedules a trigger, and sends an appropriate email based on whether OAuth authorization is required.
+description: The process starts by extracting data and the application ID from an event. The application configuration and schedule rate are then retrieved using the application ID. A new environment is created and its details are obtained using an authorization token. A trigger is created via a POST request. Finally, an email is sent to the user either notifying them of the completed bot setup or requesting OAuth authorization, depending on the application configuration.
 interface:
   inputs:
     properties:

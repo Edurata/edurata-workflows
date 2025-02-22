@@ -1,7 +1,6 @@
 name: wg-gesucht-application-bot-fetch-stripe-charges
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of fetching Stripe charges from the past 24 hours, extracting relevant metadata, and updating Airtable with the user's pro status. It retrieves charges, processes metadata, triggers updates, and schedules user pro status in the system.
+description: The workflow automates the process of fetching Stripe charges from the last 24 hours, extracting metadata, and updating user's pro status in the system. It starts by obtaining the epoch time for 24 hours ago, then fetches successful Stripe charges using a GET request to the Stripe API. The next step involves retrieving metadata from the fetched Stripe charges. It then retrieves trigger information for each deployment from an API endpoint using deployment ID and email as parameters. Finally, it updates the trigger for each item in the metadata by sending a POST request to a specified URL, including schedule, disabled status, expiry date, and variables such as email and 'isPro' status in the data.
 steps:
   get-24h-back-epoch-time:
     runtime: python3_10

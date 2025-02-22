@@ -1,8 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: words-to-airtable
 title: Vocabulary enricher
-description: |
-  Automates the extraction of vocabulary from a Google Docs document, processes it using ChatGPT, and updates an Airtable table with the extracted words. It ensures that only new changes in the document are considered and systematically enriches the vocabulary database.
+description: The workflow automates the extraction of vocabulary from a Google Docs document, processes it using ChatGPT, and updates an Airtable table with the extracted words. It retrieves new changes from a specific document using the Google Docs API. Vocabulary is extracted from the document text using OpenAI API key and returned as an array of words in the extracted language. Responses from ChatGPT are then parsed using the 'extract-vocabulary' dependency. Finally, the parsed words are posted to an Airtable using a POST method.
 interface:
   inputs:
     properties:

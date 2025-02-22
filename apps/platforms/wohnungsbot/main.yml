@@ -1,7 +1,6 @@
 name: wg-gesucht-application-bot
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of scanning WG-Gesucht for new flat listings based on user-defined preferences, generating personalized applications using ChatGPT, and automatically submitting them.
+description: The workflow automates the process of finding and applying for flat listings. It starts by retrieving customer details from an Airtable database and setting default filters based on the user's details. The workflow then searches for flat listings using these filters and generates personalized application messages for each listing. Information from the flat listings and the generated applications are merged. Finally, the workflow applies to the listings using the customer's credentials, provided there are merged listings available.
 interface:
   inputs:
     properties:

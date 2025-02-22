@@ -1,7 +1,6 @@
 name: twitter-reply-bot
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of searching Twitter for posts containing specified keywords, retrieving contextual data from Airtable, generating AI-powered replies based on that context, and posting the replies back to Twitter. The bot ensures responses are relevant and aligned with a business/product description.
+description: The workflow begins by retrieving user-specific data from an Airtable table and filtering out keywords. These keywords are then used to search for recent tweets, retrieving a maximum of 5 results per keyword. The system then generates a reply to each tweet, impersonating a startup CTO, with the goal of promoting a digital product. Each generated reply is subsequently posted on Twitter. The entire process is automated using GET and POST requests to the Airtable and Twitter APIs respectively.
 interface:
   inputs:
     properties:

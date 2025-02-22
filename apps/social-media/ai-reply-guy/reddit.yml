@@ -1,7 +1,6 @@
 name: reddit-reply-bot
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of searching Reddit for posts containing specific keywords and replying with AI-generated responses. The bot retrieves contextual information from Airtable, formats a Reddit search query, finds relevant posts, generates replies using AI, and posts them as comments while adhering to Reddit's rate limits.
+description: The workflow begins by pulling data from an Airtable table, filtered by user's email. Then, it prepares a Reddit query using the data from the previous step. Next, a search on Reddit is conducted using specific parameters and authorization. A casual reply to a Reddit post is then generated, impersonating a startup CTO, and suggesting a digital product if relevant. Finally, these replies are posted to each Reddit comment using the Reddit API.
 interface:
   inputs:
     properties:

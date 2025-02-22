@@ -2,8 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: social-media-post
 title: Alternative to services like hootsuite or buffer
 schedule: 0 8 * * *
-description: |
-  Automates the process of fetching social media post data from Airtable, filtering it based on release date, and posting it to Twitter (X), LinkedIn, and Medium. Uses Google Drive to retrieve images for the posts. The workflow ensures that only unprocessed posts scheduled for release are considered and iterates over them to push content to the appropriate platforms.
+description: The workflow retrieves unprocessed data from a specific Airtable URL. It filters the data to retain only records with future release dates, discarding those already released or without a date. Messages are pushed to platform 'X' using Twitter API credentials if a specific field is defined. Content is automatically pushed to LinkedIn and Medium for each output filtered by release date, if the LinkedIn field is defined, using the provided API token, text, and author information. The entire process is automated and scheduled to run at a specific time.
 interface:
   inputs:
     properties:

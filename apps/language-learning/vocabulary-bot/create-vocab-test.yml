@@ -1,7 +1,6 @@
 name: vocabulary-test-generator
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the extraction of vocabulary from a document on a regular basis and updates an Airtable with the retrieved words. Additionally, it generates a vocabulary test by retrieving words from Airtable based on the user's email, creating a short story incorporating those words using GPT-4, constructing a Google Form with relevant test questions, sending the test to the user via email, and updating Airtable with feedback on vocabulary usage.
+description: The process begins by retrieving rows of vocabulary data from an Airtable. A narrative or story is then generated using this vocabulary data. Following this, a new Google Form is created, which is incorporated into an automated email and sent to the user. Finally, the Airtable is updated for each record that was retrieved in the initial step. This workflow is part of a larger system that automates the extraction of vocabulary and the generation of vocabulary tests.
 interface:
   inputs:
     type: object

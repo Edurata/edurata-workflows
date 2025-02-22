@@ -1,8 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: update-microapp-user
 title: Update Bot Info
-description: |
-  Automates the process of retrieving user information based on an email and applicationId, finding the corresponding configuration (sender email, subject, peopleTableId), and sending an update link via email.
+description: The process involves extracting data and the application name from an event, using the input data. The application configuration is then retrieved using the application name. Airtable is searched using a specific URL and headers, filtering out disabled entries and matching a specific email address. An email is then sent to the user with a link to update their information. The sender's email, application name, AWS access keys from the application configuration, and the recipient's email, name, and update URL from the Airtable data are used in this step.
 interface:
   inputs:
     properties:

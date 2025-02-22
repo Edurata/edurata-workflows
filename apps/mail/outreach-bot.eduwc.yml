@@ -1,8 +1,6 @@
 name: outreach-bot
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the outreach process by fetching filtered leads from Airtable, retrieving email templates from user data,
-  generating personalized emails using ChatGPT, sending emails via Gmail, and updating Airtable to track outreach progress.
+description: The workflow automates the outreach process by fetching user data and leads from Airtable using GET requests. It enriches each lead with templates and user fields, generates personalized email content for each lead, and sends an email to each enriched lead. After sending the email, it obtains an updated JSON file for each sent email using the threadId from the email response. Finally, it updates the Airtable record for each email sent using a PATCH request. The workflow is designed to maintain professional communication standards and track outreach progress.
 interface:
   inputs:
     properties:

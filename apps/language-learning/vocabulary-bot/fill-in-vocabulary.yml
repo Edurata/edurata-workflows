@@ -1,8 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: fill-in-vocabulary
 title: Fill in Vocabulary
-description: |
-  Automates the process of retrieving untranslated vocabulary from an Airtable, generating missing translations using OpenAI's API, and updating Airtable with the completed translations.
+description: The workflow automates the process of retrieving, translating, and updating vocabulary in an Airtable. Firstly, it retrieves data for non-disabled individuals whose email matches the provided input, and unprocessed rows from a specified Airtable. Then, it fills out missing translations in a JSON object representing languages and their words. Finally, it updates each record in the Airtable identified by the ID from the translation step. Authorization for these steps is provided via an API key.
 interface:
   inputs:
     properties:

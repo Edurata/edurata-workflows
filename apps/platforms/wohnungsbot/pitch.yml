@@ -1,7 +1,6 @@
 name: wohnungsbot-pitch
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of identifying flat seekers on WG-Gesucht, generating personalized recommendations for the Wohnungsbot software, and applying to listings on their behalf.
+description: The workflow automates the process of identifying and reaching out to flat seekers on WG-Gesucht. It begins by retrieving random credentials which are used to search for users based on specific criteria. Personalized recommendations for each user are then generated, suggesting the use of the "Wohnungsbot" software developed by Julian. Information from user listings and generated recommendations are merged. Finally, the workflow applies to listings on behalf of the users using the provided credentials.
 steps:
   get-random-credentials:
     description: This step retrieves random credentials from the secret 'wgGesuchtLogins'.

@@ -2,7 +2,7 @@ apiRevision: edurata.io/workflow/v1
 name: breakfast-info
 title: Fetch daily weather and news for your location using a few example functions..
 schedule: 0 8 * * *
-description: "Automates the retrieval of daily weather and news for a given location and sends an email with the collected data. \nUses the OpenWeatherMap API for weather data and the NewsAPI for news data. \nDetermines the country based on latitude and longitude using Google's Geocoding API, fetches relevant weather and news data, and sends an email summary via AWS SES.\n"
+description: The workflow begins with a GET request to Google Maps Geocoding API, using latitude and longitude to fetch the respective country information. It then retrieves the weather forecast for the specified location from the Tomorrow.io API. The country data derived from the first step is used to fetch the top news headlines from the News API. The day's weather and news headlines are compiled into an email. This email is then sent to a pre-specified email address using AWS for delivery.
 interface:
   inputs:
     properties:

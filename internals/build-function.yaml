@@ -1,43 +1,69 @@
 apiRevision: edurata.io/workflow/v1
-name: build-function-code
-title: Build function code
-description: Automates the process of fetching a git repository, determining the runtime, building the function code based on its runtime, and uploading the built code to a function registry.
+description: These steps automate the build process for Node.js 2.0 and Python 3.10
+  by iterating over each runtime and its associated files. The code used is sourced
+  from the 'edurata-functions' GitHub repository. The steps also involve retrieving
+  the upload URL for each runtime file, cloning the Git repository for each function
+  to be built, and merging the results from the dependencies. Code is uploaded using
+  a PUT method for each result in the merged array, with the exception of 'docker'
+  runtimes. Zip codes are extracted from each result in the merged array, excluding
+  those with the 'docker' runtime.
 interface:
   inputs:
     properties:
       functionsToBuild:
-        type: array
         items:
-          type: object
           properties:
             name:
               type: string
             source:
-              type: object
               properties:
-                repoUrl:
-                  type: string
                 path:
                   type: string
                 ref:
                   type: string
+                repoUrl:
+                  type: string
+              type: object
+          type: object
+        type: array
     required:
-      - functionsToBuild
+    - functionsToBuild
+name: build-function-code
 steps:
-  git-clone:
-    foreach: ${inputs.functionsToBuild}
-    description: Clones the specified git repository for each function to build, using the provided repository URL, path, and reference.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/extract/clone-git
+  build-nodejs20:
+    description: Automates the build process for Node.js 2.0 by iterating over each
+      runtime and its associated files, obtained from the 'get-runtime' step. The
+      step specifically targets instances where the runtime equals 'nodejs20'. It
+      utilizes the code from the 'edurata-functions' GitHub repository, specifically
+      from the 'internals/build-nodejs20' path. The code used in this step is dependent
+      on the 'repoCode' output from each repository in the previous step.
+    foreach: ${get-runtime.runtime_and_files}
+    if:
+      ===:
+      - ${each.runtime}
+      - nodejs20
     props:
-      repoUrl: ${each.source.repoUrl}
-      path: ${each.source.path}
-      ref: ${each.source.ref}
-      auth: ${each.auth}
+      code: ${each.repoCode}
+    source:
+      path: internals/build-nodejs20
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+  build-python3_10:
+    description: Automates the process of building Python 3.10 by iterating over each
+      runtime and file obtained from 'get-runtime.runtime_and_files'. The operation
+      is conditioned to only proceed if the runtime equals 'python3_10'. The code
+      for the operation is sourced from the 'build-python3_10' path in the 'edurata-functions'
+      Git repository. This step depends on the 'repoCode' output from each repository.
+    foreach: ${get-runtime.runtime_and_files}
+    if:
+      ===:
+      - ${each.runtime}
+      - python3_10
+    props:
+      code: ${each.repoCode}
+    source:
+      path: internals/build-python3_10
+      repoUrl: https://github.com/Edurata/edurata-functions.git
   get-runtime:
-    runtime: python3_10
-    description: Determines the runtime of each cloned function by reading the `.edufc.yaml` or `.edufc.yml` file in the repository. Outputs a sorted list of functions with their runtime and repository code path.
     code: |
       import os
 
@@ -64,79 +90,68 @@ steps:
               runtime_and_files.append({"runtime": runtime, "repoCode": filepath, **rest})
           sorted_runtime_and_files = sorted(runtime_and_files, key=lambda x: (x["runtime"] != "python", x["runtime"]))
           return {"runtime_and_files": sorted_runtime_and_files}
+    description: This step loads the runtime definition from a specified filepath
+      using inline code, with dependencies on the output of 'git-clone' step for the
+      repository code files and 'inputs.functionsToBuild' for additional functions
+      to build.
     interface:
       inputs:
-        type: object
         properties:
           files:
-            type: array
             items:
               type: file
-      outputs:
+            type: array
         type: object
+      outputs:
         properties:
           runtime_and_files:
-            type: array
             items:
-              type: object
               properties:
-                runtime:
-                  type: string
                 repoCode:
                   type: file
+                runtime:
+                  type: string
+              type: object
+            type: array
+        type: object
     props:
       files: ${git-clone[*].repoCode}
       rest: ${inputs.functionsToBuild}
-  build-nodejs20:
+    runtime: python3_10
+  get-upload-url:
+    description: This step retrieves the upload URL for each runtime file excluding
+      'docker' from the 'get-runtime.runtime_and_files' list. It sends an authorized
+      GET request to the API endpoint constructed with 'meta.executionToken' and 'meta.apiUrl'.
+      The request is made using the axios module from the general path in the Edurata
+      functions repository.
     foreach: ${get-runtime.runtime_and_files}
     if:
-      "===": ["${each.runtime}", "nodejs20"]
-    description: Builds the function code for Node.js 20 runtime by processing the cloned repository.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: internals/build-nodejs20
+      '!==':
+      - ${each.runtime}
+      - docker
     props:
-      code: ${each.repoCode}
-  build-python3_10:
-    foreach: ${get-runtime.runtime_and_files}
-    if:
-      "===": ["${each.runtime}", "python3_10"]
-    description: Builds the function code for Python 3.10 runtime by processing the cloned repository.
+      headers:
+        Authorization: Bearer ${meta.executionToken}
+      url: ${meta.apiUrl}/function/${each.name}/upload-url
     source:
+      path: general/axios
       repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: internals/build-python3_10
+  git-clone:
+    description: The step clones the Git repository for each function to be built
+      as specified in ${inputs.functionsToBuild}. It uses the authorization details
+      from ${each.auth}, the path from ${each.source.path}, the reference from ${each.source.ref},
+      and the repository URL from ${each.source.repoUrl}. The source code is extracted
+      from the path 'etl/extract/clone-git' in the repository 'https://github.com/Edurata/edurata-functions.git'.
+    foreach: ${inputs.functionsToBuild}
     props:
-      code: ${each.repoCode}
+      auth: ${each.auth}
+      path: ${each.source.path}
+      ref: ${each.source.ref}
+      repoUrl: ${each.source.repoUrl}
+    source:
+      path: etl/extract/clone-git
+      repoUrl: https://github.com/Edurata/edurata-functions.git
   merge-results:
-    description: Merges the results from the Node.js 20 and Python 3.10 build steps to create a single array of built function code files.
-    runtime: nodejs20
-    props:
-      results:
-        - ${build-nodejs20?}
-        - ${build-python3_10?}
-    interface:
-      inputs:
-        type: object
-        properties:
-          results:
-            type: array
-            items:
-              type: array
-              items:
-                type: object
-                properties:
-                  code:
-                    type: file
-      outputs:
-        type: object
-        properties:
-          results:
-            type: array
-            items:
-              type: object
-              properties:
-                code:
-                  type: file
     code: |
       const handler = async (event) => {
         console.log(event, event.results)
@@ -144,37 +159,68 @@ steps:
         return {results: results.flat().filter(result => result && !result.__pass__)}
       }
       module.exports = {handler}
-  get-upload-url:
-    foreach: ${get-runtime.runtime_and_files}
-    if:
-      "!==": ["${each.runtime}", "docker"]
-    description: Retrieves an upload URL for each function (excluding Docker-based functions) to upload the built code.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
+    description: Merges the results from the dependencies 'build-nodejs20' and 'build-python3_10'
+      using inline code, which flattens the results array and filters out any null
+      results or results that have passed.
+    interface:
+      inputs:
+        properties:
+          results:
+            items:
+              items:
+                properties:
+                  code:
+                    type: file
+                type: object
+              type: array
+            type: array
+        type: object
+      outputs:
+        properties:
+          results:
+            items:
+              properties:
+                code:
+                  type: file
+              type: object
+            type: array
+        type: object
     props:
-      url: "${meta.apiUrl}/function/${each.name}/upload-url"
-      headers:
-        Authorization: "Bearer ${meta.executionToken}"
-  zip-code:
+      results:
+      - ${build-nodejs20?}
+      - ${build-python3_10?}
+    runtime: nodejs20
+  upload-code:
+    description: This step uploads code using a PUT method through the 'general/axios'
+      path from the 'edurata-functions' GitHub repository. It performs this action
+      for each result in the 'merge-results.results' array, but only if the runtime
+      from 'get-runtime.runtime_and_files' is not 'docker'. The upload uses data from
+      'zip-code' and the upload URL from 'get-upload-url'.
     foreach: ${merge-results.results}
     if:
-      "!==": ["${get-runtime.runtime_and_files[each.index].runtime}", "docker"]
-    description: Compresses the built function code files into zip archives for uploading, excluding Docker-based functions.
+      '!==':
+      - ${get-runtime.runtime_and_files[each.index].runtime}
+      - docker
+    props:
+      dataFromFile: ${zip-code[each.index].zipped}
+      method: PUT
+      url: ${get-upload-url[each.index].response.data.uploadUrl}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/transform/zip
+      path: general/axios
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+  zip-code:
+    description: This step extracts zip codes from each result in the 'merge-results.results'
+      array, excluding those with the 'docker' runtime. The extraction is performed
+      using a script from the 'etl/transform/zip' path in the Edurata functions GitHub
+      repository, and it depends on the 'file' prop from the 'each.code' output.
+    foreach: ${merge-results.results}
+    if:
+      '!==':
+      - ${get-runtime.runtime_and_files[each.index].runtime}
+      - docker
     props:
       file: ${each.code}
-  upload-code:
-    foreach: ${merge-results.results}
-    if:
-      "!==": ["${get-runtime.runtime_and_files[each.index].runtime}", "docker"]
-    description: Uploads the zipped function code to the function registry using the pre-generated upload URL, excluding Docker-based functions.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: "PUT"
-      url: ${get-upload-url[each.index].response.data.uploadUrl}
-      dataFromFile: ${zip-code[each.index].zipped}
+      path: etl/transform/zip
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+title: Build function code

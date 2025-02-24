@@ -26,16 +26,16 @@ steps:
   get-job-description:
     description: Retrieve the job description from Notion.
     source:
-      repoUrl: "https://github.com/lfpmeloni/edurata.git"
-      path: functions/get_job_description
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/get_job_description
     props:
       notion_page_id: ${inputs.notion_page_id}
       notion_api_key: ${secrets.NOTION_API_KEY}
 
   extract-job-info:
     source:
-      repoUrl: "https://github.com/lfpmeloni/edurata.git"
-      path: functions/extract_job_info
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/extract_job_info
     props:
       job_description: ${get-job-description.job_description}
       openai_api_key: ${secrets.OPENAI_API_KEY}
@@ -52,8 +52,8 @@ steps:
 
   create-notion-card:
     source:
-      repoUrl: "https://github.com/lfpmeloni/edurata.git"
-      path: functions/create_notion_card
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/create_notion_card
     props:
       notion_api_key: ${secrets.NOTION_API_KEY}
       notion_database_id: ${inputs.notion_database_id}

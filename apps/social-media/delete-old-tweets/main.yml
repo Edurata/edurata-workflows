@@ -1,34 +1,33 @@
 name: delete-old-tweets-with-email
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the deletion of old tweets from a Twitter archive file. The workflow extracts the archive, filters tweets older than a given date, deletes them via the Twitter API, and sends an email update with the count of deleted tweets.
+description: The process starts with extracting data from an archive file and filtering out old tweets from the dataset. Each old tweet, identified by its ID, is deleted using a DELETE request to the Twitter API, authorized with a bearer token. A summary of the operation is then created. Finally, an email, detailing the completion of the Twitter archive cleanup process and the total number of tweets deleted, is sent using AWS email service. This workflow is defined in a configuration with detailed steps and associated code.
 interface:
   inputs:
     type: object
     properties:
       archive_file:
         type: file
-        description: "The Twitter archive file (ZIP format) containing the tweets."
+        description: The Twitter archive file (ZIP format) containing the tweets.
       cutoff_date:
         type: string
         format: date
-        description: "The date in YYYY-MM-DD format. Tweets older than this date will be deleted."
+        description: The date in YYYY-MM-DD format. Tweets older than this date will be deleted.
       email_address:
         type: string
-        description: "The email address to send the update to."
+        description: The email address to send the update to.
     required:
-      - archive_file
-      - cutoff_date
-      - email_address
+    - archive_file
+    - cutoff_date
+    - email_address
   outputs:
     type: object
     properties:
       deleted_tweets_count:
         type: number
-        description: "The number of deleted tweets."
+        description: The number of deleted tweets.
 steps:
   extract-archive:
-    description: "Extracts the contents of the Twitter archive file to obtain the tweets in JSON format."
+    description: This step involves extracting the contents from an archive file.
     runtime: python3_10
     interface:
       inputs:
@@ -37,7 +36,7 @@ steps:
       outputs:
         extracted_file:
           type: string
-          description: "The path to the extracted file with tweets in JSON format."
+          description: The path to the extracted file with tweets in JSON format.
     code: |
       import zipfile
       import os
@@ -55,9 +54,8 @@ steps:
           return {
               "extracted_file": tweet_file_path
           }
-
   filter-old-tweets:
-    description: "Filters tweets that are older than the specified cutoff date from the extracted file."
+    description: This step involves filtering out old tweets from the data set.
     runtime: python3_10
     interface:
       inputs:
@@ -103,25 +101,23 @@ steps:
           return {
               "old_tweets": old_tweets
           }
-
   delete-tweets:
-    description: "Deletes each filtered tweet using the Twitter API. If there are multiple tweets, it iterates over all of them and deletes them one by one."
+    description: This step involves deleting each old tweet, identified by its ID, using a DELETE request to the Twitter API, authorized with a bearer token.
     foreach: ${filter-old-tweets.old_tweets}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: DELETE
-      url: 'https://api.twitter.com/2/tweets/${each.id}'
+      url: https://api.twitter.com/2/tweets/${each.id}
       headers:
-        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+        Authorization: Bearer ${secrets.TWITTER_API_BEARER_TOKEN}
     outputs:
       deleted_tweets_count:
         type: number
-        description: "The number of tweets deleted."
-
+        description: The number of tweets deleted.
   summarize:
-    description: "Counts the number of tweets deleted and outputs the total count."
+    description: This step involves providing a brief summary or overview of the process in a single sentence.
     runtime: python3_10
     interface:
       inputs:
@@ -136,21 +132,20 @@ steps:
           return {
               "deleted_tweets_count": len(deleted_tweets)
           }
-
   send-email-update:
-    description: "Sends an email update containing the number of deleted tweets to the specified email address."
+    description: This step sends an email update about the completion of the Twitter archive cleanup process, including the number of tweets deleted, using AWS email service.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/send-ses  # You can replace this with any email-sending service
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/send-ses
     props:
-      sender: "noreply@yourdomain.com"
+      sender: noreply@yourdomain.com
       to: ${inputs.email_address}
-      subject: "Twitter Archive Cleanup Results"
+      subject: Twitter Archive Cleanup Results
       html_body: |
         <p>Hello,</p>
         <p>The Twitter archive cleanup process has completed successfully.</p>
         <p>Number of tweets deleted: ${summarize.deleted_tweets_count}</p>
         <p>Regards,<br/>Your Service</p>
-      AWS_REGION: "us-east-1"
+      AWS_REGION: us-east-1
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}

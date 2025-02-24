@@ -1,59 +1,53 @@
 name: workflow-blog-to-multiple-platforms
-apiRevision: "edurata.io/workflow/v1"
-description: |
-  Automates the process of retrieving a workflow definition, generating a blog post about it, and publishing it across multiple platforms, including Reddit and an internal blog. The workflow ensures that unprocessed posts are fetched, processed, and marked as published in Airtable.
+apiRevision: edurata.io/workflow/v1
+description: The process retrieves the latest unprocessed post from an Airtable table and downloads a Git repository based on the post's workflow path. It then obtains the workflow definition from the downloaded repository. The system generates blog content about the workflow using a specific model and API key. If successful, it marks the record as processed in the Airtable workflow table. Lastly, it updates a blog post in an Airtable database with the generated content and sets its 'freeToPublish' field to False.
 interface:
   inputs:
     type: object
     properties:
       new_workflow_table_id:
         type: string
-        description: "The Airtable ID in the format app/tbl for new workflows"
+        description: The Airtable ID in the format app/tbl for new workflows
       blog_posts_table_id:
         type: string
-        description: "The Airtable ID in the format app/tbl for blog posts"
+        description: The Airtable ID in the format app/tbl for blog posts
       subreddits:
         type: array
         items:
           type: string
-        description: "The subreddits to post to"
+        description: The subreddits to post to
 inputs:
   new_workflow_table_id: ${variables.new_workflow_table_id}
   blog_posts_table_id: ${variables.blog_posts_table_id}
-  subreddits: 
-    - "r/learnprogramming"
-    - "r/programming"
-    - "r/programminghumor"
-    - "r/programmingcirclejerk"
+  subreddits:
+  - r/learnprogramming
+  - r/programming
+  - r/programminghumor
+  - r/programmingcirclejerk
 steps:
   get-latest-unprocessed-post:
-    description: |
-      Retrieve the latest workflow entry from Airtable that has not yet been processed.
+    description: This step retrieves the latest unprocessed post from a specified Airtable table using a GET request, filtering for records that have not been processed and have a non-empty workflow path.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.new_workflow_table_id}"
+      url: https://api.airtable.com/v0/${inputs.new_workflow_table_id}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       params:
-        filterByFormula: "AND(NOT({processed}), {workflowPath} != '')"
+        filterByFormula: AND(NOT({processed}), {workflowPath} != '')
         limit: 1
-
   download-git-repo:
-    description: |
-      Clone the Git repository containing the workflow definition from the retrieved workflow entry.
+    description: This step involves downloading a Git repository from a specific URL and saving it to a path defined by the first record's workflow path from the latest unprocessed post.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/clone-git
     props:
       repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: ${get-latest-unprocessed-post.response.data.records[0].fields.workflowPath}
-
   get-workflow-definition:
-    description: |
-      Extract and read the workflow definition from the cloned repository to use as the basis for generating a blog post.
+    description: This step involves obtaining the definition of the workflow, dependent on the 'repoCode' from the 'download-git-repo'.
     runtime: python3_10
     interface:
       inputs:
@@ -64,59 +58,50 @@ steps:
       outputs:
         type: object
     packages:
-      PyYAML: ""
+      PyYAML: ''
     code: |
       import yaml
-      
+
       def handler(inputs):
           with open(inputs['repoCode'], 'r') as file:
               return yaml.safe_load(file)
     props:
       repoCode: ${download-git-repo.repoCode}
-
   generate-blog-content:
-    description: |
-      Use AI to generate a blog article about the workflow, including its use case and significance, based on the extracted YAML definition.
+    description: This step involves generating blog content about a given workflow and its use case, using a specific model and an API key.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       model: gpt-4o
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        You are going to receive a yaml file of a workflow. 
-        You should generate a blog article that can be posted on our blog.
-        The article should be about the workflow and its use case.
+      systemMessage: "You are going to receive a yaml file of a workflow. \nYou should generate a blog article that can be posted on our blog.\nThe article should be about the workflow and its use case.\n"
       message: ${get-workflow-definition}
-
   update-airtable-workflow:
     if:
-      "!!": ${generate-blog-content.response}
-    description: |
-      Mark the workflow entry in Airtable as processed after generating the blog content.
+      '!!': ${generate-blog-content.response}
+    description: This step updates a specific record in the Airtable workflow table to mark it as processed, if the blog content generation was successful.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: PATCH
-      url: "https://api.airtable.com/v0/${inputs.new_workflow_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}"
+      url: https://api.airtable.com/v0/${inputs.new_workflow_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       body:
         fields:
           processed: true
-
   update-airtable-blog:
-    description: |
-      Store the generated blog post in the Airtable blog posts table for publishing and tracking.
+    description: This step updates a specific blog post in an Airtable database with generated content and sets its 'freeToPublish' field to False, using a POST request.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: "https://api.airtable.com/v0/${inputs.blog_posts_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}"
+      url: https://api.airtable.com/v0/${inputs.blog_posts_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       body:
         fields:
           content: ${generate-blog-content.response}

@@ -1,8 +1,7 @@
 apiRevision: edurata.io/workflow/v1
 name: quote-forwarder
 title: Prepare text content
-description: |
-  Automates the process of fetching images from a Telegram channel, filtering for media content, analyzing images for labels and text, generating inspirational quotes based on labels, and posting the resulting content to social media.
+description: The workflow starts by fetching today's pictures from a specified Telegram account and saving them in a designated directory. It then filters the pictures to select those containing media. Using AWS credentials, it processes the selected media files to extract labels and text. Following this, it generates an inspiring quote for each label using the OpenAI API. Finally, the workflow pushes these images and messages to a specific platform using a bearer token for authentication.
 interface:
   inputs:
     properties:
@@ -11,25 +10,23 @@ interface:
         description: |
           The telegram account id to fetch the pictures from.
     required:
-      - sourceTelegramAccount
+    - sourceTelegramAccount
 steps:
   get-telegram-pictures-today:
-    description: |
-      Fetches the latest posts from a specified Telegram channel, retrieving media content posted today.
+    description: This step retrieves today's pictures from a specified Telegram account using the Telegram API and saves them to a designated image directory.
     cache: true
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/fetch-telegram
     props:
       TELEGRAM_API_HASH: ${secrets.TELEGRAM_API_HASH}
       TELEGRAM_API_ID: ${variables.TELEGRAM_API_ID}
       TELEGRAM_API_SESSION: ${secrets.TELEGRAM_API_SESSION}
-      sinceDays: "0"
+      sinceDays: '0'
       channelId: ${inputs.sourceTelegramAccount}
       imageDir: ${meta.cacheMountDir}/images/telegram/${meta.executionId}
   filter-for-with-media:
-    description: |
-      Filters the retrieved Telegram posts to include only those that contain media files.
+    description: This step involves filtering the posts from today's Telegram pictures for those that include media.
     runtime: python3_10
     interface:
       inputs:
@@ -59,20 +56,20 @@ steps:
       posts: ${get-telegram-pictures-today.posts}
   extract-info:
     foreach: ${filter-for-with-media.posts[*].mediaPath}
-    description: |
-      Extracts text content and image labels using AWS Rekognition to analyze the media files.
+    description: This step extracts information from each media file in the filtered posts, specifically labels and text, using specified AWS credentials.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/analyse-image-aws-rekognition
     props:
       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
       AWS_REGION: ${secrets.AWS_REGION}
       image_file: ${each}
-      types: ["labels", "text"]
+      types:
+      - labels
+      - text
   extract-usable-images:
-    description: |
-      Filters out images containing text and excludes certain labels such as "Person" and "Cartoon." Returns a set of images deemed suitable for generating quotes.
+    description: This step involves extracting usable images from the information obtained in the 'extract-info' step.
     runtime: python3_10
     code: |
       def handler(event):
@@ -91,8 +88,7 @@ steps:
       picture_info: ${extract-info}
   generate-quotes:
     foreach: ${extract-usable-images.useful_pictures}
-    description: |
-      Generates an inspirational quote related to the extracted labels of the selected images.
+    description: This step generates an inspiring quote for each label from the useful pictures extracted in the previous step, using the OpenAI API.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
@@ -103,10 +99,9 @@ steps:
         Find a suitable inspiring quote for the labels: ${each.labels}
   push-to-x:
     foreach: ${extract-usable-images.useful_pictures}
-    description: |
-      Posts the generated quote along with the corresponding image to an X (formerly Twitter) account.
+    description: This step pushes a message and media content to a specified platform, iterating over each useful picture extracted from a previous step, using a bearer token for authentication.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/tweet
     props:
       BEARER_TOKEN: ${secrets.TWITTER_API_BEARER_TOKEN}

@@ -1,63 +1,55 @@
 name: email-unsubscribe-service
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of identifying and consolidating unsubscribe links from recent emails. 
-  The workflow retrieves customer details, scans the last three months of emails, extracts unsubscribe links, 
-  consolidates them into a single list, and generates an email containing these links for easy access.
+description: The workflow automates the process of identifying and consolidating unsubscribe links from recent emails. It retrieves customer details from a specific Airtable using the user's email. Then, it fetches the 100 most recent emails from the user's Gmail account that match a certain query and were received in the last three months. The workflow extracts unsubscribe links from each email and gathers them into a single list. Finally, it generates an HTML document body containing these links.
 interface:
   inputs:
     type: object
     properties:
       userEmail:
         type: string
-        description: "Email account to scan"
+        description: Email account to scan
     required:
-      - userEmail
+    - userEmail
   outputs:
     type: object
     properties:
       email_sent:
         type: boolean
-        description: "Indicates if the summary email was successfully sent"
+        description: Indicates if the summary email was successfully sent
 inputs:
   customerTableId: ${variables.applicationConfig.unsubscribeBot.peopleTableId}
 steps:
   get-customer-details:
-    description: |
-      Retrieves customer details, including email and CV, from the Airtable database using the provided user email.
+    description: This step retrieves customer details from a specific Airtable using a GET request, filtering the data based on the user's email.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.customerTableId}"
+      url: https://api.airtable.com/v0/${inputs.customerTableId}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       params:
-        filterByFormula: "email = '${inputs.userEmail}'"
+        filterByFormula: email = '${inputs.userEmail}'
   get-recent-emails:
-    description: |
-      Fetches all emails received in the past three months from the user's Gmail account.
-      The emails are retrieved using the Gmail API and filtered based on the timestamp.
+    description: This step retrieves the 100 most recent emails from the user's Gmail account that match a specific query and were received in the last three months, using the Gmail API.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       url: https://www.googleapis.com/gmail/v1/users/me/messages
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
       params:
-        q: "after:3m ${inputs.email_query}"
+        q: after:3m ${inputs.email_query}
         maxResults: 100
   extract-unsubscribe-links:
     foreach: ${get-recent-emails.messages}
-    description: |
-      Scans the body of each retrieved email for unsubscribe links and extracts them.
-      If multiple unsubscribe links are found in an email, they are all collected.
+    description: This step involves extracting unsubscribe links from each of the recent emails received.
     runtime: python3_10
     code: |
       import re
-      
+
       def handler(inputs):
           email_body = inputs["email_body"]
           unsubscribe_links = re.findall(r'<a[^>]+href="([^"]+)"[^>]*>Unsubscribe</a>', email_body, re.IGNORECASE)
@@ -66,16 +58,15 @@ steps:
       inputs:
         email_body:
           type: string
-          description: "HTML body of the email"
+          description: HTML body of the email
       outputs:
         unsubscribe_links:
           type: array
           items:
             type: string
-            description: "List of unsubscribe links found in the email"
+            description: List of unsubscribe links found in the email
   collect-all-links:
-    description: |
-      Aggregates all unsubscribe links extracted from multiple emails and removes duplicates.
+    description: This step involves gathering all necessary links for the workflow process.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -101,9 +92,7 @@ steps:
           items:
             type: string
   generate-html-body:
-    description: |
-      Creates an HTML-formatted email body containing all extracted unsubscribe links, 
-      making it easy for the user to review and unsubscribe from unwanted services.
+    description: This step involves creating the body content of an HTML document.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -122,4 +111,4 @@ steps:
       outputs:
         html_body:
           type: string
-          description: "HTML body with unsubscribe links"
+          description: HTML body with unsubscribe links

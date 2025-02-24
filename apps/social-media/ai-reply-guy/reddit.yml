@@ -1,7 +1,6 @@
 name: reddit-reply-bot
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of searching Reddit for posts containing specific keywords and replying with AI-generated responses. The bot retrieves contextual information from Airtable, formats a Reddit search query, finds relevant posts, generates replies using AI, and posts them as comments while adhering to Reddit's rate limits.
+description: The workflow begins by pulling data from an Airtable table, filtered by user's email. Then, it prepares a Reddit query using the data from the previous step. Next, a search on Reddit is conducted using specific parameters and authorization. A casual reply to a Reddit post is then generated, impersonating a startup CTO, and suggesting a digital product if relevant. Finally, these replies are posted to each Reddit comment using the Reddit API.
 interface:
   inputs:
     properties:
@@ -12,100 +11,71 @@ interface:
         type: string
         description: The Airtable table containing context for generating replies.
   required:
-    - userEmail
-    - airtableTableId
-inputs: 
+  - userEmail
+  - airtableTableId
+inputs:
   airtableTableId: ${variables.applicationConfig.replyBot.peopleTableId}
 steps:
   retrieve-context:
-    description: |
-      Fetch user-specific contextual data from Airtable, including search terms and business details, to personalize AI-generated Reddit replies.
+    description: This step retrieves data from a specific Airtable table using a GET request, filtering the data by the user's email.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.airtableTableId}"
+      url: https://api.airtable.com/v0/${inputs.airtableTableId}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       params:
-        filterByFormula: "email = '${inputs.userEmail}'"
-  
+        filterByFormula: email = '${inputs.userEmail}'
   prepare-reddit-query:
-    description: |
-      Convert a list of search terms retrieved from Airtable into a properly formatted Reddit search query for finding relevant posts.
+    description: This step involves preparing a query for Reddit based on the search terms obtained from the response data of the previous step.
     runtime: python3_10
-    code: |
-      def handler(inputs):
-          terms_string = inputs.get("terms_string", "")
-          
-          terms = [term.strip() for term in terms_string.split(",") if term.strip()]
-
-          # join with selftext:{term} and separated by whitespace
-          reddit_query = " ".join([f"selftext:\"{term}\"" for term in terms])
-          # add self:true before
-          reddit_query = f"self:true {reddit_query}"
-          return {
-              "reddit_query": reddit_query
-          }
+    code: "def handler(inputs):\n    terms_string = inputs.get(\"terms_string\", \"\")\n    \n    terms = [term.strip() for term in terms_string.split(\",\") if term.strip()]\n\n    # join with selftext:{term} and separated by whitespace\n    reddit_query = \" \".join([f\"selftext:\\\"{term}\\\"\" for term in terms])\n    # add self:true before\n    reddit_query = f\"self:true {reddit_query}\"\n    return {\n        \"reddit_query\": reddit_query\n    }\n"
     props:
       terms_string: ${retrieve-context.response.data.records[0].fields.searchTerms}
-  
   search-reddit:
-    description: |
-      Execute a Reddit search using the formatted query to find posts that match the specified keywords, retrieving the top 10 results.
+    description: This step is searching Reddit using a GET request, with the search query, limit, and sort order specified in the parameters, and authorization provided via a bearer token.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
       url: https://oauth.reddit.com/search
       headers:
-        Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
-        User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
+        Authorization: Bearer ${secrets.REDDIT_ACCESS_TOKEN}
+        User-Agent: Reddit-Reply-Bot/0.1 by Edurata
       params:
         q: ${prepare-reddit-query.reddit_query}
         limit: 10
-        sort: "top"
-  
+        sort: top
   generate-reply:
     model: gpt-4o
     foreach: ${search-reddit.response.data.data.children}
-    description: |
-      Generate a short, contextually relevant AI response to each retrieved Reddit post, using business context from Airtable to craft appropriate suggestions.
+    description: Generate a brief, casual reply to a Reddit post, impersonating a startup CTO, using the given post text and business/product description, and suggest the digital product if applicable.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        Craft a reply to the following Reddit post, impersonating a CTO of a startup managing a digital product.
-        Don't be overly friendly or overly formal. Be like a typical redditor just typing this within a minute without much thought.
-        Use the following data:
-        - Post text: ${each.data.selftext}
-        - Business/Product description: ${retrieve-context.response.data.records[0].fields.businessDescription}
-        If the digital product is possible to integrate in the response, suggest it but very shortly. 
-        The majority of the response should be about the post itself.
-        The comment should be no longer than 5 sentences and in general very short.
-      message: "Generate a reply."
-  
+      systemMessage: "Craft a reply to the following Reddit post, impersonating a CTO of a startup managing a digital product.\nDon't be overly friendly or overly formal. Be like a typical redditor just typing this within a minute without much thought.\nUse the following data:\n- Post text: ${each.data.selftext}\n- Business/Product description: ${retrieve-context.response.data.records[0].fields.businessDescription}\nIf the digital product is possible to integrate in the response, suggest it but very shortly. \nThe majority of the response should be about the post itself.\nThe comment should be no longer than 5 sentences and in general very short.\n"
+      message: Generate a reply.
   post-reply:
     foreach: ${search-reddit.response.data.data.children}
-    concurrency: 1 # Ensure we don't hit Reddit's rate limits
-    delay: 15 # Delay between requests to avoid rate limits
-    description: |
-      Post each AI-generated reply as a comment on the corresponding Reddit post, ensuring compliance with Reddit’s rate-limiting policies.
+    concurrency: 1
+    delay: 15
+    description: This step posts a reply to each Reddit comment fetched from the previous step, using the Reddit API.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: "https://oauth.reddit.com/api/comment"
+      url: https://oauth.reddit.com/api/comment
       headers:
-        Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
-        User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
-        Content-Type: "application/x-www-form-urlencoded"
+        Authorization: Bearer ${secrets.REDDIT_ACCESS_TOKEN}
+        User-Agent: Reddit-Reply-Bot/0.1 by Edurata
+        Content-Type: application/x-www-form-urlencoded
       data:
-        api_type: "json"
-        text: "${generate-reply[each.index].response}"
-        thing_id: "${each.data.name}"
+        api_type: json
+        text: ${generate-reply[each.index].response}
+        thing_id: ${each.data.name}

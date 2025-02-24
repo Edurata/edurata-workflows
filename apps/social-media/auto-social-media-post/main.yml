@@ -1,68 +1,61 @@
 name: airtable-blog-to-multiple-platforms
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the retrieval of the latest unprocessed blog post from Airtable, checks user settings to determine the enabled publishing platforms, formats the content appropriately for each platform using ChatGPT, and publishes the post to the selected platforms (Reddit, LinkedIn, Twitter/X). After successful publication, the workflow updates Airtable with the URLs of the published posts and marks the post as processed.
+description: The workflow automates the process of posting blog content across various platforms. It retrieves user settings and the latest unprocessed blog post from an Airtable database. Depending on user settings, it generates and posts content on Reddit, LinkedIn, and Twitter. The content includes a Reddit post with a blog teaser, a summarized version of the blog for LinkedIn, and a teaser for Twitter. Lastly, the workflow updates the Airtable record with the URLs of the shared posts and marks the post as released.
 interface:
   inputs:
     type: object
     properties:
       user_table_id:
         type: string
-        description: "The Airtable ID in the format app/tbl for user"
+        description: The Airtable ID in the format app/tbl for user
       blog_posts_table_id:
         type: string
-        description: "The Airtable ID in the format app/tbl for blog posts"
+        description: The Airtable ID in the format app/tbl for blog posts
       user_email:
         type: string
-        description: "The email of the current user"
+        description: The email of the current user
 steps:
   get-user-settings:
-    description: |
-      Fetches user settings from Airtable to determine which platforms (Reddit, LinkedIn, Twitter/X) are enabled for publishing.
+    description: This step retrieves the user settings from an Airtable database using a GET request, filtering by the user's email.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.user_table_id}"
+      url: https://api.airtable.com/v0/${inputs.user_table_id}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       params:
-        filterByFormula: "{email}='${inputs.user_email}'"
+        filterByFormula: '{email}=''${inputs.user_email}'''
   get-latest-unprocessed-post:
-    description: |
-      Retrieves the latest blog post from Airtable that has not yet been processed, limiting the response to one post.
+    description: This step retrieves the latest unprocessed blog post from an Airtable database using a GET request, filtering for posts with a status that is not 'processed', and limiting the results to one entry.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.blog_posts_table_id}"
+      url: https://api.airtable.com/v0/${inputs.blog_posts_table_id}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       params:
-        filterByFormula: "AND({status}!='processed')"
+        filterByFormula: AND({status}!='processed')
         limit: 1
   generate-post-reddit:
-    description: |
-      Formats the blog post for Reddit by creating a teaser and linking back to the full blog post. Iterates over both the title and content of the retrieved post.
+    description: This step generates a Reddit post by formatting a blog post with a teaser and a link to the blog, using the title and content of the latest unprocessed post.
     foreach:
-      - "title"
-      - "content"
+    - title
+    - content
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        You are going to receive a blog post. Format it so it can be posted with a teaser to reddit and then linking to the blog link. 
-        Return only the string ${each}.
+      systemMessage: "You are going to receive a blog post. Format it so it can be posted with a teaser to reddit and then linking to the blog link. \nReturn only the string ${each}.\n"
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   generate-post-linkedin:
-    description: |
-      Formats the blog post for LinkedIn by creating a summarized teaser.
+    description: This step generates a summarized version of the latest unprocessed blog post to be used as a teaser on LinkedIn.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
@@ -71,10 +64,9 @@ steps:
         Return only the content.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   generate-post-x:
-    description: |
-      Formats the blog post for Twitter/X by creating a concise teaser suitable for a tweet.
+    description: This step generates a summarized version of a received blog post, which will be posted as a teaser on a platform formerly known as Twitter.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
@@ -83,78 +75,74 @@ steps:
         Return only the tweet.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
   post-to-reddit:
-    description: |
-      Publishes the formatted post to Reddit if the user has enabled Reddit in their settings. Iterates over all specified subreddits.
+    description: This step posts content to specified subreddits on Reddit using the user's access token, if Reddit posting is enabled in the user's settings.
     if:
       and:
-        - in:
-          - "redditPost"
-          - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-        - "!!": ${get-user-settings.response.data.records[0].fields.subReddits}
+      - in:
+        - redditPost
+        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+      - '!!': ${get-user-settings.response.data.records[0].fields.subReddits}
     foreach: ${get-user-settings.response.data.records[0].fields.subReddits}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: "https://oauth.reddit.com/api/submit"
+      url: https://oauth.reddit.com/api/submit
       headers:
-        Authorization: "Bearer ${secrets.REDDIT_ACCESS_TOKEN}"
-        User-Agent: "Reddit-Reply-Bot/0.1 by Edurata"
-        Content-Type: "application/x-www-form-urlencoded"
+        Authorization: Bearer ${secrets.REDDIT_ACCESS_TOKEN}
+        User-Agent: Reddit-Reply-Bot/0.1 by Edurata
+        Content-Type: application/x-www-form-urlencoded
       data:
-        api_type: "json"
-        sr: "${each}"
+        api_type: json
+        sr: ${each}
         title: ${generate-post-reddit[0].response}
-        kind: "self"
+        kind: self
         text: ${generate-post-reddit[1].response}
   post-to-linkedin:
-    description: |
-      Publishes the formatted post to LinkedIn if the user has enabled LinkedIn in their settings.
+    description: This step posts a message to LinkedIn using the LinkedIn API, provided that the user has enabled LinkedIn as a target in their settings.
     if:
       in:
-        - "linkedinPost"
-        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+      - linkedinPost
+      - ${get-user-settings.response.data.records[0].fields.enabledTargets}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: "https://api.linkedin.com/v2/shares"
+      url: https://api.linkedin.com/v2/shares
       headers:
-        Authorization: "Bearer ${secrets.LINKEDIN_API_KEY}"
+        Authorization: Bearer ${secrets.LINKEDIN_API_KEY}
       data:
-        owner: "urn:li:person:123456789"
+        owner: urn:li:person:123456789
         text: ${generate-post-linkedin.response}
   post-to-twitter:
-    description: |
-      Publishes the formatted post to Twitter/X if the user has enabled Twitter/X in their settings.
+    description: This step posts a tweet to Twitter using the POST method, with the content of the tweet being the response from the generate-post-x step, but only if 'twitterPost' is included in the user's enabled targets.
     if:
       in:
-        - "twitterPost"
-        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+      - twitterPost
+      - ${get-user-settings.response.data.records[0].fields.enabledTargets}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: "https://api.twitter.com/2/tweets"
+      url: https://api.twitter.com/2/tweets
       headers:
-        Authorization: "Bearer ${secrets.TWITTER_BEARER_TOKEN}"
-        Content-Type: "application/json"
+        Authorization: Bearer ${secrets.TWITTER_BEARER_TOKEN}
+        Content-Type: application/json
       data:
         text: ${generate-post-x.response}
   update-airtable:
-    description: |
-      Updates Airtable with the URLs of the published posts on LinkedIn, Reddit, and Twitter/X and marks the post as processed.
+    description: This step updates an Airtable record with the URLs of the blog post shared on LinkedIn, Reddit, and Twitter, and marks the post as released.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: PATCH
-      url: "https://api.airtable.com/v0/${inputs.blog_posts_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}"
+      url: https://api.airtable.com/v0/${inputs.blog_posts_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       body:
         fields:
           linkedinUrl: ${post-to-linkedin.response.url}

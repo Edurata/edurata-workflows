@@ -1,12 +1,10 @@
 name: wg-gesucht-application-bot-fetch-stripe-charges
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of fetching Stripe charges from the past 24 hours, extracting relevant metadata, and updating Airtable with the user's pro status. It retrieves charges, processes metadata, triggers updates, and schedules user pro status in the system.
+description: The workflow automates the process of fetching Stripe charges from the last 24 hours, extracting metadata, and updating user's pro status in the system. It starts by obtaining the epoch time for 24 hours ago, then fetches successful Stripe charges using a GET request to the Stripe API. The next step involves retrieving metadata from the fetched Stripe charges. It then retrieves trigger information for each deployment from an API endpoint using deployment ID and email as parameters. Finally, it updates the trigger for each item in the metadata by sending a POST request to a specified URL, including schedule, disabled status, expiry date, and variables such as email and 'isPro' status in the data.
 steps:
   get-24h-back-epoch-time:
     runtime: python3_10
-    description: |
-      Calculates and returns the epoch timestamp for 24 hours ago to filter relevant Stripe charges.
+    description: This step involves obtaining the epoch time for 24 hours ago.
     code: |
       from datetime import datetime, timedelta
       def handler(inputs):
@@ -17,88 +15,51 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
-    description: |
-      Fetches successful Stripe charges created in the last 24 hours using the epoch time from the previous step.
+    description: This step fetches successful Stripe charges from customers created in the last 24 hours using a GET request to the Stripe API.
     props:
       method: GET
-      url: "https://api.stripe.com/v1/customers/search"
+      url: https://api.stripe.com/v1/customers/search
       headers:
-        Authorization: "Bearer ${secrets.STRIPE_API_KEY}"
+        Authorization: Bearer ${secrets.STRIPE_API_KEY}
       params:
-        query: "created>${get-24h-back-epoch-time.epoch_time} status:\"succeeded\""
-        "expand[]": "data.customer"
+        query: created>${get-24h-back-epoch-time.epoch_time} status:"succeeded"
+        expand[]: data.customer
   get-metadata-from-charges:
     runtime: python3_10
-    description: |
-      Extracts metadata from the fetched Stripe charges, including email, deployment ID, schedule, and expiration date, and maps payment amounts to deployment configurations.
-    code: |
-      import random
-      from datetime import datetime, timedelta
-
-      def handler(inputs):
-          charges = inputs['fetch-stripe-charges']['data']
-          applicationConfig = inputs['applicationConfig']
-          metadata = []
-          amountToDeploymentId = {}
-
-          # Map amount to deploymentId
-          amountToDeploymentId[wohnungsBot.proMonthlyAmount] = applicationConfig['wohnungsBot']['deploymentId']
-
-          for charge in charges:
-              # Ensure necessary fields are present to avoid KeyError
-              amount = charge.get('amount')
-              date = charge.get('created')
-              customer = charge.get('customer', {})
-              email = customer.get('customer_email')
-              created = charge.get('created')
-              deploymentId = amountToDeploymentId.get(amount)
-              randomHourlySchedule = random.randint(0, 23)
-              cron = f'{randomHourlySchedule} * * * *'
-              in_one_month_iso_after_creation = datetime.fromisoformat(created) + timedelta(days=30) 
-              if deploymentId:
-                metadata.append({
-                    'email': email,
-                    'deploymentId': deploymentId,
-                    'created': created,
-                    'schedule': cron,
-                    'expireDate': in_one_month_iso_after_creation
-                })
-
-          return {'metadata': metadata}
+    description: This step involves retrieving metadata from Stripe charges using application configuration and data from the previous 'fetch-stripe-charges' step.
+    code: "import random\nfrom datetime import datetime, timedelta\n\ndef handler(inputs):\n    charges = inputs['fetch-stripe-charges']['data']\n    applicationConfig = inputs['applicationConfig']\n    metadata = []\n    amountToDeploymentId = {}\n\n    # Map amount to deploymentId\n    amountToDeploymentId[wohnungsBot.proMonthlyAmount] = applicationConfig['wohnungsBot']['deploymentId']\n\n    for charge in charges:\n        # Ensure necessary fields are present to avoid KeyError\n        amount = charge.get('amount')\n        date = charge.get('created')\n        customer = charge.get('customer', {})\n        email = customer.get('customer_email')\n        created = charge.get('created')\n        deploymentId = amountToDeploymentId.get(amount)\n        randomHourlySchedule = random.randint(0, 23)\n        cron = f'{randomHourlySchedule} * * * *'\n        in_one_month_iso_after_creation = datetime.fromisoformat(created) + timedelta(days=30) \n        if deploymentId:\n          metadata.append({\n              'email': email,\n              'deploymentId': deploymentId,\n              'created': created,\n              'schedule': cron,\n              'expireDate': in_one_month_iso_after_creation\n          })\n\n    return {'metadata': metadata}\n"
     props:
       applicationConfig: ${variables.applicationConfig}
       fetch-stripe-charges: ${fetch-stripe-charges.response.data}
   get-trigger:
     foreach: ${get-metadata-from-charges.metadata}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
-    description: |
-      Iterates over the extracted metadata to check for existing deployment triggers for each user based on their email.
+    description: This step retrieves the trigger information for each deployment from an API endpoint, using the deployment ID and email as parameters, and authorizes the request using a bearer token.
     props:
       url: ${meta.apiUrl}/deployment/${each.deploymentId}/trigger
       method: GET
       headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
-      data: 
+        Authorization: Bearer ${secrets.EDURATA_API_KEY}
+      data:
         name:
           eq: ${each.email}
   update-trigger:
     foreach: ${get-metadata-from-charges.metadata}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
-    description: |
-      Iterates over the extracted metadata and updates the deployment trigger with a new schedule, enabling the user's pro status and setting an expiration date.
+    description: This step updates the trigger for each item in the metadata from charges, by sending a POST request to a specified URL, with the schedule, disabled status, expiry date, and variables such as email and 'isPro' status included in the data.
     props:
       url: ${meta.apiUrl}/deployment/${variables.applicationConfig.wohnungsBot.deploymentId}/trigger/${get-trigger.response.data.items[0].id}
       method: POST
       headers:
-        Authorization: "Bearer ${secrets.EDURATA_API_KEY}"
+        Authorization: Bearer ${secrets.EDURATA_API_KEY}
       data:
         schedule: ${each.schedule}
         disabled: false
         expireDate: ${each.expireDate}
-        variables: 
+        variables:
           email: ${each.email}
           isPro: true

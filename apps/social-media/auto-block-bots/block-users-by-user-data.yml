@@ -1,9 +1,8 @@
 apiRevision: edurata.io/workflow/v1
 name: block-x-bots-by-archive
-title: 
-schedule: "0 8 * * *"
-description: |
-  Automates the process of identifying and blocking bot followers on Twitter by analyzing an archive of user data, checking follower metrics, detecting suspicious accounts, and blocking them if necessary.
+title: null
+schedule: 0 8 * * *
+description: The process begins by retrieving a Twitter user's ID and checking their follower count through GET requests to the Twitter API. If the follower count exceeds a limit, the process is cancelled. If not, the latest 100 followers of the user are fetched, including their join date and public metrics. Using a specific algorithm, bots are identified from these new followers and are blocked via a POST request to the Twitter API. Finally, an email is sent as part of the workflow automation process.
 interface:
   inputs:
     properties:
@@ -18,26 +17,24 @@ interface:
 steps:
   get-user-id:
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: 'https://api.twitter.com/2/users/by/username/${inputs.user_handle}'
+      url: https://api.twitter.com/2/users/by/username/${inputs.user_handle}
       headers:
-        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
-    description: |
-      Retrieves the user ID associated with the given Twitter handle to be used in subsequent API requests.
+        Authorization: Bearer ${secrets.TWITTER_API_BEARER_TOKEN}
+    description: This step retrieves the user ID of a specified Twitter user by making a GET request to the Twitter API, using a provided user handle and an authorization token.
   check-follower-count:
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: 'https://api.twitter.com/2/users/${get-user-id.response.data.data.id}?user.fields=public_metrics'
+      url: https://api.twitter.com/2/users/${get-user-id.response.data.data.id}?user.fields=public_metrics
       headers:
-        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
-    description: |
-      Fetches the follower count and other public metrics for the user to determine if further analysis should proceed.
+        Authorization: Bearer ${secrets.TWITTER_API_BEARER_TOKEN}
+    description: This step performs a GET request to the Twitter API to check the follower count of a specific user using their user ID and the authorization bearer token.
   cancel-if-too-many-followers:
     code: |
       def handler(inputs):
@@ -48,20 +45,18 @@ steps:
             cancel: False
         }
     props:
-      follower_count: '${check-follower-count.response.data.data.public_metrics.followers_count}'
-    description: |
-      If the user has more than 1,000 followers, the process is canceled to avoid unnecessary processing on large accounts.
+      follower_count: ${check-follower-count.response.data.data.public_metrics.followers_count}
+    description: This step involves cancelling the process if the follower count, obtained from the response data of the 'check-follower-count' step, exceeds a certain limit.
   get-new-followers:
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: 'https://api.twitter.com/2/users/${get-user-id.response.data.data.id}/followers?max_results=100&user.fields=created_at,public_metrics'
+      url: https://api.twitter.com/2/users/${get-user-id.response.data.data.id}/followers?max_results=100&user.fields=created_at,public_metrics
       headers:
-        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
-    description: |
-      Retrieves the latest followers of the user, including their creation date and public metrics, to analyze for bot activity.
+        Authorization: Bearer ${secrets.TWITTER_API_BEARER_TOKEN}
+    description: This step retrieves the most recent 100 followers of a specific user from Twitter's API, including the date they joined Twitter and their public metrics, using a GET method and the user's ID and bearer token for authorization.
   find-bots:
     foreach: ${get-new-followers.response.data.data}
     code: |
@@ -78,23 +73,20 @@ steps:
             bot_followers: bot_followers
         }
     props:
-      followers: '${get-new-followers.response.data.data}'
-    description: |
-      Iterates over all newly retrieved followers and identifies potential bot accounts based on an imbalance between followers and following counts.
+      followers: ${get-new-followers.response.data.data}
+    description: This step involves identifying bots from a list of new followers using a specific algorithm or process.
   block-user:
     foreach: ${find-bots.bot_followers}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: 'https://api.twitter.com/2/users/${inputs.your_user_id}/blocking'
+      url: https://api.twitter.com/2/users/${inputs.your_user_id}/blocking
       headers:
-        Authorization: "Bearer ${secrets.TWITTER_API_BEARER_TOKEN}"
+        Authorization: Bearer ${secrets.TWITTER_API_BEARER_TOKEN}
       data:
-        target_user_id: '${each.id}'
-    description: |
-      Blocks each detected bot follower from the user's account to prevent further interaction.
+        target_user_id: ${each.id}
+    description: This step blocks each user identified as a bot follower on Twitter by sending a POST request to Twitter's API.
   send-email:
-    description: |
-      Sends a summary email with details of the blocked accounts and the filtering criteria used.
+    description: This step involves sending an email as part of the workflow automation process.

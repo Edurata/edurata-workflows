@@ -1,9 +1,8 @@
 apiRevision: edurata.io/workflow/v1
 name: pitch-bot
 title: Pitch Bot
-schedule: "*/10 8-20 * * *"
-description: |
-  Automates the process of identifying potential clients, extracting company information from their websites, generating personalized pitch emails, sending them out, and updating CRM systems (HubSpot and Airtable) accordingly.
+schedule: '*/10 8-20 * * *'
+description: The workflow retrieves unprocessed company data from a specific Airtable URL, adds a website from an email based on this data, and extracts further company information by crawling these websites. It generates a personalized pitch email in German for each company, including an AI-generated, attention-grabbing subject line. The personalized emails are sent to each company using the sender's email. It also prepares HubSpot contacts and companies using the retrieved website data, creating new contact entries in HubSpot for each contact, linked to the corresponding company ID. Finally, the 'processed' field for each record in the Airtable is updated to true, indicating completion.
 inputs:
   company_table_id: ${variables.company_table_id}
   sender_name: ${variables.ceo_name}
@@ -39,14 +38,13 @@ interface:
 steps:
   get-company-data:
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: "https://api.airtable.com/v0/${inputs.company_table_id}?filterByFormula=AND(NOT({processed}), NOT({email} = ''), NOT({company_name} = ''), NOT({first_name} = ''), NOT({last_name} = ''), NOT({title} = ''), NOT({MANational} = '0'))&maxRecords=${inputs.limit}"
+      url: https://api.airtable.com/v0/${inputs.company_table_id}?filterByFormula=AND(NOT({processed}), NOT({email} = ''), NOT({company_name} = ''), NOT({first_name} = ''), NOT({last_name} = ''), NOT({title} = ''), NOT({MANational} = '0'))&maxRecords=${inputs.limit}
       headers:
-        Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
-    description: |
-      Fetches company data from an Airtable database, filtering out already processed companies and ensuring necessary fields are available. Limits the number of records based on the input parameter.
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+    description: This step retrieves company data from a specific Airtable URL, filtering for records that haven't been processed and contain valid email, company name, first name, last name, title, and are not marked as '0' in the 'MANational' field, up to a specified limit.
   add-website-from-email:
     runtime: python3_10
     code: |
@@ -66,18 +64,16 @@ steps:
           }
     props:
       get-company-data: ${get-company-data}
-    description: |
-      Extracts company and contact details from the fetched Airtable data and generates website URLs based on email domains.
+    description: This step involves adding a website from an email based on the company data obtained from the 'get-company-data' step.
   extract-company-info:
     foreach: ${add-website-from-email.companies}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/extract-text-from-webpage
     props:
       url: ${each.website}
       CRAWL_PASSWORD: ${secrets.CRAWL_PASSWORD}
-    description: |
-      Extracts textual content from the website of each company to gather insights for pitch generation.
+    description: This step involves extracting company information by crawling each company's website from the list obtained from the 'add-website-from-email' process, using a specific crawl password.
   generate-body:
     foreach: ${add-website-from-email.companies}
     source:
@@ -88,24 +84,8 @@ steps:
       systemMessage: You are an assistant that extracts information from a text and generates an email body from it.
       description: |
         Generates a personalized pitch email using extracted website data, presenting a free consultation offer and company introduction.
-      message: |
-        Ich bin ${inputs.sender_name}. Unser Unternehmen heißt ${inputs.sender_company_name}. Die Unternehmensbeschreibung lautet wie folgt: 
-        Unser Unternehmen bietet flexible, kostengünstige Automatisierungslösungen für den Mittelstand im DACH-Raum auf eigener Plattform mit Allround Betrieb und Wartung. Dank unserer erfahrenen Berater und bausteinartigen Programmierung entwickeln wir skalierbare Software schnell und effizient, wobei der Quellcode stets bei Ihnen bleibt.
-
-
-        Ich möchte, dass du einen E-Mail-Text für einen unserer Kunden ${each.ceo_name} des Unternehmens ${each.company_name} generierst.
-
-        Analysiere den folgenden Text, der von der Website des Kunden ${each.company_name} extrahiert wurde.
-        Generiere einen E-Mail-Text auf deutsch in der folgenden Struktur:
-        - Angebot von kostenlosem einstündigem Beratungsgespräch durch mich zu Cloud und Softwarelösungen.
-        - Vorstellung von unserem Unternehmen und unseren Lösungen.
-        - Detaillierte Beispiele für potenzielle Lösungen durch uns für den Kunden.
-        - Die E-Mail sollte professionell sein aber auch spannend. Verwende keine Floskeln.
-        - Erwähne am Ende auch, dass die E-Mail von einer unserer KI-Lösungen generiert wurde und die tatsächlichen Anwendungsfälle in dem kostenlosen Beratungsgespräch besprochen werden können.
-        - Gib nur den E-Mail-Text mit Grußwort zurück ohne Betreff.
-
-        Text:
-        ${extract-company-info[each.index].text}
+      message: "Ich bin ${inputs.sender_name}. Unser Unternehmen heißt ${inputs.sender_company_name}. Die Unternehmensbeschreibung lautet wie folgt: \nUnser Unternehmen bietet flexible, kostengünstige Automatisierungslösungen für den Mittelstand im DACH-Raum auf eigener Plattform mit Allround Betrieb und Wartung. Dank unserer erfahrenen Berater und bausteinartigen Programmierung entwickeln wir skalierbare Software schnell und effizient, wobei der Quellcode stets bei Ihnen bleibt.\n\n\nIch möchte, dass du einen E-Mail-Text für einen unserer Kunden ${each.ceo_name} des Unternehmens ${each.company_name} generierst.\n\nAnalysiere den folgenden Text, der von der Website des Kunden ${each.company_name} extrahiert wurde.\nGeneriere einen E-Mail-Text auf deutsch in der folgenden Struktur:\n- Angebot von kostenlosem einstündigem Beratungsgespräch durch mich zu Cloud und Softwarelösungen.\n- Vorstellung von unserem Unternehmen und unseren Lösungen.\n- Detaillierte Beispiele für potenzielle Lösungen durch uns für den Kunden.\n- Die E-Mail sollte professionell sein aber auch spannend. Verwende keine Floskeln.\n- Erwähne am Ende auch, dass die E-Mail von einer unserer KI-Lösungen generiert wurde und die tatsächlichen Anwendungsfälle in dem kostenlosen Beratungsgespräch besprochen werden können.\n- Gib nur den E-Mail-Text mit Grußwort zurück ohne Betreff.\n\nText:\n${extract-company-info[each.index].text}\n"
+    description: The step involves generating a personalized pitch email for each company in German, offering a free consultation, introducing the sender's company and its solutions, providing potential solution examples, maintaining a professional and engaging tone, and mentioning that the email was generated by an AI solution.
   generate-header:
     foreach: ${add-website-from-email.companies}
     source:
@@ -127,26 +107,22 @@ steps:
 
         Text:
         ${extract-company-info[each.index].text}
+    description: This step generates an attention-grabbing email subject line in German using the sender's company information and the text extracted from the client's website, highlighting the offer of a free cloud consultation.
   send-message:
     foreach: ${generate-body}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-ses
     props:
       sender: ${inputs.sender_email}
       to: ${get-company-data.response.data.records[each.index].fields.email}
       subject: ${generate-header[each.index].response}
-      body: |
-        ${each.response}
-        ${variables.company_address}, 
-        Handelsregister: ${variables.company_registry}
-        VAT: ${variables.company_vat}
-        Web: ${variables.company_website}
+      body: "${each.response}\n${variables.company_address}, \nHandelsregister: ${variables.company_registry}\nVAT: ${variables.company_vat}\nWeb: ${variables.company_website}\n"
       AWS_ACCESS_KEY_ID: ${secrets.SHORT_STORY_KEY}
       AWS_SECRET_ACCESS_KEY: ${secrets.SHORT_STORY_SECRET}
+    description: This step sends a message to each company in the list, using the sender's email, the company's email, and a generated header and body that includes the company's address, registry, VAT, website, and AWS access keys.
   prepare-hubspot-contacts:
-    description: |
-      Prepares structured company and contact data for insertion into HubSpot CRM.
+    description: This step involves preparing HubSpot contacts using the website data derived from the 'add-website-from-email' step.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -174,28 +150,26 @@ steps:
     props:
       add-website-from-email: ${add-website-from-email}
   create-companies-hubspot:
-    description: |
-      Creates company records in HubSpot for tracking outreach efforts.
+    description: This step involves creating companies in Hubspot using the provided API key and the list of companies prepared in a previous step.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/hubspot/create-companies
     props:
       HUBSPOT_API_KEY: ${secrets.HUBSPOT_API_KEY}
       companies: ${prepare-hubspot-contacts.companies}
   create-contacts:
-    description: |
-      Creates contact records in HubSpot and associates them with their respective companies.
+    description: This step creates new contact entries in HubSpot for each contact in the prepared list, using the provided API key and associating each contact with the corresponding company ID.
     foreach: ${prepare-hubspot-contacts.contacts}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/hubspot/create-contacts
     props:
       HUBSPOT_API_KEY: ${secrets.HUBSPOT_API_KEY}
       contacts:
-        - email: ${each.email}
-          firstname: ${each.firstname}
-          lastname: ${each.lastname}
-          company_hubspot_id: ${create-companies-hubspot.result[each.index].company_id}
+      - email: ${each.email}
+        firstname: ${each.firstname}
+        lastname: ${each.lastname}
+        company_hubspot_id: ${create-companies-hubspot.result[each.index].company_id}
   update-airtable:
     foreach: ${send-message}
     source:
@@ -210,5 +184,4 @@ steps:
       data:
         fields:
           processed: true
-    description: |
-      Marks processed companies in Airtable to avoid duplicate outreach attempts.
+    description: This step updates the 'processed' field to true for each record in the specified Airtable, using the PATCH method via the Airtable API, iterating over each message sent.

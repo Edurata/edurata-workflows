@@ -1,7 +1,6 @@
 name: job-applicator
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the process of scanning freelance.de for new job postings, filtering them based on user-defined preferences, and automatically applying to relevant jobs by generating personalized email applications.
+description: The workflow automation process begins by extracting job postings from Freelancermap and Freelance.de platforms using the customer's credentials. It then merges these job postings, checks if the record exists in an Airtable database, and adds new job postings accordingly. The process continues by retrieving job postings and customer details from the Airtable database, downloading the customer's CV, and extracting the content. It then extracts the email address of the job author, generates an email content tailored to the job posting, and prepares the email data. Finally, the process sends the email via the Gmail API and marks each job posting as processed in the Airtable database.
 interface:
   inputs:
     type: object
@@ -13,17 +12,20 @@ interface:
         type: string
       jobTableId:
         type: string
-        description: "The table name containing job postings and customer emails."
+        description: The table name containing job postings and customer emails.
       customerTableId:
         type: string
-        description: "The table name containing customer information (email, CV)."
-    required: [airtableApiKey, jobTableId, customerTableId]
+        description: The table name containing customer information (email, CV).
+    required:
+    - airtableApiKey
+    - jobTableId
+    - customerTableId
   outputs:
     type: object
     properties:
       status:
         type: string
-        description: "Status of the workflow execution."
+        description: Status of the workflow execution.
 inputs:
   airtableApiKey: ${secrets.AIRTABLE_API_KEY}
   jobTableId: ${variables.applicationConfig.applicationBot.jobTableId}
@@ -31,13 +33,11 @@ inputs:
   maxElapsedDays: ${variables.applicationConfig.applicationBot.maxElapsedDays}
 steps:
   extract-freelancermap-job-postings:
-    description: Extract job postings via html parsing and return a list of job postings.
-    if: 
-      and: 
-        - "!!":
-            ${get-customer-details.response.data.records[0].fields.freelancermapUser}
-        - "!!":
-            ${get-customer-details.response.data.records[0].fields.freelancermapPw}
+    description: This step extracts job postings from Freelancermap using the customer's username and password, filtering for positive keywords and postings from the last day, provided the username and password are not null.
+    if:
+      and:
+      - '!!': ${get-customer-details.response.data.records[0].fields.freelancermapUser}
+      - '!!': ${get-customer-details.response.data.records[0].fields.freelancermapPw}
     source:
       repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: apps/platforms/applicationbot/extract-freelancermap-inbox
@@ -47,13 +47,11 @@ steps:
       positive_keywords: ${get-customer-details.response.data.records[0].fields.positiveKeywords}
       max_elapsed_days: 1
   extract-freelancede-job-postings:
-    if: 
-      and: 
-        - "!!":
-            ${get-customer-details.response.data.records[0].fields.freelancedeUser}
-        - "!!":
-            ${get-customer-details.response.data.records[0].fields.freelancedePw}
-    description: Extract job postings via html parsing and return a list of job postings.
+    if:
+      and:
+      - '!!': ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+      - '!!': ${get-customer-details.response.data.records[0].fields.freelancedePw}
+    description: This step extracts job postings from Freelance.de using the customer's username and password, provided that both are available.
     source:
       repoUrl: https://github.com/Edurata/edurata-workflows.git
       path: apps/platforms/applicationbot/freelance.de
@@ -62,165 +60,141 @@ steps:
       FREELANCE_DE_PASSWORD: ${get-customer-details.response.data.records[0].fields.freelancedePw}
       query_url: ${get-customer-details.response.data.records[0].fields.freelancedeQueryUrl}
   merge-job-postings:
-    description: Merges job postings from freelancermap.com and freelance.de into a single list, ensuring uniform structure and adding source links where needed.
+    description: This step merges job postings extracted from both Freelancermap and Freelance.de platforms.
     runtime: python3_10
     code: |
-        def handler(inputs):
-            freelancede_projects = inputs["extract-freelancede-job-postings"] or []
-            freelancermap_jobs = inputs["extract-freelancermap-job-postings"] or []
-            # put basic link into freelancermap_jobs
-            for project in freelancermap_jobs:
-                project["link"] = "https://www.freelancermap.com"
-            return {
-                "projects": freelancermap_jobs + freelancede_projects
-            }
+      def handler(inputs):
+          freelancede_projects = inputs["extract-freelancede-job-postings"] or []
+          freelancermap_jobs = inputs["extract-freelancermap-job-postings"] or []
+          # put basic link into freelancermap_jobs
+          for project in freelancermap_jobs:
+              project["link"] = "https://www.freelancermap.com"
+          return {
+              "projects": freelancermap_jobs + freelancede_projects
+          }
     props:
-      extract-freelancermap-job-postings: "${extract-freelancermap-job-postings.matching_jobs}"
-      extract-freelancede-job-postings: "${extract-freelancede-job-postings.projects}"
+      extract-freelancermap-job-postings: ${extract-freelancermap-job-postings.matching_jobs}
+      extract-freelancede-job-postings: ${extract-freelancede-job-postings.projects}
   check-if-record-exists:
-    foreach: "${merge-job-postings.projects}"
-    description: Checks if a job posting already exists in Airtable to prevent duplicate entries.
+    foreach: ${merge-job-postings.projects}
+    description: This step checks if a record exists by sending a GET request to an Airtable API, iterating over each project in the merge-job-postings, and only processes those where the link is not in 'freelancermap'.
     if:
-      "!":
-        "in":
-          - "freelancermap"
-          - "${each.link}"
+      '!':
+        in:
+        - freelancermap
+        - ${each.link}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.jobTableId}"
+      url: https://api.airtable.com/v0/${inputs.jobTableId}
       headers:
-        Authorization: "Bearer ${inputs.airtableApiKey}"
+        Authorization: Bearer ${inputs.airtableApiKey}
       params:
-        filterByFormula: "{sourceUrl} = '${each.link}'"
+        filterByFormula: '{sourceUrl} = ''${each.link}'''
   add-new-jobs-to-airtable:
-    description: Adds new job postings to Airtable for tracking and later application.
-    foreach: "${merge-job-postings.projects}"
-    if: 
+    description: This step involves adding new job postings to Airtable by making a POST request to the Airtable API, iterating over each project in the merged job postings, and ensuring that certain conditions are met such as the existence of customer details and the non-existence of the record in the database.
+    foreach: ${merge-job-postings.projects}
+    if:
       and:
-        - "!!": ${get-customer-details.response.data.records[0].fields.freelancedeUser}
-        - "!!": ${get-customer-details.response.data.records[0].fields.freelancedePw}
-        - "!":
-            "!!": ${check-if-record-exists[each.index].response.data.records?}
+      - '!!': ${get-customer-details.response.data.records[0].fields.freelancedeUser}
+      - '!!': ${get-customer-details.response.data.records[0].fields.freelancedePw}
+      - '!':
+          '!!': ${check-if-record-exists[each.index].response.data.records?}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: "https://api.airtable.com/v0/${inputs.jobTableId}"
+      url: https://api.airtable.com/v0/${inputs.jobTableId}
       headers:
-        Authorization: "Bearer ${inputs.airtableApiKey}"
+        Authorization: Bearer ${inputs.airtableApiKey}
       data:
         fields:
-          raw: "${each.content}"
-          userEmail: "${inputs.userEmail}"
-          sourceUrl: "${each.link}"
+          raw: ${each.content}
+          userEmail: ${inputs.userEmail}
+          sourceUrl: ${each.link}
           processed: false
   get-job-postings:
-    description: Retrieves job postings from Airtable where the 'processed' field is false, indicating they are yet to be applied to.
+    description: This step involves retrieving job postings from an Airtable database using a GET request, with a limit of 100 entries that have not been processed and belong to the specified user email.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      _add-new-jobs-to-airtable: "${add-new-jobs-to-airtable}"
+      _add-new-jobs-to-airtable: ${add-new-jobs-to-airtable}
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.jobTableId}"
+      url: https://api.airtable.com/v0/${inputs.jobTableId}
       headers:
-        Authorization: "Bearer ${inputs.airtableApiKey}"
+        Authorization: Bearer ${inputs.airtableApiKey}
       params:
         limit: 100
-        filterByFormula: "AND(NOT({processed}),{userEmail}='${inputs.userEmail}')"
+        filterByFormula: AND(NOT({processed}),{userEmail}='${inputs.userEmail}')
   get-customer-details:
-    description: Retrieves the user's details, including email and CV, from Airtable for use in job applications.
+    description: This step retrieves customer details from an Airtable database using a GET request, based on the provided email address.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.customerTableId}"
+      url: https://api.airtable.com/v0/${inputs.customerTableId}
       headers:
-        Authorization: "Bearer ${inputs.airtableApiKey}"
+        Authorization: Bearer ${inputs.airtableApiKey}
       params:
-        filterByFormula: "email = '${inputs.userEmail}'"
+        filterByFormula: email = '${inputs.userEmail}'
   download-CV:
-    description: Retrieves the user's CV from the customer table in Airtable and downloads it as a file for further processing
+    description: This step downloads a customer's CV by sending a GET request to the URL provided in the customer's details.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: "${get-customer-details.response.data.records[0].fields.CV[0].url}"
+      url: ${get-customer-details.response.data.records[0].fields.CV[0].url}
       streamToFile: true
   extract-CV-content:
-    description: Extracts the text content from the user's CV for use in generating job applications.
+    description: This step involves extracting the content from a downloaded CV file.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/extract/extract-text
     props:
-      input_file: "${download-CV.response.file}"
+      input_file: ${download-CV.response.file}
   extract-target-address:
-    description: dentifies and extracts the email address of the original job posting author from the job listing text, ensuring it is not the user's own email.
+    description: This step extracts the email address of the original author from the job posting details, excluding the recipient's email address.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${get-job-postings.response.data.records}"
+    foreach: ${get-job-postings.response.data.records}
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        In the following text try to find the email address of the original author of the message.
-        Return only the email address. The ${inputs.userEmail} is of the recipient so can't be it.
-         Job Posting Details: ${each.fields.raw} 
+      systemMessage: "In the following text try to find the email address of the original author of the message.\nReturn only the email address. The ${inputs.userEmail} is of the recipient so can't be it.\n Job Posting Details: ${each.fields.raw} \n"
       message: Find the address
   generate-email-content:
-    description: Uses ChatGPT to create a personalized job application email in HTML format, tailoring it to the job description, the user's CV, and availability.
+    description: This step generates the content of an email in HTML format, tailored to a specific job posting, highlighting the applicant's skills and qualifications as listed in their CV, mentioning their hourly rate and availability, and noting that the application is in response to a job opening found on a specific URL.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${get-job-postings.response.data.records}"
+    foreach: ${get-job-postings.response.data.records}
     concurrency: 1
     props:
       model: gpt-4o
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        Using the following CV and job posting information, generate an email body in html highlighting my skills and 
-        qualifications to apply for the job. The email should be tailored to the job description. It should only include real experience that can be found in the CV.
-        Don't use corporate language. maximum 5 sentences. Always mention the hourly rate and availability.
-        Generate the response in the language of the listing.
-
-        Mention that it is in response to a job opening on ${each.fields.sourceUrl}.
-
-        In your response don't include markup formatting and return the body directly.
-        Only return the email body as the header is done separately.
-        As its html, you must use <br> for linebreaks.
-
-        Job Posting Details: ${each.fields.raw} 
-
-        My Hourly rate: ${get-customer-details.response.data.records[0].fields.hourlyRate}.
-
-        My Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.
-
-        My CV: ${extract-CV-content.extracted_text}.
-      message: "Create the email in html and only return the email body without markup formatting."
+      systemMessage: "Using the following CV and job posting information, generate an email body in html highlighting my skills and \nqualifications to apply for the job. The email should be tailored to the job description. It should only include real experience that can be found in the CV.\nDon't use corporate language. maximum 5 sentences. Always mention the hourly rate and availability.\nGenerate the response in the language of the listing.\n\nMention that it is in response to a job opening on ${each.fields.sourceUrl}.\n\nIn your response don't include markup formatting and return the body directly.\nOnly return the email body as the header is done separately.\nAs its html, you must use <br> for linebreaks.\n\nJob Posting Details: ${each.fields.raw} \n\nMy Hourly rate: ${get-customer-details.response.data.records[0].fields.hourlyRate}.\n\nMy Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.\n\nMy CV: ${extract-CV-content.extracted_text}.\n"
+      message: Create the email in html and only return the email body without markup formatting.
   generate-email-subject:
-    description: Generates a concise, relevant email subject line based on the job posting details, ensuring it matches the language of the listing.
+    description: Generate an email subject based on the job posting information for each job posting obtained from the data records.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
-    foreach: "${get-job-postings.response.data.records}"
+    foreach: ${get-job-postings.response.data.records}
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        "Using the job posting information, generate an email subject that references the job opening.
-         Only return the completed subject in the language of the job posting without formatting and without any additional information.
-         Job Posting Details: ${each.fields.raw} 
-      message: "Create the email subject and return only text without formatting."
+      systemMessage: "\"Using the job posting information, generate an email subject that references the job opening.\n Only return the completed subject in the language of the job posting without formatting and without any additional information.\n Job Posting Details: ${each.fields.raw} \n"
+      message: Create the email subject and return only text without formatting.
   prepare-gmail-raw:
-    description: Constructs a base64-encoded raw email, including the generated content, subject, recipient address, and attached CV, for sending via the Gmail API.
+    description: This step involves preparing raw Gmail data, which includes setting the sender, recipient, subject, and HTML body of the email, as well as attaching a CV file. This step is applied for each generated email content and only if the extracted target address is not empty.
     if:
-      "!!": "${extract-target-address[each.index].response}"
-    foreach: "${generate-email-content}"
+      '!!': ${extract-target-address[each.index].response}
+    foreach: ${generate-email-content}
     runtime: python3_10
     interface:
       inputs:
@@ -268,37 +242,36 @@ steps:
           raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
           return {'raw': raw}
     props:
-      sender: "${inputs.userEmail}"
-      # to: "juliandemourgues@edurata.com"
-      to: "${extract-target-address[each.index].response}"
-      subject: "${generate-email-subject[each.index].response}"
-      html_body: "${each.response}"
-      cv_filepath: "${download-CV.response.file}"
+      sender: ${inputs.userEmail}
+      to: ${extract-target-address[each.index].response}
+      subject: ${generate-email-subject[each.index].response}
+      html_body: ${each.response}
+      cv_filepath: ${download-CV.response.file}
   send-email:
-    description: Sends the prepared job application email using Gmail API, delivering it to the extracted recipient address.
-    foreach: "${prepare-gmail-raw}"
+    description: This step sends an email for each prepared Gmail raw data using a POST method to the Gmail API, authorized with a specific API key.
+    foreach: ${prepare-gmail-raw}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+      url: https://gmail.googleapis.com/gmail/v1/users/me/messages/send
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
       data:
-        raw: "${each.raw}"
+        raw: ${each.raw}
   mark-as-processed:
-    description: Updates the job posting entry in Airtable to mark it as processed, preventing duplicate applications.
-    foreach: "${get-job-postings.response.data.records}"
+    description: This step marks each job posting as processed by sending a PATCH request to the Airtable API for each record retrieved from the 'get-job-postings' step.
+    foreach: ${get-job-postings.response.data.records}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      _send-email: "${send-email}"
+      _send-email: ${send-email}
       method: PATCH
-      url: "https://api.airtable.com/v0/${inputs.jobTableId}/${each.id}"
+      url: https://api.airtable.com/v0/${inputs.jobTableId}/${each.id}
       headers:
-        Authorization: "Bearer ${inputs.airtableApiKey}"
+        Authorization: Bearer ${inputs.airtableApiKey}
       data:
         fields:
           processed: true

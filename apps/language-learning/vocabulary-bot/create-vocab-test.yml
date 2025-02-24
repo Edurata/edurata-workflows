@@ -1,7 +1,6 @@
 name: vocabulary-test-generator
 apiRevision: edurata.io/workflow/v1
-description: |
-  Automates the extraction of vocabulary from a document on a regular basis and updates an Airtable with the retrieved words. Additionally, it generates a vocabulary test by retrieving words from Airtable based on the user's email, creating a short story incorporating those words using GPT-4, constructing a Google Form with relevant test questions, sending the test to the user via email, and updating Airtable with feedback on vocabulary usage.
+description: The process begins by retrieving rows of vocabulary data from an Airtable. A narrative or story is then generated using this vocabulary data. Following this, a new Google Form is created, which is incorporated into an automated email and sent to the user. Finally, the Airtable is updated for each record that was retrieved in the initial step. This workflow is part of a larger system that automates the extraction of vocabulary and the generation of vocabulary tests.
 interface:
   inputs:
     type: object
@@ -25,13 +24,12 @@ interface:
         type: file
         description: The Google service account JSON file for authentication.
   required:
-    - user_email
-    - airtable_api_key
-    - airtable_base_id
-    - airtable_table_name
-    - google_api_key
-    - google_service_account_json
-
+  - user_email
+  - airtable_api_key
+  - airtable_base_id
+  - airtable_table_name
+  - google_api_key
+  - google_service_account_json
 outputs:
   type: object
   properties:
@@ -41,24 +39,22 @@ outputs:
     airtable_update_status:
       type: string
       description: The status of updating the Airtable with feedback.
-
 steps:
   retrieve-vocabulary-rows:
-    description: Retrieves up to 10 vocabulary words from Airtable that are associated with the provided user email.
+    description: This step involves retrieving rows of vocabulary data.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     dependencies:
       method: GET
-      url: 'https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}'
+      url: https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}
       headers:
-        Authorization: "Bearer ${inputs.airtable_api_key}"
+        Authorization: Bearer ${inputs.airtable_api_key}
       params:
-        filterByFormula: "({Email} = '${inputs.user_email}')"
+        filterByFormula: ({Email} = '${inputs.user_email}')
         maxRecords: 10
-
   generate-story:
-    description: Uses GPT-4 to generate a short story that includes the retrieved vocabulary words from Airtable.
+    description: Generate a narrative or story based on the given data or parameters.
     runtime: python3_10
     code: |
       import openai
@@ -80,14 +76,12 @@ steps:
               'short_story': story,
               'vocabulary_words': vocab_words
           }
-
     dependencies:
-      - openai==0.27.0
+    - openai==0.27.0
     env:
       OPENAI_API_KEY: ${secrets.OPENAI_API_KEY}
-
   create-google-form:
-    description: Constructs a Google Form for the vocabulary test by incorporating the generated story and formulating test questions based on the retrieved vocabulary words.
+    description: Create a new Google Form.
     runtime: python3_10
     code: |
       from googleapiclient.discovery import build
@@ -132,36 +126,33 @@ steps:
           form_url = form['responderUri']
 
           return {"form_url": form_url}
-
     dependencies:
-      google-api-python-client: ""
-      google-auth: ""
-      google-auth-httplib2: ""
-      google-auth-oauthlib: ""
+      google-api-python-client: ''
+      google-auth: ''
+      google-auth-httplib2: ''
+      google-auth-oauthlib: ''
     env:
       GOOGLE_API_KEY: ${inputs.google_api_key}
-
   send-form-email:
-    description: Sends an email to the user with the link to the generated Google Form for the vocabulary test.
+    description: This step involves sending an automated email containing a form.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-email
     dependencies:
       to: ${inputs.user_email}
-      subject: "Your Vocabulary Test"
-      html_body: "Please complete your vocabulary test by visiting the following link: ${create-google-form.form_url}"
-
+      subject: Your Vocabulary Test
+      html_body: 'Please complete your vocabulary test by visiting the following link: ${create-google-form.form_url}'
   update-airtable:
-    description: Updates the corresponding Airtable records to indicate that the vocabulary words were used in the test. Iterates over all retrieved vocabulary words and modifies their records in Airtable with feedback on their inclusion in the test.
+    description: This step involves updating Airtable for each record retrieved from the 'retrieve-vocabulary-rows' process.
     foreach: ${retrieve-vocabulary-rows.records}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     dependencies:
       method: PATCH
-      url: 'https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}/${each.id}'
+      url: https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}/${each.id}
       headers:
-        Authorization: "Bearer ${inputs.airtable_api_key}"
+        Authorization: Bearer ${inputs.airtable_api_key}
       body:
         fields:
-          UsageFeedback: "Used in test"
+          UsageFeedback: Used in test

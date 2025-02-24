@@ -1,0 +1,68 @@
+name: extract-job-info-to-notion
+apiRevision: edurata.io/workflow/v1
+description: Workflow to read a job description from a Notion page, extract key job details using GPT-3.5, and create a new job card in a Notion board.
+
+interface:
+  inputs:
+    properties:
+      notion_page_id: 
+        type: string
+        description: "The Notion page ID containing the job description."
+        default: "10de7e0f4b84809f8162c744000d9790"
+      notion_database_id:
+        type: string
+        description: "The Notion database ID where the job card will be created."
+        default: "112e7e0f4b848136ad0dfd17eee073a3"
+  outputs:
+    properties:
+      job_info:
+        type: object
+        description: "Extracted job information as JSON."
+      notion_card:
+        type: object
+        description: "The Notion card that was created."
+
+steps:
+  get-job-description:
+    description: Retrieve the job description from Notion.
+    source:
+      repoUrl: "https://github.com/lfpmeloni/edurata.git"
+      path: functions/get_job_description
+    props:
+      notion_page_id: ${inputs.notion_page_id}
+      notion_api_key: ${secrets.NOTION_API_KEY}
+
+  extract-job-info:
+    source:
+      repoUrl: "https://github.com/lfpmeloni/edurata.git"
+      path: functions/extract_job_info
+    props:
+      job_description: ${get-job-description.job_description}
+      openai_api_key: ${secrets.OPENAI_API_KEY}
+
+  get-current-iso-time:
+    runtime: python3_10
+    code: |
+      import datetime
+
+      def handler(inputs):
+          return {
+              "iso_time": datetime.datetime.now().isoformat()
+          }
+
+  create-notion-card:
+    source:
+      repoUrl: "https://github.com/lfpmeloni/edurata.git"
+      path: functions/create_notion_card
+    props:
+      notion_api_key: ${secrets.NOTION_API_KEY}
+      notion_database_id: ${inputs.notion_database_id}
+      iso_time: ${get-current-iso-time.iso_time}
+      company_name: ${extract-job-info.job_info.company_name}
+      job_name: ${extract-job-info.job_info.job_name}
+      short_job_description: ${extract-job-info.job_info.short_job_description}
+      language: ${extract-job-info.job_info.language}
+      working_model: ${extract-job-info.job_info.working_model}
+      location: ${extract-job-info.job_info.location}
+      role: ${extract-job-info.job_info.role}
+      salary_expectation: ${extract-job-info.job_info.salary_expectation}

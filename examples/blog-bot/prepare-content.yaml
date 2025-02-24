@@ -1,97 +1,97 @@
-apiRevision: edurata.io/workflow/v1
-name: prepare-content
-title: Prepare text content
-schedule: 0 8 * * *
-description: The workflow starts by fetching unprocessed data from a specific Airtable URL using an API key. It then uses OpenAI API to create summarized German news articles, adding icons, ensuring character limits, and including hashtags. The responses are then transformed into images as part of a story-type workflow. These images are uploaded to an AWS S3 bucket using AWS access keys, with the file path determined by each execution ID. Lastly, data from various social platforms obtained from ChatGPT is pushed to Airtable via its API, excluding any previously processed entries.
-interface:
-  inputs:
-    properties:
-      airtable_id:
-        type: string
-        description: |
-          The base id + table_id from which to take the raw data.
-      s3_content_path:
-        type: string
-        description: |
-          The folder id of the s3 drive to fetch the image from.
-      social_media_keys:
-        type: array
-        default:
-        - Instagram
-        - Facebook
-        - Linkedin
-        - X
-      blog_keys:
-        type: array
-        default:
-        - Medium
-      typeToCommand:
-        type: object
-        default:
-          Medium: Generate a blog post for Medium in html
-          Instagram: Generate a social media post for instagram with smileys and hashtags
-          Facebook: Generate a social media post for facebook with smileys and hashtags
-          Linkedin: Generate a professional linkedin business post with smileys and hashtags
-          X: Generate a social media post for X with maximum 280 chars and with smileys and hashtags
-    required:
-    - airtable_id
-    - s3_content_path
-steps:
-  get-airtable-data:
-    description: This step retrieves data from a specific Airtable URL that has not been processed yet, using a provided API key for authorization.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
-    props:
-      url: https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)
-      headers:
-        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
-  generate-text:
-    description: This step generates a text that summarizes news articles in German, adds icons to the news, ensures each news summary is less than 280 characters, adds hashtags if space allows, and returns the tweets in new lines for easy splitting, using an OpenAI API key.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: etl/transform/chatgpt
-    props:
-      API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: You are an assistant that sums up news messages.
-      message: |
-        Fasse die Nachrichtenbeiträge auf DEUTSCH zusammen.  Füge auch Icons zu den Nachrichten hinzu.  Achte darauf, dass jede Nachricht in der Reihe weniger als 280 Zeichen hat. Wenn Platz vorhanden ist, füge Hashtags zu den Nachrichten hinzu. Gib die Tweets jeweils in einer neuen Zeile zurück, damit sie leicht aufgeteilt werden können.:  ${generate-command.command}
-  text-to-image:
-    foreach: ${get-chatgpt-response.output}
-    description: This step involves converting the text from each response of the ChatGPT into an image, as part of a story-type workflow.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: etl/transform/text-to-image
-    props:
-      text: ${each.response}
-      type: story
-  upload-image-s3:
-    foreach: ${text-to-image}
-    description: This step uploads an image to an AWS S3 bucket, using the provided AWS access key ID and secret access key, with the file path and key determined by the execution ID of each text-to-image conversion.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: etl/load/upload-s3
-    props:
-      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
-      bucket_name: null
-      files:
-      - path: ${each.imagePath}
-        key: ${meta.executionId}.jpg
-  push-to-airtable:
-    foreach: ${get-chatgpt-response}
-    description: This step pushes data such as Instagram, Facebook, Linkedin, and Medium fields from each response obtained from ChatGPT to an Airtable via its API, filtering out already processed entries.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
-    props:
-      url: https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)
-      headers:
-        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
-        body:
-          fields:
-            Instagram: ${each.instaType}
-            X: ${each.fields.X}
-            Facebook: ${each.fields.Facebook}
-            Linkedin: ${each.fields.Linkedin}
-            Medium: ${each.fields.Medium}
+# apiRevision: edurata.io/workflow/v1
+# name: prepare-content
+# title: Prepare text content
+# schedule: 0 8 * * *
+# description: The workflow starts by fetching unprocessed data from a specific Airtable URL using an API key. It then uses OpenAI API to create summarized German news articles, adding icons, ensuring character limits, and including hashtags. The responses are then transformed into images as part of a story-type workflow. These images are uploaded to an AWS S3 bucket using AWS access keys, with the file path determined by each execution ID. Lastly, data from various social platforms obtained from ChatGPT is pushed to Airtable via its API, excluding any previously processed entries.
+# interface:
+#   inputs:
+#     properties:
+#       airtable_id:
+#         type: string
+#         description: |
+#           The base id + table_id from which to take the raw data.
+#       s3_content_path:
+#         type: string
+#         description: |
+#           The folder id of the s3 drive to fetch the image from.
+#       social_media_keys:
+#         type: array
+#         default:
+#         - Instagram
+#         - Facebook
+#         - Linkedin
+#         - X
+#       blog_keys:
+#         type: array
+#         default:
+#         - Medium
+#       typeToCommand:
+#         type: object
+#         default:
+#           Medium: Generate a blog post for Medium in html
+#           Instagram: Generate a social media post for instagram with smileys and hashtags
+#           Facebook: Generate a social media post for facebook with smileys and hashtags
+#           Linkedin: Generate a professional linkedin business post with smileys and hashtags
+#           X: Generate a social media post for X with maximum 280 chars and with smileys and hashtags
+#     required:
+#     - airtable_id
+#     - s3_content_path
+# steps:
+#   get-airtable-data:
+#     description: This step retrieves data from a specific Airtable URL that has not been processed yet, using a provided API key for authorization.
+#     source:
+#       repoUrl: https://github.com/Edurata/edurata-functions.git
+#       path: general/axios
+#     props:
+#       url: https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)
+#       headers:
+#         Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+#   generate-text:
+#     description: This step generates a text that summarizes news articles in German, adds icons to the news, ensures each news summary is less than 280 characters, adds hashtags if space allows, and returns the tweets in new lines for easy splitting, using an OpenAI API key.
+#     source:
+#       repoUrl: https://github.com/Edurata/edurata-functions.git
+#       path: etl/transform/chatgpt
+#     props:
+#       API_KEY: ${secrets.OPENAI_API_KEY}
+#       systemMessage: You are an assistant that sums up news messages.
+#       message: |
+#         Fasse die Nachrichtenbeiträge auf DEUTSCH zusammen.  Füge auch Icons zu den Nachrichten hinzu.  Achte darauf, dass jede Nachricht in der Reihe weniger als 280 Zeichen hat. Wenn Platz vorhanden ist, füge Hashtags zu den Nachrichten hinzu. Gib die Tweets jeweils in einer neuen Zeile zurück, damit sie leicht aufgeteilt werden können.:  ${generate-command.command}
+#   text-to-image:
+#     foreach: ${get-chatgpt-response.output}
+#     description: This step involves converting the text from each response of the ChatGPT into an image, as part of a story-type workflow.
+#     source:
+#       repoUrl: https://github.com/Edurata/edurata-functions.git
+#       path: etl/transform/text-to-image
+#     props:
+#       text: ${each.response}
+#       type: story
+#   upload-image-s3:
+#     foreach: ${text-to-image}
+#     description: This step uploads an image to an AWS S3 bucket, using the provided AWS access key ID and secret access key, with the file path and key determined by the execution ID of each text-to-image conversion.
+#     source:
+#       repoUrl: https://github.com/Edurata/edurata-functions.git
+#       path: etl/load/upload-s3
+#     props:
+#       AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+#       AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
+#       bucket_name: null
+#       files:
+#       - path: ${each.imagePath}
+#         key: ${meta.executionId}.jpg
+#   push-to-airtable:
+#     foreach: ${get-chatgpt-response}
+#     description: This step pushes data such as Instagram, Facebook, Linkedin, and Medium fields from each response obtained from ChatGPT to an Airtable via its API, filtering out already processed entries.
+#     source:
+#       repoUrl: https://github.com/Edurata/edurata-functions.git
+#       path: general/axios
+#     props:
+#       url: https://api.airtable.com/v0/${inputs.airtable_id}?filterByFormula=NOT(processed)
+#       headers:
+#         Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+#         body:
+#           fields:
+#             Instagram: ${each.instaType}
+#             X: ${each.fields.X}
+#             Facebook: ${each.fields.Facebook}
+#             Linkedin: ${each.fields.Linkedin}
+#             Medium: ${each.fields.Medium}

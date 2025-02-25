@@ -41,6 +41,23 @@ steps:
       appName: ${extract-application-name-from-event.applicationName}
       data: ${inputs.data}
     description: This step involves extracting data from an event, depending on the application name and data received from the inputs.
+    interface:
+      inputs:
+        properties:
+          appName:
+            type: string
+            description: The name of the application from which the data is extracted
+          data:
+            type: string
+            description: The data to be extracted
+        required:
+        - appName
+        - data
+      outputs:
+        properties:
+          extractedData:
+            type: string
+            description: The extracted data from the event
   extract-application-name-from-event:
     runtime: nodejs20
     interface:
@@ -98,6 +115,26 @@ steps:
       applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}
     description: This step involves retrieving the application configuration using the application name, which is extracted from the event.
+    interface:
+      inputs:
+        properties:
+          applicationName:
+            type: string
+            description: Name of the application
+          applicationConfig:
+            type: object
+            description: Configuration of the application
+        required:
+        - applicationName
+        - applicationConfig
+      outputs:
+        properties:
+          applicationName:
+            type: string
+            description: Name of the application
+          applicationConfig:
+            type: object
+            description: Configuration of the application
   find-in-airtable:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

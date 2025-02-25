@@ -39,6 +39,23 @@ steps:
           return {'keywords': keywords}
     props:
       retrieve-context: ${retrieve-context}
+    interface:
+      inputs:
+        properties:
+          retrieve-context:
+            type: string
+            description: Retrieved context from previous workflow steps
+        required:
+        - retrieve-context
+      outputs:
+        properties:
+          keywords:
+            type: array
+            items:
+              type: string
+            description: Split keywords from the retrieved context
+        required:
+        - keywords
   search-twitter:
     foreach: ${inputs.keywords}
     description: This step searches recent tweets for each keyword from the input list, retrieving a maximum of 5 results per keyword, using a GET request to the Twitter API.

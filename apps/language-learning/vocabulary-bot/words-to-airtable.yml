@@ -45,6 +45,19 @@ steps:
           }
     props:
       extract-vocabulary: ${extract-vocabulary}
+    interface:
+      inputs:
+        properties:
+          extract-vocabulary:
+            type: string
+            description: The vocabulary extracted from the previous steps
+        required:
+        - extract-vocabulary
+      outputs:
+        properties:
+          parsed-chatgpt-response:
+            type: string
+            description: The parsed response from ChatGPT
   update-airtable:
     description: This step is posting the words parsed from a ChatGPT response to an Airtable using a POST method, iterating through each word in the response.
     foreach: ${parse-from-chatgpt-response.words}

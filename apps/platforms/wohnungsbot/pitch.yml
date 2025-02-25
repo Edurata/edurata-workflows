@@ -13,6 +13,29 @@ steps:
           return {'login': random.choice(logins)}
     props:
       wgGesuchtLogins: ${secrets.wgGesuchtLogins}
+    interface:
+      inputs:
+        properties:
+          wgGesuchtLogins:
+            type: string
+            description: The login credentials for wgGesucht.
+        required:
+        - wgGesuchtLogins
+      outputs:
+        properties:
+          randomCredentials:
+            type: object
+            description: The randomly selected credentials for wgGesucht.
+            properties:
+              username:
+                type: string
+                description: The username of the selected credentials.
+              password:
+                type: string
+                description: The password of the selected credentials.
+            required:
+            - username
+            - password
   search-users:
     description: This step involves searching for users based on certain criteria, such as city_id and max_online_hours, using provided login credentials (WG_USERNAME and WG_PASSWORD).
     source:
@@ -51,6 +74,70 @@ steps:
     props:
       listings: ${search-users.people_listings}
       applications: ${generate-recommendations[*].response}
+    interface:
+      inputs:
+        properties:
+          listings:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                description:
+                  type: string
+              required:
+              - id
+              - name
+              - description
+          applications:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                applicant:
+                  type: string
+                recommendation:
+                  type: string
+              required:
+              - id
+              - applicant
+              - recommendation
+        required:
+        - listings
+        - applications
+      outputs:
+        properties:
+          mergedInfo:
+            type: array
+            items:
+              type: object
+              properties:
+                listingId:
+                  type: string
+                listingName:
+                  type: string
+                listingDescription:
+                  type: string
+                applicationId:
+                  type: string
+                applicant:
+                  type: string
+                recommendation:
+                  type: string
+              required:
+              - listingId
+              - listingName
+              - listingDescription
+              - applicationId
+              - applicant
+              - recommendation
+        required:
+        - mergedInfo
   apply-to-listings:
     description: This step involves applying to listings using the provided 'WG_USERNAME' and 'WG_PASSWORD' from the 'get-random-credentials.login' and the 'application_list' from the 'merge-info.merged_listings'.
     source:

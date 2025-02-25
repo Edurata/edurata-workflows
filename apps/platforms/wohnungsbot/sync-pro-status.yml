@@ -11,6 +11,14 @@ steps:
           yesterday = datetime.now() - timedelta(days=1)
           epoch_time = int(yesterday.timestamp())
           return {'epoch_time': epoch_time}
+    interface:
+      inputs:
+        properties: {}
+      outputs:
+        properties:
+          24h_back_epoch_time:
+            type: integer
+            description: The epoch time 24 hours ago.
   fetch-stripe-charges:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -31,6 +39,25 @@ steps:
     props:
       applicationConfig: ${variables.applicationConfig}
       fetch-stripe-charges: ${fetch-stripe-charges.response.data}
+    interface:
+      inputs:
+        properties:
+          applicationConfig:
+            type: object
+            description: Configuration data for the application
+          fetch-stripe-charges:
+            type: object
+            description: Data fetched from Stripe charges
+        required:
+        - applicationConfig
+        - fetch-stripe-charges
+      outputs:
+        properties:
+          metadata:
+            type: object
+            description: Metadata extracted from Stripe charges
+        required:
+        - metadata
   get-trigger:
     foreach: ${get-metadata-from-charges.metadata}
     source:

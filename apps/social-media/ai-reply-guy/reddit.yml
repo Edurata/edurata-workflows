@@ -34,6 +34,19 @@ steps:
     code: "def handler(inputs):\n    terms_string = inputs.get(\"terms_string\", \"\")\n    \n    terms = [term.strip() for term in terms_string.split(\",\") if term.strip()]\n\n    # join with selftext:{term} and separated by whitespace\n    reddit_query = \" \".join([f\"selftext:\\\"{term}\\\"\" for term in terms])\n    # add self:true before\n    reddit_query = f\"self:true {reddit_query}\"\n    return {\n        \"reddit_query\": reddit_query\n    }\n"
     props:
       terms_string: ${retrieve-context.response.data.records[0].fields.searchTerms}
+    interface:
+      inputs:
+        properties:
+          terms_string:
+            type: string
+            description: The string of search terms to use in the Reddit query
+        required:
+        - terms_string
+      outputs:
+        properties:
+          query_results:
+            type: object
+            description: The results of the Reddit query
   search-reddit:
     description: This step is searching Reddit using a GET request, with the search query, limit, and sort order specified in the parameters, and authorization provided via a bearer token.
     source:

@@ -80,6 +80,56 @@ steps:
     - openai==0.27.0
     env:
       OPENAI_API_KEY: ${secrets.OPENAI_API_KEY}
+    interface:
+      inputs:
+        properties:
+          workflow_id:
+            description: The unique identifier of the workflow to be automated
+            type: string
+          steps:
+            description: A list of steps involved in the workflow
+            type: array
+            items:
+              type: object
+              properties:
+                step_id:
+                  description: The unique identifier of the step
+                  type: string
+                step_name:
+                  description: The name of the step
+                  type: string
+                execution_order:
+                  description: The order in which the step is to be executed in the workflow
+                  type: integer
+                dependencies:
+                  description: The list of step_ids that the current step depends on
+                  type: array
+                  items:
+                    type: string
+              required:
+              - step_id
+              - step_name
+              - execution_order
+        required:
+        - workflow_id
+        - steps
+      outputs:
+        properties:
+          workflow_id:
+            description: The unique identifier of the automated workflow
+            type: string
+          status:
+            description: The status of the automation process
+            type: string
+            enum:
+            - success
+            - failure
+          message:
+            description: A message detailing the result of the automation process
+            type: string
+        required:
+        - workflow_id
+        - status
   create-google-form:
     description: Create a new Google Form.
     runtime: python3_10
@@ -133,6 +183,42 @@ steps:
       google-auth-oauthlib: ''
     env:
       GOOGLE_API_KEY: ${inputs.google_api_key}
+    interface:
+      inputs:
+        properties:
+          formTitle:
+            description: The title of the Google form
+            type: string
+          questions:
+            description: List of questions to be added to the form
+            type: array
+            items:
+              type: object
+              properties:
+                questionText:
+                  description: The text of the question
+                  type: string
+                questionType:
+                  description: The type of the question (e.g., 'multiple choice', 'short answer')
+                  type: string
+                options:
+                  description: List of options for multiple choice questions
+                  type: array
+                  items:
+                    type: string
+              required:
+              - questionText
+              - questionType
+        required:
+        - formTitle
+        - questions
+      outputs:
+        properties:
+          formUrl:
+            description: The URL of the created Google form
+            type: string
+        required:
+        - formUrl
   send-form-email:
     description: This step involves sending an automated email containing a form.
     source:

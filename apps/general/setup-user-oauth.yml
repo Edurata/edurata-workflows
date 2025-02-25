@@ -57,6 +57,19 @@ steps:
       }
     props:
       data: ${inputs.data}
+    interface:
+      inputs:
+        properties:
+          data:
+            type: string
+            description: The data to be extracted from the event.
+        required:
+        - data
+      outputs:
+        properties:
+          extractedData:
+            type: string
+            description: The extracted data from the event.
   extract-application-id-from-event:
     description: This step involves extracting the application ID from event data.
     runtime: nodejs20
@@ -73,6 +86,22 @@ steps:
       };
     props:
       fields: ${inputs.data.fields}
+    interface:
+      inputs:
+        properties:
+          data:
+            type: object
+            properties:
+              fields:
+                type: string
+            required:
+            - fields
+      outputs:
+        properties:
+          applicationId:
+            type: string
+        required:
+        - applicationId
   get-application-config-from-name:
     description: This step involves retrieving the application configuration using the application ID extracted from the event.
     runtime: nodejs20
@@ -90,6 +119,29 @@ steps:
     props:
       applicationId: ${extract-application-id-from-event.applicationId}
       applicationConfig: ${inputs.applicationConfig}
+    interface:
+      inputs:
+        properties:
+          applicationId:
+            type: string
+            description: The ID of the application
+          applicationConfig:
+            type: object
+            description: The configuration of the application
+        required:
+        - applicationId
+        - applicationConfig
+      outputs:
+        properties:
+          applicationId:
+            type: string
+            description: The ID of the application
+          applicationConfig:
+            type: object
+            description: The configuration of the application
+        required:
+        - applicationId
+        - applicationConfig
   create-environment:
     description: This step creates a new environment by making a POST request to the specified URL, using the name extracted from the event email as data, and authenticating with a given API key.
     source:
@@ -138,6 +190,19 @@ steps:
       };
     props:
       scheduleRate: ${get-application-config-from-name.appConfig.normalScheduleRate}
+    interface:
+      inputs:
+        properties:
+          scheduleRate:
+            type: string
+            description: The rate at which the schedule is set
+        required:
+        - scheduleRate
+      outputs:
+        properties:
+          schedule:
+            type: object
+            description: The schedule object fetched from the application configuration
   translate-schedule-to-readable:
     description: This step involves translating the retrieved schedule into a readable format.
     runtime: nodejs20
@@ -152,6 +217,19 @@ steps:
       };
     props:
       schedule: ${get-schedule.schedule}
+    interface:
+      inputs:
+        properties:
+          schedule:
+            type: string
+            description: The schedule in its raw format.
+        required:
+        - schedule
+      outputs:
+        properties:
+          readableSchedule:
+            type: string
+            description: The schedule translated into a more readable format.
   create-trigger:
     description: This step involves creating a trigger by sending a POST request to a specific URL with certain headers and data, which includes the name, environment ID, variables, and schedule.
     source:

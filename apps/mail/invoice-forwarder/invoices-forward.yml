@@ -71,6 +71,23 @@ steps:
     props:
       user_config: ${get-people-data.response.data.records[0].fields}
       base_config: ${inputs.config}
+    interface:
+      inputs:
+        properties:
+          user_config:
+            type: object
+            description: User specific configuration data
+          base_config:
+            type: object
+            description: Base configuration data
+        required:
+        - user_config
+        - base_config
+      outputs:
+        properties:
+          merged_config:
+            type: object
+            description: Merged configuration data
   create-labels:
     description: This step creates labels in Gmail for success, failure, and skip tags, using a POST request to the Gmail API.
     foreach:
@@ -116,6 +133,33 @@ steps:
       successTag: ${merge-config.config.successTag}
       failTag: ${merge-config.config.failTag}
       skipTag: ${merge-config.config.skipTag}
+    interface:
+      inputs:
+        properties:
+          get-label-ids:
+            type: object
+            description: Object containing label ids
+          successTag:
+            type: string
+            description: Tag to be used for successful operations
+          failTag:
+            type: string
+            description: Tag to be used for failed operations
+          skipTag:
+            type: string
+            description: Tag to be used for skipped operations
+        required:
+        - get-label-ids
+        - successTag
+        - failTag
+        - skipTag
+      outputs:
+        properties:
+          transformedTags:
+            type: object
+            description: Object containing transformed tags to label ids
+        required:
+        - transformedTags
   get-new-mails-without-tag:
     description: This step is retrieving the ten most recent emails from the user's Gmail account that were received after January 1, 2021, have a PDF attachment, and do not have specific labels, using a provided API key for authorization.
     source:
@@ -143,6 +187,40 @@ steps:
           return {"mails": inputs["get-new-mails-without-tag"]["response"]["data"]["messages"]}
     props:
       get-new-mails-without-tag: ${get-new-mails-without-tag}
+    interface:
+      inputs:
+        properties:
+          get-new-mails-without-tag:
+            type: object
+            properties:
+              response:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      resultSizeEstimate:
+                        type: integer
+                      messages:
+                        type:
+                        - array
+                        - 'null'
+                    required:
+                    - resultSizeEstimate
+                    - messages
+                required:
+                - data
+            required:
+            - response
+        required:
+        - get-new-mails-without-tag
+      outputs:
+        type: object
+        properties:
+          continue:
+            type: boolean
+        required:
+        - continue
   get-mails-info:
     description: This step fetches detailed information for each new email message from the Gmail API, using the message ID, in a full format with specific fields such as 'id' and 'payload'.
     foreach: ${continue-if-new-mails.mails}
@@ -278,6 +356,29 @@ steps:
           # today date like 2021-01-01
           today = datetime.datetime.now().strftime("%Y-%m-%d")
           return {"folder_name": today}
+    interface:
+      inputs:
+        properties:
+          merge-config:
+            type: object
+            properties:
+              config:
+                type: object
+                properties:
+                  gdriveFolderName:
+                    type: string
+                required:
+                - gdriveFolderName
+            required:
+            - config
+        required:
+        - merge-config
+      outputs:
+        properties:
+          folderId:
+            type: string
+        required:
+        - folderId
   create-folderpath:
     if:
       '!!': ${filter-attachments.filtered_attachments}
@@ -323,6 +424,37 @@ steps:
       successTag: ${transform-tags-to-label-ids.label_ids.successTag}
       failTag: ${transform-tags-to-label-ids.label_ids.failTag}
       skipTag: ${transform-tags-to-label-ids.label_ids.skipTag}
+    interface:
+      inputs:
+        properties:
+          all_messages:
+            type: array
+            items:
+              type: object
+          filtered_attachments:
+            type: array
+            items:
+              type: object
+          successTag:
+            type: string
+          failTag:
+            type: string
+          skipTag:
+            type: string
+        required:
+        - all_messages
+        - filtered_attachments
+        - successTag
+        - failTag
+        - skipTag
+      outputs:
+        properties:
+          tagged_messages:
+            type: array
+            items:
+              type: object
+        required:
+        - tagged_messages
   tag-emails:
     description: This step automates the process of tagging emails by posting a request to the Gmail API for each thread specified in the 'map-tags-to-threads' object, using the 'GMAIL_API_KEY' for authorization.
     foreach: ${map-tags-to-threads}

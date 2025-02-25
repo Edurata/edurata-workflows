@@ -75,6 +75,43 @@ steps:
     props:
       extract-freelancermap-job-postings: ${extract-freelancermap-job-postings.matching_jobs}
       extract-freelancede-job-postings: ${extract-freelancede-job-postings.projects}
+    interface:
+      inputs:
+        properties:
+          extract-freelancermap-job-postings:
+            type: array
+            items:
+              type: object
+              properties:
+                matching_jobs:
+                  type: string
+              required:
+              - matching_jobs
+          extract-freelancede-job-postings:
+            type: array
+            items:
+              type: object
+              properties:
+                projects:
+                  type: string
+              required:
+              - projects
+        required:
+        - extract-freelancermap-job-postings
+        - extract-freelancede-job-postings
+      outputs:
+        properties:
+          merged-job-postings:
+            type: array
+            items:
+              type: object
+              properties:
+                job:
+                  type: string
+              required:
+              - job
+        required:
+        - merged-job-postings
   check-if-record-exists:
     foreach: ${merge-job-postings.projects}
     description: This step checks if a record exists by sending a GET request to an Airtable API, iterating over each project in the merge-job-postings, and only processes those where the link is not in 'freelancermap'.

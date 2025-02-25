@@ -47,6 +47,22 @@ steps:
     props:
       follower_count: ${check-follower-count.response.data.data.public_metrics.followers_count}
     description: This step involves cancelling the process if the follower count, obtained from the response data of the 'check-follower-count' step, exceeds a certain limit.
+    interface:
+      inputs:
+        properties:
+          follower_count:
+            type: integer
+            description: The number of followers
+        required:
+        - follower_count
+      outputs:
+        properties:
+          status:
+            type: string
+            description: The status of the follower count check
+          message:
+            type: string
+            description: The message describing the status
   get-new-followers:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -75,6 +91,45 @@ steps:
     props:
       followers: ${get-new-followers.response.data.data}
     description: This step involves identifying bots from a list of new followers using a specific algorithm or process.
+    interface:
+      inputs:
+        properties:
+          followers:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                username:
+                  type: string
+                is_bot:
+                  type: boolean
+              required:
+              - id
+              - username
+              - is_bot
+        required:
+        - followers
+      outputs:
+        properties:
+          bots:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                username:
+                  type: string
+                is_bot:
+                  type: boolean
+              required:
+              - id
+              - username
+              - is_bot
+        required:
+        - bots
   block-user:
     foreach: ${find-bots.bot_followers}
     source:

@@ -54,6 +54,23 @@ steps:
     props:
       appName: ${extract-application-name-from-event.applicationName}
       data: ${inputs.data}
+    interface:
+      inputs:
+        properties:
+          appName:
+            type: string
+            description: Name of the application from which the event is extracted.
+          data:
+            type: object
+            description: The data to be extracted from the event.
+        required:
+        - appName
+        - data
+      outputs:
+        properties:
+          extractedData:
+            type: object
+            description: The extracted data from the event.
   extract-application-name-from-event:
     description: This step involves extracting the application name from an event, using the second field of the input data as the application name field.
     runtime: nodejs20
@@ -106,6 +123,25 @@ steps:
     props:
       applicationName: ${extract-application-name-from-event.applicationName}
       applicationConfig: ${inputs.applicationConfig}
+    interface:
+      inputs:
+        properties:
+          applicationName:
+            type: string
+            description: The name of the application
+          applicationConfig:
+            type: object
+            description: The configuration of the application
+        required:
+        - applicationName
+        - applicationConfig
+      outputs:
+        properties:
+          applicationConfig:
+            type: object
+            description: The configuration of the application
+        required:
+        - applicationConfig
   find-in-airtable:
     description: This step fetches data from an Airtable using a specific URL and authorization, filtering for records that are not disabled and have an email that matches the one extracted from the event.
     source:

@@ -90,6 +90,30 @@ steps:
     props:
       templates: ${fetch-user.response.data.records[0].fields.templates}
       user: ${fetch-user.response.data.records[0].fields}
+    interface:
+      inputs:
+        properties:
+          templates:
+            type: array
+            items:
+              type: object
+          user:
+            type: object
+            properties: {}
+          fetch-leads:
+            type: array
+            items:
+              type: object
+        required:
+        - templates
+        - user
+        - fetch-leads
+      outputs:
+        properties:
+          enrichedLeads:
+            type: array
+            items:
+              type: object
   generate-email-content:
     description: This step generates a personalized email content for each lead using a provided template and lead details, ensuring that the email is polite and maintains professional communication standards.
     foreach: ${enrich-leads-with-template}
@@ -131,6 +155,25 @@ steps:
           }
     props:
       threadId: ${send-email.response.threadId}
+    interface:
+      inputs:
+        properties:
+          threadId:
+            type: string
+            description: The unique identifier of the email thread
+        required:
+        - threadId
+      outputs:
+        properties:
+          status:
+            type: string
+            description: The status of the update operation
+          message:
+            type: string
+            description: The response message of the update operation
+        required:
+        - status
+        - message
   update-airtable:
     foreach: ${send-email}
     description: This step updates the Airtable record with the ID obtained from the 'enrich-leads-with-template' step for each email sent, using a PATCH request method.

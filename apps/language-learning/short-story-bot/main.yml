@@ -23,6 +23,16 @@ steps:
               "day": datetime.datetime.now().strftime("%A")
           }
     description: This step involves determining the current day.
+    interface:
+      inputs:
+        properties: {}
+      outputs:
+        properties:
+          currentDay:
+            type: string
+            format: date-time
+        required:
+        - currentDay
   get-current-iso-time:
     runtime: python3_10
     code: |
@@ -33,6 +43,16 @@ steps:
               "iso_time": datetime.datetime.now().isoformat()
           }
     description: This step retrieves the current time in ISO format.
+    interface:
+      inputs: {}
+      outputs:
+        properties:
+          current_iso_time:
+            type: string
+            format: date-time
+            description: The current time in ISO 8601 format
+        required:
+        - current_iso_time
   get-people-data:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -108,6 +128,74 @@ steps:
       combinations: ${get-unique-combinations.combinations}
       stories: ${generate-short-stories[*].response}
     description: This step involves adding a short story index to people's data, using the unique combinations and generated short stories as dependencies.
+    interface:
+      inputs:
+        properties:
+          people:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                age:
+                  type: number
+                gender:
+                  type: string
+              required:
+              - id
+              - name
+              - age
+              - gender
+          combinations:
+            type: array
+            items:
+              type: object
+              properties:
+                combination:
+                  type: string
+              required:
+              - combination
+          stories:
+            type: array
+            items:
+              type: object
+              properties:
+                story:
+                  type: string
+              required:
+              - story
+        required:
+        - people
+        - combinations
+        - stories
+      outputs:
+        properties:
+          peopleWithStories:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                age:
+                  type: number
+                gender:
+                  type: string
+                story:
+                  type: string
+              required:
+              - id
+              - name
+              - age
+              - gender
+              - story
+        required:
+        - peopleWithStories
   send-message:
     foreach: ${add-short-story-index-to-people}
     source:

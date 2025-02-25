@@ -53,6 +53,23 @@ steps:
     props:
       search_params: ${get-customer-details.response.data.records[0].fields}
       is_pro: ${inputs.isPro}
+    interface:
+      inputs:
+        properties:
+          search_params:
+            type: object
+            description: Data fields from the customer details
+          is_pro:
+            type: boolean
+            description: Flag to indicate if the user is a pro
+        required:
+        - search_params
+        - is_pro
+      outputs:
+        properties:
+          filtered_params:
+            type: object
+            description: Filtered parameters based on the user type
   search-flat-listings:
     description: This step involves searching for flat listings using the filter set in 'set-defaults-filter.filter' and the customer's username and password obtained from 'get-customer-details.response.data.records[0].fields'.
     source:
@@ -90,6 +107,90 @@ steps:
     props:
       listings: ${search-flat-listings.listings}
       applications: ${generate-applications[*].response}
+    interface:
+      inputs:
+        properties:
+          listings:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: integer
+                address:
+                  type: string
+                price:
+                  type: number
+                description:
+                  type: string
+              required:
+              - id
+              - address
+              - price
+              - description
+          applications:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: integer
+                listingId:
+                  type: integer
+                applicantName:
+                  type: string
+                applicantIncome:
+                  type: number
+                applicantCreditScore:
+                  type: integer
+              required:
+              - id
+              - listingId
+              - applicantName
+              - applicantIncome
+              - applicantCreditScore
+        required:
+        - listings
+        - applications
+      outputs:
+        properties:
+          mergedInfo:
+            type: array
+            items:
+              type: object
+              properties:
+                listingId:
+                  type: integer
+                address:
+                  type: string
+                price:
+                  type: number
+                description:
+                  type: string
+                applications:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      applicantName:
+                        type: string
+                      applicantIncome:
+                        type: number
+                      applicantCreditScore:
+                        type: integer
+                    required:
+                    - id
+                    - applicantName
+                    - applicantIncome
+                    - applicantCreditScore
+              required:
+              - listingId
+              - address
+              - price
+              - description
+              - applications
   apply-to-listings:
     if:
       '!!': ${merge-info.merged_listings}

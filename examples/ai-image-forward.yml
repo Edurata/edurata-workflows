@@ -86,6 +86,56 @@ steps:
           return {"useful_pictures": useful_pictures[:8]}
     props:
       picture_info: ${extract-info}
+    interface:
+      inputs:
+        properties:
+          picture_info:
+            type: object
+            properties:
+              extract-info:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    image_url:
+                      type: string
+                    image_format:
+                      type: string
+                    image_size:
+                      type: string
+                    image_resolution:
+                      type: string
+                  required:
+                  - image_url
+                  - image_format
+                  - image_size
+                  - image_resolution
+            required:
+            - extract-info
+        required:
+        - picture_info
+      outputs:
+        properties:
+          usable_images:
+            type: array
+            items:
+              type: object
+              properties:
+                image_url:
+                  type: string
+                image_format:
+                  type: string
+                image_size:
+                  type: string
+                image_resolution:
+                  type: string
+              required:
+              - image_url
+              - image_format
+              - image_size
+              - image_resolution
+        required:
+        - usable_images
   generate-quotes:
     foreach: ${extract-usable-images.useful_pictures}
     description: This step generates an inspiring quote for each label from the useful pictures extracted in the previous step, using the OpenAI API.

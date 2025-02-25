@@ -36,6 +36,19 @@ steps:
       };
     props:
       messages: ${inputs.messages}
+    interface:
+      inputs:
+        properties:
+          messages:
+            type: array
+            items:
+              type: string
+        required:
+        - messages
+      outputs:
+        properties:
+          constructedMessage:
+            type: string
   test-python-inline-code:
     description: This step involves testing python inline code with a dependency on a message constructed from a string.
     runtime: python3_10
@@ -44,6 +57,19 @@ steps:
         print("Hello, World!")
     props:
       message: 'Message from python inline: ${construct-message.string}'
+    interface:
+      inputs:
+        properties:
+          message:
+            type: string
+            description: The message that will be processed by the python inline code.
+        required:
+        - message
+      outputs:
+        properties:
+          result:
+            type: string
+            description: The result of the python inline code processing.
   test-node-inline-code:
     description: This step involves executing an inline code that uses a message constructed from a previous node as a dependency.
     runtime: nodejs20
@@ -53,6 +79,19 @@ steps:
       };
     props:
       message: 'Message from node inline: ${construct-message.string}'
+    interface:
+      inputs:
+        properties:
+          message:
+            type: string
+            description: Message from node inline
+        required:
+        - message
+      outputs:
+        properties:
+          construct-message:
+            type: string
+            description: Constructed message
   test-python:
     description: This step, identified as "test-python", depends on a message constructed from python, which is received and processed as a part of the workflow automation.
     source:

@@ -65,6 +65,22 @@ steps:
     props:
       get-company-data: ${get-company-data}
     description: This step involves adding a website from an email based on the company data obtained from the 'get-company-data' step.
+    interface:
+      inputs:
+        properties:
+          get-company-data:
+            type: object
+            properties:
+              email:
+                type: string
+                format: email
+            required:
+            - email
+      outputs:
+        properties:
+          website:
+            type: string
+            format: uri
   extract-company-info:
     foreach: ${add-website-from-email.companies}
     source:
@@ -149,6 +165,22 @@ steps:
           }
     props:
       add-website-from-email: ${add-website-from-email}
+    interface:
+      inputs:
+        properties:
+          add-website-from-email:
+            type: string
+            description: The email address from which the website will be added
+        required:
+        - add-website-from-email
+      outputs:
+        properties:
+          contactId:
+            type: string
+            description: The ID of the contact created in Hubspot
+          website:
+            type: string
+            description: The website added to the contact from the email
   create-companies-hubspot:
     description: This step involves creating companies in Hubspot using the provided API key and the list of companies prepared in a previous step.
     source:

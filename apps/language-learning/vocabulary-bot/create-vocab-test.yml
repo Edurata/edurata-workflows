@@ -30,22 +30,13 @@ interface:
   - airtable_table_name
   - google_api_key
   - google_service_account_json
-outputs:
-  type: object
-  properties:
-    form_url:
-      type: string
-      description: The Google Form URL created for the test.
-    airtable_update_status:
-      type: string
-      description: The status of updating the Airtable with feedback.
 steps:
   retrieve-vocabulary-rows:
     description: This step involves retrieving rows of vocabulary data.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
-    packages:
+    props:
       method: GET
       url: https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}
       headers:
@@ -78,8 +69,6 @@ steps:
           }
     packages:
     - openai==0.27.0
-    env:
-      OPENAI_API_KEY: ${secrets.OPENAI_API_KEY}
     interface:
       inputs:
         properties:
@@ -181,8 +170,6 @@ steps:
       google-auth: ''
       google-auth-httplib2: ''
       google-auth-oauthlib: ''
-    env:
-      GOOGLE_API_KEY: ${inputs.google_api_key}
     interface:
       inputs:
         properties:
@@ -224,7 +211,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-email
-    packages:
+    props:
       to: ${inputs.user_email}
       subject: Your Vocabulary Test
       html_body: 'Please complete your vocabulary test by visiting the following link: ${create-google-form.form_url}'
@@ -234,7 +221,7 @@ steps:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
-    packages:
+    props:
       method: PATCH
       url: https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}/${each.id}
       headers:

@@ -176,11 +176,9 @@ steps:
   continue-if-new-mails:
     description: This step continues the process if there are new emails without tags.
     if:
-      and:
-      - '>':
-        - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
-        - 0
-      - '!!': ${get-new-mails-without-tag.response.data.messages}
+      '>':
+      - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
+      - 0
     runtime: python3_10
     code: |
       def handler(inputs):

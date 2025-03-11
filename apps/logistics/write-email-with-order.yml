@@ -1,0 +1,66 @@
+name: query-orders-download-pdf-send-email
+apiRevision: edurata.io/v1
+description: |
+  This workflow queries an SQL database for new orders, downloads a PDF invoice for each order, and forwards it via email.
+interface:
+  inputs:
+    properties:
+      sql_query:
+        type: string
+        description: "SQL query to fetch new orders"
+      download_url:
+        type: string
+        description: "Base URL for downloading PDFs, expects order_id as parameter"
+      recipient_email:
+        type: string
+        description: "Email address to forward the PDF to"
+    required:
+      - sql_query
+      - download_url
+      - recipient_email
+  outputs:
+    properties:
+      email_status:
+        type: string
+        description: "Status of email forwarding"
+inputs:
+  sql_query: "SHOW DATABASES"
+  recipient_email: "info@edurata.com"
+steps:
+  query-new-orders:
+    description: "Query the SQL database for new orders."
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: clients/mysql
+    props:
+      query: ${inputs.sql_query}
+      MYSQL_HOST: ${secrets.test_db.MYSQL_HOST}
+      MYSQL_USER: ${secrets.test_db.MYSQL_USER}
+      MYSQL_PASSWORD: ${secrets.test_db.MYSQL_PASSWORD}
+  # download-pdf:
+  #   foreach: ${query-new-orders.result}
+  #   description: "Download PDF invoice for each order."
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: general/axios
+  #   props:
+  #     method: GET
+  #     url: "${inputs.download_url}?order_id=${each.order_id}"
+  #     responseType: file
+  # send-email:
+  #   foreach: ${download-pdf.response}
+  #   description: "Send the downloaded PDF as an email attachment."
+  #   source:
+  #     repoUrl: "https://github.com/Edurata/edurata-functions.git"
+  #     path: etl/load/send-ses
+  #   props:
+  #     sender: "orders@yourcompany.com"
+  #     to: ${inputs.recipient_email}
+  #     subject: "Your Invoice"
+  #     html_body: "Please find your invoice attached."
+  #     attachments:
+  #       - ${each}
+  #     AWS_REGION: "us-east-1"
+  #     AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+  #     AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
+

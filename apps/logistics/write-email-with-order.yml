@@ -37,6 +37,7 @@ steps:
       MYSQL_HOST: ${secrets.test_db.MYSQL_HOST}
       MYSQL_USER: ${secrets.test_db.MYSQL_USER}
       MYSQL_PASSWORD: ${secrets.test_db.MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${secrets.test_db.MYSQL_DATABASE}
   # download-pdf:
   #   foreach: ${query-new-orders.result}
   #   description: "Download PDF invoice for each order."

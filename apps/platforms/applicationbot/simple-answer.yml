@@ -48,13 +48,11 @@ steps:
       max_elapsed_days: ${inputs.maxElapsedDays}
   add-new-jobs-to-airtable:
     description: This step involves adding new job postings to Airtable by making a POST request to the Airtable API, iterating over each project in the merged job postings, and ensuring that certain conditions are met such as the existence of customer details and the non-existence of the record in the database.
-    foreach: ${merge-job-postings.projects}
+    foreach: ${extract-freelancermap-job-postings.matching_jobs}
     if:
       and:
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedeUser}
         - "!!": ${get-customer-details.response.data.records[0].fields.freelancedePw}
-        - "!":
-            "!!": ${check-if-record-exists[each.index].response.data.records?}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios

@@ -131,7 +131,7 @@ steps:
   #     API_KEY: ${secrets.OPENAI_API_KEY}
   #     systemMessage: "Using the following CV and job posting information, generate an email body in html highlighting my skills and \nqualifications to apply for the job. The email should be tailored to the job description. It should only include real experience that can be found in the CV.\nDon't use corporate language. maximum 5 sentences. Always mention the hourly rate and availability.\nGenerate the response in the language of the listing.\n\nMention that it is in response to a job opening on ${each.fields.sourceUrl}.\n\nIn your response don't include markup formatting and return the body directly.\nOnly return the email body as the header is done separately.\nAs its html, you must use <br> for linebreaks.\n\nJob Posting Details: ${each.fields.raw} \n\nMy Hourly rate: ${get-customer-details.response.data.records[0].fields.hourlyRate}.\n\nMy Availability: ${get-customer-details.response.data.records[0].fields.availableFrom}.\n\nMy CV: ${extract-CV-content.extracted_text}.\n"
   #     message: Create the email in html and only return the email body without markup formatting.
-  forward-pdf:
+  send-email:
     description: This step sends an email for each prepared Gmail raw data using a POST method to the Gmail API, authorized with a specific API key.
     foreach: ${get-job-postings.response.data.records}
     source:

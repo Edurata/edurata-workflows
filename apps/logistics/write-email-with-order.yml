@@ -64,4 +64,15 @@ steps:
   #     AWS_REGION: "us-east-1"
   #     AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
   #     AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
-
+  forward-pdf:
+    description: This step forwards a PDF by making a POST request to the Gmail API, using an encoded email attachment.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/send-gmail-email
+    props:
+      GMAIL_API_KEY: ${secrets.GMAIL_API_KEY}
+      userEmail: ""
+      recipient: ${inputs.recipient_email}
+      subject: "Your Invoice"
+      body: "Please find your invoice attached."
+      attachments:

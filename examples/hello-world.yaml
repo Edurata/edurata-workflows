@@ -10,8 +10,8 @@ interface:
         items:
           type: string
         default:
-        - Hello
-        - World
+          - Hello
+          - World
   outputs:
     properties:
       messageFromDocker:
@@ -44,7 +44,7 @@ steps:
             items:
               type: string
         required:
-        - messages
+          - messages
       outputs:
         properties:
           constructedMessage:
@@ -54,9 +54,10 @@ steps:
     runtime: python3_10
     code: |
       def handler(event):
+        // trigger
         print("Hello, World!")
     props:
-      message: 'Message from python inline: ${construct-message.string}'
+      message: "Message from python inline: ${construct-message.string}"
     interface:
       inputs:
         properties:
@@ -64,7 +65,7 @@ steps:
             type: string
             description: The message that will be processed by the python inline code.
         required:
-        - message
+          - message
       outputs:
         properties:
           result:
@@ -75,10 +76,11 @@ steps:
     runtime: nodejs20
     code: |
       exports.handler = async (event) => {
+        // trigger
         console.log("Hello, World!");
       };
     props:
-      message: 'Message from node inline: ${construct-message.string}'
+      message: "Message from node inline: ${construct-message.string}"
     interface:
       inputs:
         properties:
@@ -86,7 +88,7 @@ steps:
             type: string
             description: Message from node inline
         required:
-        - message
+          - message
       outputs:
         properties:
           construct-message:
@@ -98,14 +100,14 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/python
     props:
-      message: 'Message from python: ${construct-message.string}'
+      message: "Message from python: ${construct-message.string}"
   test-node:
     description: This step, identified as "test-node", depends on the output of the "construct-message" step and uses its output string to create a message.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/node
     props:
-      message: 'Message from node: ${construct-message.string}'
+      message: "Message from node: ${construct-message.string}"
   test-docker-upstream:
     description: This step involves testing a Docker upstream by executing a command that displays a message from Docker, which is dependent on the 'construct-message.string'.
     runtime: docker
@@ -120,21 +122,21 @@ steps:
             description: The command to run
     props:
       cmd:
-      - cowsay
-      - 'Message from docker: ${construct-message.string}'
+        - cowsay
+        - "Message from docker: ${construct-message.string}"
   test-foreach-with-if:
     description: 'This step iterates over each item in the ''messages'' input, and if the item is either ''Hello'' or ''World'', it returns a message saying "Message from if foreach: " followed by the item.'
     foreach: ${inputs.messages}
     if:
       or:
-      - ===:
-        - ${each}
-        - Hello
-      - ===:
-        - ${each}
-        - World
+        - ===:
+            - ${each}
+            - Hello
+        - ===:
+            - ${each}
+            - World
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: tests/node
     props:
-      message: 'Message from if foreach: ${each}'
+      message: "Message from if foreach: ${each}"

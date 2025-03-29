@@ -165,8 +165,8 @@ def handler(inputs):
 
 # Sample call to the handler function (for testing)
 # inputs = {
-#     "positive_keywords": "Python, Remote",
-#     "negative_keywords": "Senior, Manager",
-#     "max_elapsed_days": 15
+#     "positive_keywords": "Terraform",
+#     "negative_keywords": None,
+#     "max_elapsed_days": 4
 # }
 # print(handler(inputs))

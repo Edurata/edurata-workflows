@@ -65,7 +65,7 @@ steps:
         fields:
           raw: ${each.content}
           userEmail: ${inputs.userEmail}
-          sourceUrl: ${each.link}
+          sourceUrl: https://freelancermap.com
           processed: false
   get-job-postings:
     description: This step involves retrieving job postings from an Airtable database using a GET request, with a limit of 100 entries that have not been processed and belong to the specified user email.

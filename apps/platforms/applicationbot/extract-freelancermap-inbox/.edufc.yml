@@ -1,6 +1,6 @@
 name: freelancermap_job_filter
 runtime: python3_10
-description: A function that logs into Freelancermap, extracts job descriptions, and filters them based on keywords and elapsed days since posting.
+description: A function that logs into Freelancermap, extracts job descriptions, and filters them based on keywords and elapsed days since posting..
 interface:
   inputs:
     properties:
@@ -19,7 +19,13 @@ interface:
       max_elapsed_days:
         type: integer
         description: Maximum number of days since the job was posted for it to be included in the results.
-    required: [FREELANCERMAP_USERNAME, FREELANCERMAP_PASSWORD, positive_keywords, max_elapsed_days]
+    required:
+      [
+        FREELANCERMAP_USERNAME,
+        FREELANCERMAP_PASSWORD,
+        positive_keywords,
+        max_elapsed_days,
+      ]
   outputs:
     properties:
       matching_jobs:

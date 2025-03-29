@@ -143,8 +143,7 @@ steps:
                   type: file
     code: |
       const handler = async (event) => {
-        console.log(event)
-        console.log(event.results)
+        console.log(JSON.stringify(event))
         const { results } = event;
         return {results: results.flat().filter(result => result && !result.__pass__)}
       }

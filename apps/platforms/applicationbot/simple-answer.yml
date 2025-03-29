@@ -144,7 +144,7 @@ steps:
       body: ${get-customer-details.response.data.records[0].fields.applicationText}
       attachments:
         - ${download-CV.response.file}
-      draft: true
+      createDraft: false
   mark-as-processed:
     description: This step marks each job posting as processed by sending a PATCH request to the Airtable API for each record retrieved from the 'get-job-postings' step.
     foreach: ${get-job-postings.response.data.records}

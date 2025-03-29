@@ -22,7 +22,7 @@ interface:
                 ref:
                   type: string
     required:
-    - functionsToBuild
+      - functionsToBuild
 steps:
   git-clone:
     foreach: ${inputs.functionsToBuild}
@@ -91,8 +91,8 @@ steps:
     foreach: ${get-runtime.runtime_and_files}
     if:
       ===:
-      - ${each.runtime}
-      - nodejs20
+        - ${each.runtime}
+        - nodejs20
     description: This step involves building Node.js 20 by iterating over each runtime and its associated files, only if the runtime equals 'nodejs20', using the respective repository code as a dependency.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -103,8 +103,8 @@ steps:
     foreach: ${get-runtime.runtime_and_files}
     if:
       ===:
-      - ${each.runtime}
-      - python3_10
+        - ${each.runtime}
+        - python3_10
     description: This step builds Python 3.10 code for each runtime and file obtained from the 'get-runtime' function, only if the runtime is 'python3_10'.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -116,8 +116,8 @@ steps:
     runtime: nodejs20
     props:
       results:
-      - ${build-nodejs20?}
-      - ${build-python3_10?}
+        - ${build-nodejs20?}
+        - ${build-python3_10?}
     interface:
       inputs:
         type: object
@@ -143,7 +143,8 @@ steps:
                   type: file
     code: |
       const handler = async (event) => {
-        console.log(event, event.results)
+        console.log(event)
+        console.log(event.results)
         const { results } = event;
         return {results: results.flat().filter(result => result && !result.__pass__)}
       }
@@ -151,9 +152,9 @@ steps:
   get-upload-url:
     foreach: ${get-runtime.runtime_and_files}
     if:
-      '!==':
-      - ${each.runtime}
-      - docker
+      "!==":
+        - ${each.runtime}
+        - docker
     description: This step involves obtaining an upload URL for each runtime that isn't 'docker', by making a request to the specified API endpoint with the necessary authorization token.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -165,9 +166,9 @@ steps:
   zip-code:
     foreach: ${merge-results.results}
     if:
-      '!==':
-      - ${get-runtime.runtime_and_files[each.index].runtime}
-      - docker
+      "!==":
+        - ${get-runtime.runtime_and_files[each.index].runtime}
+        - docker
     description: This step involves processing each result from the merge-results.results operation where the runtime is not 'docker', using the corresponding code file identified by the zip-code step ID.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -177,9 +178,9 @@ steps:
   upload-code:
     foreach: ${merge-results.results}
     if:
-      '!==':
-      - ${get-runtime.runtime_and_files[each.index].runtime}
-      - docker
+      "!==":
+        - ${get-runtime.runtime_and_files[each.index].runtime}
+        - docker
     description: This step uploads code by putting data from a zipped file to a specified upload URL, for each result in merge-results, provided that the runtime is not 'docker'.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

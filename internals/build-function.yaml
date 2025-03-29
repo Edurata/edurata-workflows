@@ -145,7 +145,7 @@ steps:
       const handler = async (event) => {
         console.log(JSON.stringify(event))
         const { results } = event;
-        return {results: results.flat().filter(result => result && !result.__pass__)}
+        return {results: results.flat().filter(result => result && result.code && !result.__pass__)}
       }
       module.exports = {handler}
   get-upload-url:

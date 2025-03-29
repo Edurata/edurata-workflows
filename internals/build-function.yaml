@@ -112,7 +112,7 @@ steps:
     props:
       code: ${each.repoCode}
   merge-results:
-    description: This step involves merging the results from building Node.js 2.0 and Python 3.10.
+    description: This step involves merging the results from building Node.js 2.0 and Python 3.10..
     runtime: nodejs20
     props:
       results:

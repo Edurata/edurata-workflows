@@ -16,12 +16,6 @@ interface:
         items:
           type: string
         description: The subreddits to post to
-inputs:
-  subreddits:
-    - r/learnprogramming
-    - r/programming
-    - r/programminghumor
-    - r/programmingcirclejerk
 steps:
   get-latest-unprocessed-post:
     description: This step retrieves the latest unprocessed post from a specified Airtable table using a GET request, filtering for records that have not been processed and have a non-empty workflow path.
@@ -46,25 +40,11 @@ steps:
       path: ${get-latest-unprocessed-post.response.data.records[0].fields.workflowPath}
   get-workflow-definition:
     description: This step involves obtaining the definition of the workflow, dependent on the 'repoCode' from the 'download-git-repo'.
-    runtime: python3_10
-    interface:
-      inputs:
-        properties:
-          repoCode:
-            type: file
-            description: The path to the cloned repository.
-      outputs:
-        type: object
-    packages:
-      PyYAML: ""
-    code: |
-      import yaml
-
-      def handler(inputs):
-          with open(inputs['repoCode'], 'r') as file:
-              return yaml.safe_load(file)
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/extract/extract-text
     props:
-      repoCode: ${download-git-repo.repoCode}
+      input_file: ${download-git-repo.repoCode}
   generate-blog-content:
     description: This step involves generating blog content about a given workflow and its use case, using a specific model and an API key.
     source:
@@ -77,7 +57,7 @@ steps:
         You are going to receive a yaml file of a workflow. 
         You should generate a blog article that can be posted on our blog.
         The article should be about the workflow and its use case.
-      message: ${get-workflow-definition}
+      message: ${get-workflow-definition.extracted_text}
   update-airtable-workflow:
     if:
       "!!": ${generate-blog-content.response}

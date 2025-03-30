@@ -67,7 +67,7 @@ steps:
       path: general/axios
     props:
       method: PATCH
-      url: https://api.airtable.com/v0/${inputs.new_workflow_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}
+      url: https://api.airtable.com/v0/${inputs.new_workflow_table_id}/${get-latest-unprocessed-post.response.data.records[0].id}
       headers:
         Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       body:
@@ -80,7 +80,7 @@ steps:
       path: general/axios
     props:
       method: POST
-      url: https://api.airtable.com/v0/${inputs.blog_posts_table_id}/${get-latest-unprocessed-post.response.data.records[0].fields.id}
+      url: https://api.airtable.com/v0/${inputs.blog_posts_table_id}
       headers:
         Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       body:

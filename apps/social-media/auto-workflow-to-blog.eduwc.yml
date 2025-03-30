@@ -70,7 +70,7 @@ steps:
       url: https://api.airtable.com/v0/${inputs.new_workflow_table_id}/${get-latest-unprocessed-post.response.data.records[0].id}
       headers:
         Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
-      body:
+      data:
         fields:
           processed: true
   update-airtable-blog:
@@ -83,7 +83,7 @@ steps:
       url: https://api.airtable.com/v0/${inputs.blog_posts_table_id}
       headers:
         Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
-      body:
+      data:
         fields:
           content: ${generate-blog-content.response}
           freeToPublish: false

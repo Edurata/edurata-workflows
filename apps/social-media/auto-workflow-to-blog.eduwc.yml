@@ -1,4 +1,4 @@
-name: workflow-blog-to-multiple-platforms
+name: auto-workflow-generate-blogs
 apiRevision: edurata.io/workflow/v1
 description: The process retrieves the latest unprocessed post from an Airtable table and downloads a Git repository based on the post's workflow path. It then obtains the workflow definition from the downloaded repository. The system generates blog content about the workflow using a specific model and API key. If successful, it marks the record as processed in the Airtable workflow table. Lastly, it updates a blog post in an Airtable database with the generated content and sets its 'freeToPublish' field to False.
 interface:
@@ -17,13 +17,11 @@ interface:
           type: string
         description: The subreddits to post to
 inputs:
-  new_workflow_table_id: ${variables.new_workflow_table_id}
-  blog_posts_table_id: ${variables.blog_posts_table_id}
   subreddits:
-  - r/learnprogramming
-  - r/programming
-  - r/programminghumor
-  - r/programmingcirclejerk
+    - r/learnprogramming
+    - r/programming
+    - r/programminghumor
+    - r/programmingcirclejerk
 steps:
   get-latest-unprocessed-post:
     description: This step retrieves the latest unprocessed post from a specified Airtable table using a GET request, filtering for records that have not been processed and have a non-empty workflow path.
@@ -58,7 +56,7 @@ steps:
       outputs:
         type: object
     packages:
-      PyYAML: ''
+      PyYAML: ""
     code: |
       import yaml
 
@@ -75,11 +73,14 @@ steps:
     props:
       model: gpt-4o
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: "You are going to receive a yaml file of a workflow. \nYou should generate a blog article that can be posted on our blog.\nThe article should be about the workflow and its use case.\n"
+      systemMessage: |
+        You are going to receive a yaml file of a workflow. 
+        You should generate a blog article that can be posted on our blog.
+        The article should be about the workflow and its use case.
       message: ${get-workflow-definition}
   update-airtable-workflow:
     if:
-      '!!': ${generate-blog-content.response}
+      "!!": ${generate-blog-content.response}
     description: This step updates a specific record in the Airtable workflow table to mark it as processed, if the blog content generation was successful.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

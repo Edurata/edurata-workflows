@@ -26,7 +26,7 @@ steps:
       headers:
         Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       params:
-        filterByFormula: '{email}=''${inputs.user_email}'''
+        filterByFormula: "{email}='${inputs.user_email}'"
   get-latest-unprocessed-post:
     description: This step retrieves the latest unprocessed blog post from an Airtable database using a GET request, filtering for posts with a status that is not 'processed', and limiting the results to one entry.
     source:
@@ -38,21 +38,80 @@ steps:
       headers:
         Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       params:
-        filterByFormula: AND({status}!='processed')
+        # released is false and freeToPublish is true
+        filterByFormula: AND(NOT({released}), {freeToPublish} = true)
         limit: 1
+  create-meta-info-blog:
+    description: This step creates metadata information for a blog post, including the title, subtitle, and tags, using the latest unprocessed post data.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    props:
+      model: gpt-4o
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        You are going to receive a blog post.
+        You should generate the metadata information for the blog post.
+        The metadata information should include the title, subtitle, and tags.
+        return it in a json format with the following keys:
+        title, subtitle, tags
+        The tags should be a list of strings.
+        Return only the json.
+      message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
+  parse-string-to-json:
+    runtime: python3_10
+    code: |
+      import json
+      import os
+
+      def handler(event, context):
+          # Parse the JSON string from the input
+          json_string = event['message']
+          parsed_json = json.loads(json_string)
+          
+          # Return the parsed JSON
+          return parsed_json
+    props:
+      message: ${create-meta-info-blog.response}
+  post-blog-to-edurata:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: clients/dynamodb
+    props:
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID_DYNAMO_CREATE}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY_DYNAMO_CREATE}
+      AWS_REGION: ${variables.AWS_REGION}
+      operation: create
+      table_name: ${inputs.DYNAMODB_BLOG_TABLE_NAME}
+      item:
+        title: ${parse-string-to-json.parsed_json.title}
+        subtitle: ${parse-string-to-json.parsed_json.subtitle}
+        tags: ${parse-string-to-json.parsed_json.tags}
+        htmlBody: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
+        blogCategory: WORKFLOW
   generate-post-reddit:
+    if:
+      and:
+        - in:
+            - redditPost
+            - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+        - "!!": ${get-user-settings.response.data.records[0].fields.subReddits}
     description: This step generates a Reddit post by formatting a blog post with a teaser and a link to the blog, using the title and content of the latest unprocessed post.
     foreach:
-    - title
-    - content
+      - title
+      - content
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: "You are going to receive a blog post. Format it so it can be posted with a teaser to reddit and then linking to the blog link. \nReturn only the string ${each}.\n"
-      message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
+      message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
   generate-post-linkedin:
+    if:
+      in:
+        - linkedinPost
+        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
     description: This step generates a summarized version of the latest unprocessed blog post to be used as a teaser on LinkedIn.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -62,7 +121,7 @@ steps:
       systemMessage: |
         You are going to receive a blog post. Make a summary so it can be posted as a teaser to linkedin.
         Return only the content.
-      message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
+      message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
   generate-post-x:
     description: This step generates a summarized version of a received blog post, which will be posted as a teaser on a platform formerly known as Twitter.
     source:
@@ -73,15 +132,15 @@ steps:
       systemMessage: |
         You are going to receive a blog post. Make a summary so it can be posted as a teaser to x (formerly twitter).
         Return only the tweet.
-      message: ${get-latest-unprocessed-post.response.data.records[0].fields.raw}
+      message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
   post-to-reddit:
     description: This step posts content to specified subreddits on Reddit using the user's access token, if Reddit posting is enabled in the user's settings.
     if:
       and:
-      - in:
-        - redditPost
-        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
-      - '!!': ${get-user-settings.response.data.records[0].fields.subReddits}
+        - in:
+            - redditPost
+            - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+        - "!!": ${get-user-settings.response.data.records[0].fields.subReddits}
     foreach: ${get-user-settings.response.data.records[0].fields.subReddits}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -99,12 +158,13 @@ steps:
         title: ${generate-post-reddit[0].response}
         kind: self
         text: ${generate-post-reddit[1].response}
+
   post-to-linkedin:
     description: This step posts a message to LinkedIn using the LinkedIn API, provided that the user has enabled LinkedIn as a target in their settings.
     if:
       in:
-      - linkedinPost
-      - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+        - linkedinPost
+        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -120,8 +180,8 @@ steps:
     description: This step posts a tweet to Twitter using the POST method, with the content of the tweet being the response from the generate-post-x step, but only if 'twitterPost' is included in the user's enabled targets.
     if:
       in:
-      - twitterPost
-      - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+        - twitterPost
+        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios

@@ -5,10 +5,28 @@ interface:
   inputs:
     type: object
     properties:
+      user_table_id:
+        type: string
+        description: The Airtable ID in the format app/tbl for user
       blog_posts_table_id:
         type: string
         description: The Airtable ID in the format app/tbl for blog posts
+      user_email:
+        type: string
+        description: The email of the current user
 steps:
+  get-user-settings:
+    description: This step retrieves the user settings from an Airtable database using a GET request, filtering by the user's email.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: https://api.airtable.com/v0/${inputs.user_table_id}
+      headers:
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+      params:
+        filterByFormula: "{email}='${inputs.user_email}'"
   get-latest-unprocessed-post:
     description: This step retrieves the latest unprocessed blog post from an Airtable database using a GET request, filtering for posts with a status that is not 'processed', and limiting the results to one entry.
     source:

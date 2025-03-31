@@ -38,8 +38,7 @@ steps:
       headers:
         Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
       params:
-        # released is false and freeToPublish is true
-        filterByFormula: AND(NOT({released}), {freeToPublish} = true)
+        filterByFormula: AND(NOT({released}), {freeToPublish})
         limit: 1
   create-meta-info-blog:
     description: This step creates metadata information for a blog post, including the title, subtitle, and tags, using the latest unprocessed post data.

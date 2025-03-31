@@ -41,6 +41,8 @@ steps:
         filterByFormula: AND(NOT({released}), {freeToPublish})
         limit: 1
   create-meta-info-blog:
+    if:
+      "!!": ${get-latest-unprocessed-post.response.data.records}
     description: This step creates metadata information for a blog post, including the title, subtitle, and tags, using the latest unprocessed post data.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -91,6 +93,7 @@ steps:
   generate-post-reddit:
     if:
       and:
+        - "!!": ${get-latest-unprocessed-post.response.data.records}
         - in:
             - redditPost
             - ${get-user-settings.response.data.records[0].fields.enabledTargets}
@@ -108,9 +111,11 @@ steps:
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
   generate-post-linkedin:
     if:
-      in:
-        - linkedinPost
-        - ${get-user-settings.response.data.records[0].fields.enabledTargets}
+      and:
+        - "!!": ${get-latest-unprocessed-post.response.data.records}
+        - in:
+            - linkedinPost
+            - ${get-user-settings.response.data.records[0].fields.enabledTargets}
     description: This step generates a summarized version of the latest unprocessed blog post to be used as a teaser on LinkedIn.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -122,6 +127,12 @@ steps:
         Return only the content.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
   generate-post-x:
+    if:
+      and:
+        - "!!": ${get-latest-unprocessed-post.response.data.records}
+        - in:
+            - xPost
+            - ${get-user-settings.response.data.records[0].fields.enabledTargets}
     description: This step generates a summarized version of a received blog post, which will be posted as a teaser on a platform formerly known as Twitter.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -136,6 +147,7 @@ steps:
     description: This step posts content to specified subreddits on Reddit using the user's access token, if Reddit posting is enabled in the user's settings.
     if:
       and:
+        - "!!": ${get-latest-unprocessed-post.response.data.records}
         - in:
             - redditPost
             - ${get-user-settings.response.data.records[0].fields.enabledTargets}

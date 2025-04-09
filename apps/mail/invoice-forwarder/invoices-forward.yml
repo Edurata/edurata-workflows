@@ -40,11 +40,11 @@ interface:
             type: string
             description: |
               Additional query to filter the emails
-            default: ''
+            default: ""
     required:
-    - config
-    - userEmail
-    - peopleTableId
+      - config
+      - userEmail
+      - peopleTableId
 inputs:
   config: ${variables.invoices_forward_config}
   peopleTableId: ${variables.accountingbot_people_table_id}
@@ -81,8 +81,8 @@ steps:
             type: object
             description: Base configuration data
         required:
-        - user_config
-        - base_config
+          - user_config
+          - base_config
       outputs:
         properties:
           merged_config:
@@ -90,10 +90,11 @@ steps:
             description: Merged configuration data
   create-labels:
     description: This step creates labels in Gmail for success, failure, and skip tags, using a POST request to the Gmail API.
+    optional: true
     foreach:
-    - ${merge-config.config.successTag}
-    - ${merge-config.config.failTag}
-    - ${merge-config.config.skipTag}
+      - ${merge-config.config.successTag}
+      - ${merge-config.config.failTag}
+      - ${merge-config.config.skipTag}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -149,17 +150,17 @@ steps:
             type: string
             description: Tag to be used for skipped operations
         required:
-        - get-label-ids
-        - successTag
-        - failTag
-        - skipTag
+          - get-label-ids
+          - successTag
+          - failTag
+          - skipTag
       outputs:
         properties:
           transformedTags:
             type: object
             description: Object containing transformed tags to label ids
         required:
-        - transformedTags
+          - transformedTags
   get-new-mails-without-tag:
     description: This step is retrieving the ten most recent emails from the user's Gmail account that were received after January 1, 2021, have a PDF attachment, and do not have specific labels, using a provided API key for authorization.
     source:
@@ -176,9 +177,9 @@ steps:
   continue-if-new-mails:
     description: This step continues the process if there are new emails without tags.
     if:
-      '>':
-      - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
-      - 0
+      ">":
+        - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
+        - 0
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -201,24 +202,24 @@ steps:
                         type: integer
                       messages:
                         type:
-                        - array
-                        - 'null'
+                          - array
+                          - "null"
                     required:
-                    - resultSizeEstimate
-                    - messages
+                      - resultSizeEstimate
+                      - messages
                 required:
-                - data
+                  - data
             required:
-            - response
+              - response
         required:
-        - get-new-mails-without-tag
+          - get-new-mails-without-tag
       outputs:
         type: object
         properties:
           continue:
             type: boolean
         required:
-        - continue
+          - continue
   get-mails-info:
     description: This step fetches detailed information for each new email message from the Gmail API, using the message ID, in a full format with specific fields such as 'id' and 'payload'.
     foreach: ${continue-if-new-mails.mails}
@@ -319,7 +320,7 @@ steps:
   encode_email_attachments:
     description: This step involves encoding email attachments for a specific user and forwarding them to a configured email address, given that the forward email configuration is set.
     if:
-      '!!': ${merge-config.config.forwardEmail}
+      "!!": ${merge-config.config.forwardEmail}
     else: success
     runtime: python3_10
     interface:
@@ -347,7 +348,7 @@ steps:
     description: This step involves obtaining the folder ID, provided that the Google Drive folder name in the merge-config is not null.
     runtime: python3_10
     if:
-      '!!': ${merge-config.config.gdriveFolderName}
+      "!!": ${merge-config.config.gdriveFolderName}
     code: |
       import datetime
       def handler(inputs):
@@ -366,20 +367,20 @@ steps:
                   gdriveFolderName:
                     type: string
                 required:
-                - gdriveFolderName
+                  - gdriveFolderName
             required:
-            - config
+              - config
         required:
-        - merge-config
+          - merge-config
       outputs:
         properties:
           folderId:
             type: string
         required:
-        - folderId
+          - folderId
   create-folderpath:
     if:
-      '!!': ${filter-attachments.filtered_attachments}
+      "!!": ${filter-attachments.filtered_attachments}
     description: This step creates a new folder path in Google Drive using the provided OAuth token and folder name, only if there are filtered attachments present.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -440,11 +441,11 @@ steps:
           skipTag:
             type: string
         required:
-        - all_messages
-        - filtered_attachments
-        - successTag
-        - failTag
-        - skipTag
+          - all_messages
+          - filtered_attachments
+          - successTag
+          - failTag
+          - skipTag
       outputs:
         properties:
           tagged_messages:
@@ -452,7 +453,7 @@ steps:
             items:
               type: object
         required:
-        - tagged_messages
+          - tagged_messages
   tag-emails:
     description: This step automates the process of tagging emails by posting a request to the Gmail API for each thread specified in the 'map-tags-to-threads' object, using the 'GMAIL_API_KEY' for authorization.
     foreach: ${map-tags-to-threads}
@@ -466,5 +467,5 @@ steps:
         Authorization: Bearer ${secrets.GMAIL_API_KEY}
       data:
         addLabelIds:
-        - ${each.tag}
+          - ${each.tag}
         removeLabelIds: []

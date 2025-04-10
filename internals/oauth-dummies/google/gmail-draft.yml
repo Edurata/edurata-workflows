@@ -1,0 +1,63 @@
+name: gmail-airtable-to-draft
+apiRevision: edurata.io/workflow/v1
+description: Google email refiner using https://www.googleapis.com/auth/gmail.compose
+interface:
+  inputs:
+    type: object
+    properties:
+      source_table_id:
+        type: string
+        description: The Airtable ID in the format app/tbl for source items
+steps:
+  get-latest-unprocessed-item:
+    description: This step retrieves the latest unprocessed post from a specified Airtable table using a GET request, filtering for records that have not been processed.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: https://api.airtable.com/v0/${inputs.source_table_id}
+      headers:
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+      params:
+        filterByFormula: NOT({processed})
+        limit: 1
+  generate-email-body:
+    description: This step involves generating blog content about a given workflow and its use case, using a specific model and an API key.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    props:
+      model: gpt-4o
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        You are going to receive a basic draft of an email, make it more eloquent and professional.
+        Only return the body in html format.
+      message: ${get-latest-unprocessed-item.response.data.records[0].fields.content}
+  send-email:
+    description: This step sends an email for each prepared Gmail raw data using a POST method to the Gmail API, authorized with a specific API key.
+    foreach: ${get-job-postings.response.data.records}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/send-gmail-email
+    props:
+      GMAIL_API_KEY: ${secrets.GMAIL_API_KEY}
+      recipient: ${get-latest-unprocessed-item.response.data.records[0].fields.recipient}
+      subject: ${get-latest-unprocessed-item.response.data.records[0].fields.subject}
+      body: ${generate-email-body.response}
+      createDraft: false
+  update-airtable-workflow:
+    if:
+      "!!": ${send-email.messageId}
+    description: This step updates a specific record in the Airtable workflow table to mark it as processed, if the blog content generation was successful.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: PATCH
+      url: https://api.airtable.com/v0/${inputs.source_table_id}/${get-latest-unprocessed-item.response.data.records[0].id}
+      headers:
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+      data:
+        fields:
+          processed: true

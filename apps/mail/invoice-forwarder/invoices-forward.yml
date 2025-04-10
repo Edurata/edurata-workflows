@@ -105,6 +105,7 @@ steps:
         Authorization: Bearer ${secrets.GMAIL_API_KEY}
       data:
         name: ${each}
+      throwError: false
   get-label-ids:
     description: This step retrieves the label IDs from Gmail's API using a specified URL and authorization headers, depending on the creation of labels.
     source:

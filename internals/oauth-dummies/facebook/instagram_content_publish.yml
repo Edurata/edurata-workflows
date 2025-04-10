@@ -1,0 +1,59 @@
+name: auto-workflow-generate-blogs
+apiRevision: edurata.io/workflow/v1
+description: Publishes instagram posts from airtable
+interface:
+  inputs:
+    type: object
+    properties:
+      ig_user_id:
+        type: string
+        description: The Instagram user ID to publish the post
+      source_table_id:
+        type: string
+        description: The Airtable ID in the format app/tbl for source items
+steps:
+  get-latest-unprocessed-item:
+    description: This step retrieves the latest unprocessed post from a specified Airtable table using a GET request, filtering for records that have not been processed.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: https://api.airtable.com/v0/${inputs.source_table_id}
+      headers:
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+      params:
+        filterByFormula: NOT({processed})
+        limit: 1
+  publish-post:
+    description: This step sends an email for each prepared Gmail raw data using a POST method to the Gmail API, authorized with a specific API key.
+    foreach: ${get-job-postings.response.data.records}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: POST
+      url: https://graph.facebook.com/v19.0/${inputs.ig-user-id}/media
+      body:
+        image_url: ${get-latest-unprocessed-item.response.data.records[0].fields.imageUrl}
+        caption: ${get-latest-unprocessed-item.response.data.records[0].fields.caption}
+      headers:
+        Authorization: Bearer ${secrets.FACEBOOK_API_KEY}
+      params:
+        access_token: ${secrets.FACEBOOK_API_KEY}
+        ig_user_id: ${inputs.ig_user_id}
+  update-airtable-workflow:
+    if:
+      "!!": ${publish-post.response.status}
+    description: This step updates a specific record in the Airtable workflow table to mark it as processed, if the blog content generation was successful.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: PATCH
+      url: https://api.airtable.com/v0/${inputs.source_table_id}/${get-latest-unprocessed-item.response.data.records[0].id}
+      headers:
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+      data:
+        fields:
+          processed: true

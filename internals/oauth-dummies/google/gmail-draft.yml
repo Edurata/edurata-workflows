@@ -36,7 +36,6 @@ steps:
       message: ${get-latest-unprocessed-item.response.data.records[0].fields.content}
   send-email:
     description: This step sends an email for each prepared Gmail raw data using a POST method to the Gmail API, authorized with a specific API key.
-    foreach: ${get-job-postings.response.data.records}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/send-gmail-email

@@ -25,11 +25,34 @@ steps:
     description: For each email from this week, fetch its full message and extract the plain text body.
     foreach: ${get-weekly-emails.response.data.messages}
     source:
-      repoUrl: <TODO>
-      path: gmail/extract-email-body
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
     props:
-      messageId: ${each.id}
-      GMAIL_API_KEY: ${secrets.GMAIL_API_KEY}
+      url: https://www.googleapis.com/gmail/v1/users/me/messages/${each.id}
+      method: GET
+      headers:
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
+      params:
+        format: full
+  create-prompt:
+    description: This step creates a prompt for ChatGPT by extracting the plain text body of each email.
+    code: |
+      def handler(inputs):
+          # Extract the plain text body from the email parts and make sure that the whole is not longer than the max_tokens for chatgpt
+          email_bodies = []
+          for part in inputs.bodies:
+              if 'parts' in part:
+                  for subpart in part['parts']:
+                      if 'body' in subpart and 'data' in subpart['body']:
+                          email_bodies.append(subpart['body']['data'])
+              elif 'body' in part and 'data' in part['body']:
+                  email_bodies.append(part['body']['data'])
+          # Decode the base64url encoded data
+          decoded_bodies = [base64.urlsafe_b64decode(body).decode('utf-8') for body in email_bodies]
+          # Join the decoded bodies into a single string
+          return ' '.join(decoded_bodies)
+    props:
+      bodies: ${get-email-bodies.response.data.payload.parts}
   summarize-emails:
     description: This step involves generating a summary of the email bodies using ChatGPT.
     source:
@@ -56,4 +79,4 @@ steps:
         Content-Type: application/json
       data:
         fields:
-          summary: ${summarize-emails.summary}
+          summary: ${summarize-emails.response}

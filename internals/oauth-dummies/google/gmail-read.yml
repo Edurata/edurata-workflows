@@ -68,7 +68,7 @@ steps:
         You are going to receive a list of email bodies. 
         Generate a summary of the emails in a professional tone.
         Only return the summary in plain text format.
-      message: ${create-prompt}
+      message: ${create-prompt.response}
   save-summary-to-airtable:
     description: Save the summary to the Airtable table provided.
     source:

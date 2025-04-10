@@ -32,7 +32,7 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         You are going to receive a basic draft of an email, make it more eloquent and professional.
-        Only return the body in html format.
+        Only return the body in html format without any other formatting or markup.
       message: ${get-latest-unprocessed-item.response.data.records[0].fields.content}
   send-email:
     description: This step sends an email for each prepared Gmail raw data using a POST method to the Gmail API, authorized with a specific API key.

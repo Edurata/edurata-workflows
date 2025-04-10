@@ -51,7 +51,9 @@ steps:
           # Decode the base64url encoded data
           decoded_bodies = [base64.urlsafe_b64decode(body).decode('utf-8') for body in email_bodies]
           # Join the decoded bodies into a single string
-          return ' '.join(decoded_bodies)
+          return {
+              "response": ' '.join(decoded_bodies)
+          }
     props:
       bodies: ${get-email-bodies.response.data.payload.parts}
   summarize-emails:
@@ -66,7 +68,7 @@ steps:
         You are going to receive a list of email bodies. 
         Generate a summary of the emails in a professional tone.
         Only return the summary in plain text format.
-      message: ${get-latest-unprocessed-item.response.data.records[0].fields.content}
+      message: ${create-prompt}
   save-summary-to-airtable:
     description: Save the summary to the Airtable table provided.
     source:

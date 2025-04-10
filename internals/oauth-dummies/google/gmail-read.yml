@@ -35,6 +35,7 @@ steps:
       params:
         format: full
   create-prompt:
+    runtime: python3_10
     description: This step creates a prompt for ChatGPT by extracting the plain text body of each email.
     code: |
       def handler(inputs):

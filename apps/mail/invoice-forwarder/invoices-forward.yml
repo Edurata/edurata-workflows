@@ -112,6 +112,7 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
+      method: GET
       url: https://gmail.googleapis.com/gmail/v1/users/me/labels
       headers:
         Authorization: Bearer ${secrets.GMAIL_API_KEY}
@@ -168,6 +169,7 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
+      method: GET
       url: https://www.googleapis.com/gmail/v1/users/me/messages
       headers:
         Authorization: Bearer ${secrets.GMAIL_API_KEY}
@@ -417,7 +419,29 @@ steps:
   map-tags-to-threads:
     description: This step involves mapping tags to threads based on the properties of new emails without tags, filtered attachments, and specific success, fail, and skip tags.
     runtime: python3_10
-    code: "def handler(inputs):\n    thread_to_tags = {}\n    for message in inputs[\"all_messages\"]:\n        thread_id = message[\"threadId\"]\n\n        # continue if already processed\n        if thread_id in thread_to_tags:\n            continue\n\n        is_in_filtered_attachments = False\n        for attachment in inputs[\"filtered_attachments\"]:\n            if attachment[\"message_id\"] == message[\"id\"]:\n                is_in_filtered_attachments = True\n                break\n        thread_to_tags[thread_id] = inputs[\"successTag\"] if is_in_filtered_attachments else inputs[\"skipTag\"]\n    \n    # make into list of objects\n    return [{\"threadId\": thread_id, \"tag\": tag} for thread_id, tag in thread_to_tags.items()]\n"
+    code: |
+      def handler(inputs):
+        thread_to_tags = {}
+        for message in inputs["all_messages"]:
+            thread_id = message["threadId"]
+
+            if thread_id in thread_to_tags:
+                continue
+
+            is_in_filtered_attachments = any(
+                attachment["message_id"] == message["id"]
+                for attachment in inputs["filtered_attachments"]
+            )
+            thread_to_tags[thread_id] = (
+                inputs["successTag"] if is_in_filtered_attachments else inputs["skipTag"]
+            )
+
+        return {  # ✅ wrap in a dict with key matching output schema
+            "tagged_messages": [
+                {"threadId": thread_id, "tag": tag}
+                for thread_id, tag in thread_to_tags.items()
+            ]
+        }
     props:
       all_messages: ${get-new-mails-without-tag.response.data.messages}
       filtered_attachments: ${filter-attachments.filtered_attachments}
@@ -457,7 +481,7 @@ steps:
           - tagged_messages
   tag-emails:
     description: This step automates the process of tagging emails by posting a request to the Gmail API for each thread specified in the 'map-tags-to-threads' object, using the 'GMAIL_API_KEY' for authorization.
-    foreach: ${map-tags-to-threads}
+    foreach: ${map-tags-to-threads.tagged_messages}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios

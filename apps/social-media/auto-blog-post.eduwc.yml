@@ -1,0 +1,100 @@
+name: post-blog
+apiRevision: edurata.io/workflow/v1
+description: The process retrieves the latest unprocessed blog from an Airtable table and posts it to dynamodb.
+interface:
+  inputs:
+    type: object
+    properties:
+      blog_posts_table_id:
+        type: string
+        description: The Airtable ID in the format app/tbl for blog posts.
+      blog_dynamodb_table_name:
+        type: string
+        description: The ID of the DynamoDB table where the blog post will be stored.
+steps:
+  get-latest-unprocessed-post:
+    description: This step retrieves the latest unprocessed post from a specified Airtable table using a GET request, filtering for records that have not been processed and have a non-empty workflow path.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: https://api.airtable.com/v0/${inputs.blog_posts_table_id}
+      headers:
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+      params:
+        filterByFormula: AND(NOT({processed}), {freeToPublish})
+        limit: 1
+  get-today-date:
+    code: |
+      import datetime
+      def handler(inputs):
+          today = datetime.date.today()
+          return today.strftime("%Y-%m-%d")
+    runtime: python3_10
+  get-category-from-post:
+    description: This step extracts the category from the latest unprocessed post's fields using a Python function.
+    code: |
+      def handler(inputs):
+          return inputs["category"]
+    runtime: python3_10
+    props:
+      category: ${get-latest-unprocessed-post.response.data.records[0].fields.blogCategory}
+  get-tags-from-post:
+    description: This step extracts tags from the latest unprocessed post's fields using a Python function.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    props:
+      systemMessage: |
+        You are going to receive a blog post. 
+        Generate the following information and return it in a json with the keys
+        - tags
+        - category (one of NORMAL, WORKFLOW (describing a workflow step-by-step), CASE_STUDY, TUTORIAL, FEATURE, RELEASE)
+        - title
+        - subtitle
+        Only return the json without any other text.
+      message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
+  get-meta-json:
+    code: |
+      import json
+      def handler(inputs):
+          return json.loads(inputs["json_string"])
+    runtime: python3_10
+    props:
+      json_string: ${get-tags-from-post.response}
+  post-to-dynamodb:
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: clients/dynamodb
+    props:
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${secrets.AWS_REGION}
+      operation: create
+      table_name: ${inputs.blog_dynamodb_table_name}
+      item:
+        htmlBody: ${get-latest-unprocessed-post.response.data.records[0].fields.htmlBody}
+        # computed
+        title: ${get-meta-json.title}
+        subtitle: ${get-meta-json.subtitle}
+        tags: ${get-meta-json.tags}
+        blogCategory: ${get-meta-json.category}
+        # standard
+        __typename: BlogArticle
+        updatedAt: ${get-today-date.response}
+        createdAt: ${get-today-date.response}
+  # todo make notifications to social media
+  update-airtable-blog:
+    description: This step updates a specific blog post in an Airtable database with generated content and sets its 'freeToPublish' field to False, using a POST request.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: PATCH
+      url: https://api.airtable.com/v0/${inputs.blog_posts_table_id}/${get-latest-unprocessed-post.response.data.records[0].id}
+      headers:
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+      data:
+        fields:
+          processed: true

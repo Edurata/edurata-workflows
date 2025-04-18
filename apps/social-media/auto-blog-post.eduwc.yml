@@ -32,14 +32,6 @@ steps:
           today = datetime.date.today()
           return today.strftime("%Y-%m-%d")
     runtime: python3_10
-  get-category-from-post:
-    description: This step extracts the category from the latest unprocessed post's fields using a Python function.
-    code: |
-      def handler(inputs):
-          return inputs["category"]
-    runtime: python3_10
-    props:
-      category: ${get-latest-unprocessed-post.response.data.records[0].fields.blogCategory}
   get-meta-from-post:
     description: This step extracts tags from the latest unprocessed post's fields using a Python function.
     source:

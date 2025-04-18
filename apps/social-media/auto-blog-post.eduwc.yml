@@ -40,12 +40,13 @@ steps:
     runtime: python3_10
     props:
       category: ${get-latest-unprocessed-post.response.data.records[0].fields.blogCategory}
-  get-tags-from-post:
+  get-meta-from-post:
     description: This step extracts tags from the latest unprocessed post's fields using a Python function.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/transform/chatgpt
     props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         You are going to receive a blog post. 
         Generate the following information and return it in a json with the keys
@@ -62,7 +63,7 @@ steps:
           return json.loads(inputs["json_string"])
     runtime: python3_10
     props:
-      json_string: ${get-tags-from-post.response}
+      json_string: ${get-meta-from-post.response}
   post-to-dynamodb:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

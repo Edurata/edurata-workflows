@@ -46,13 +46,15 @@ steps:
         - category (one of NORMAL, WORKFLOW (describing a workflow step-by-step), CASE_STUDY, TUTORIAL, FEATURE, RELEASE)
         - title
         - subtitle
-        - htmlBody (the body of the blog post in html)
+        - htmlBody (the body of the blog post in html without linebreaks)
         Only return the json without any other text or formatting
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
   get-meta-json:
     code: |
       import json
       def handler(inputs):
+          # strip of linebreaks
+          inputs["json_string"] = inputs["json_string"].replace("\n", "")
           return json.loads(inputs["json_string"])
     runtime: python3_10
     props:

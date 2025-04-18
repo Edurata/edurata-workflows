@@ -41,12 +41,13 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         You are going to receive a blog post. 
-        Generate the following information and return it in a json with the keys
+        Generate the following information and return it in a json with the keys:
         - tags
         - category (one of NORMAL, WORKFLOW (describing a workflow step-by-step), CASE_STUDY, TUTORIAL, FEATURE, RELEASE)
         - title
         - subtitle
-        Only return the json without any other text.
+        - htmlBody (the body of the blog post in html)
+        Only return the json without any other text or formatting
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
   get-meta-json:
     code: |
@@ -67,7 +68,7 @@ steps:
       operation: create
       table_name: ${inputs.blog_dynamodb_table_name}
       item:
-        htmlBody: ${get-latest-unprocessed-post.response.data.records[0].fields.htmlBody}
+        htmlBody: ${get-meta-json.htmlBody}
         # computed
         title: ${get-meta-json.title}
         subtitle: ${get-meta-json.subtitle}

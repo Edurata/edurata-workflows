@@ -55,6 +55,7 @@ steps:
       def handler(inputs):
           # strip of linebreaks
           inputs["json_string"] = inputs["json_string"].replace("\n", "")
+          print(inputs["json_string"])
           return json.loads(inputs["json_string"])
     runtime: python3_10
     props:

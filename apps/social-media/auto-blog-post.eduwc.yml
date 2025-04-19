@@ -42,6 +42,7 @@ steps:
       systemMessage: |
         You are going to receive a blog post. 
         Generate the following information and return it in a json with the keys:
+        - slug (a slug for the blog post)
         - tags
         - category (one of NORMAL, WORKFLOW (describing a workflow step-by-step), CASE_STUDY, TUTORIAL, FEATURE, RELEASE)
         - title
@@ -61,6 +62,7 @@ steps:
       operation: create
       table_name: ${inputs.blog_dynamodb_table_name}
       item:
+        id: ${get-meta-from-post.response.slug}
         htmlBody: ${get-meta-from-post.response.htmlBody}
         # computed
         title: ${get-meta-from-post.response.title}

@@ -49,17 +49,7 @@ steps:
         - htmlBody (the body of the blog post in html without linebreaks)
         Only return the json without any other text, formatting and linebreaks and return it in one line.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
-  get-meta-json:
-    code: |
-      import json
-      def handler(inputs):
-          json_string = inputs["json_string"]
-          return {
-           "json":  json.loads(inputs["json_string"])
-          }
-    runtime: python3_10
-    props:
-      json_string: ${get-meta-from-post.response}
+      parseResponseToJson: true
   post-to-dynamodb:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -71,12 +61,12 @@ steps:
       operation: create
       table_name: ${inputs.blog_dynamodb_table_name}
       item:
-        htmlBody: ${get-meta-json.json.htmlBody}
+        htmlBody: ${get-meta-from-post.htmlBody}
         # computed
-        title: ${get-meta-json.json.title}
-        subtitle: ${get-meta-json.json.subtitle}
-        tags: ${get-meta-json.json.tags}
-        blogCategory: ${get-meta-json.json.category}
+        title: ${get-meta-from-post.title}
+        subtitle: ${get-meta-from-post.subtitle}
+        tags: ${get-meta-from-post.tags}
+        blogCategory: ${get-meta-from-post.category}
         # standard
         __typename: BlogArticle
         updatedAt: ${get-today-date.response}

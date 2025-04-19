@@ -31,7 +31,7 @@ steps:
       def handler(inputs):
           now = datetime.datetime.now()
           # return iso string
-          return now.isoformat()
+          return now.isoformat(timespec='seconds')
     runtime: python3_10
   get-meta-from-post:
     description: This step extracts tags from the latest unprocessed post's fields using a Python function.
@@ -78,7 +78,9 @@ steps:
   # todo make notifications to social media
   update-airtable-blog:
     if:
-      "!!": ${post-to-dynamodb.result}
+      "==":
+        - ${post-to-dynamodb.result.message}
+        - "Item created"
     description: This step updates a specific blog post in an Airtable database with generated content and sets its 'freeToPublish' field to False, using a POST request.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

@@ -47,14 +47,14 @@ steps:
         - title
         - subtitle
         - htmlBody (the body of the blog post in html without linebreaks)
-        Only return the json without any other text or formatting
+        Only return the json without any other text, formatting and linebreaks and return it in one line.
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
   get-meta-json:
     code: |
       import json
       def handler(inputs):
-          # strip of linebreaks
-          inputs["json_string"] = inputs["json_string"].replace("\n", "")
+          # strip of linebreaks and new lines
+          inputs["json_string"] = inputs["json_string"].replace("\n", "").replace("\r", "")
           print(inputs["json_string"])
           return json.loads(inputs["json_string"])
     runtime: python3_10

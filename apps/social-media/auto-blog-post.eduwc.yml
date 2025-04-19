@@ -54,8 +54,8 @@ steps:
       import json
       def handler(inputs):
           # strip of linebreaks and new lines
-          inputs["json_string"] = inputs["json_string"].replace("\n", "").replace("\r", "")
-          print(inputs["json_string"])
+          json_string = inputs["json_string"]
+          # remove linebreaks and new lines
           return json.loads(inputs["json_string"])
     runtime: python3_10
     props:

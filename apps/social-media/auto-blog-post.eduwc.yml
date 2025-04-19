@@ -25,13 +25,13 @@ steps:
       params:
         filterByFormula: AND(NOT({processed}), {freeToPublish})
         limit: 1
-  get-today-date:
+  get-today-time:
     code: |
       import datetime
       def handler(inputs):
-          today = datetime.date.today()
+          now = datetime.datetime.now()
           # return iso string
-          return today.isoformat()
+          return now.isoformat()
     runtime: python3_10
   get-meta-from-post:
     description: This step extracts tags from the latest unprocessed post's fields using a Python function.

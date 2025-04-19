@@ -61,12 +61,12 @@ steps:
       operation: create
       table_name: ${inputs.blog_dynamodb_table_name}
       item:
-        htmlBody: ${get-meta-from-post.htmlBody}
+        htmlBody: ${get-meta-from-post.response.htmlBody}
         # computed
-        title: ${get-meta-from-post.title}
-        subtitle: ${get-meta-from-post.subtitle}
-        tags: ${get-meta-from-post.tags}
-        blogCategory: ${get-meta-from-post.category}
+        title: ${get-meta-from-post.response.title}
+        subtitle: ${get-meta-from-post.response.subtitle}
+        tags: ${get-meta-from-post.response.tags}
+        blogCategory: ${get-meta-from-post.response.category}
         # standard
         __typename: BlogArticle
         updatedAt: ${get-today-date.response}

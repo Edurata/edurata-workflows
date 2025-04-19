@@ -73,8 +73,8 @@ steps:
         publisher: Edurata Team
         # standard
         __typename: BlogArticle
-        updatedAt: ${get-today-date}
-        createdAt: ${get-today-date}
+        updatedAt: ${get-today-time}
+        createdAt: ${get-today-time}
   # todo make notifications to social media
   update-airtable-blog:
     if:

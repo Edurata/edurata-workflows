@@ -30,7 +30,8 @@ steps:
       import datetime
       def handler(inputs):
           today = datetime.date.today()
-          return today.strftime("%Y-%m-%d")
+          # return iso string
+          return today.isoformat()
     runtime: python3_10
   get-meta-from-post:
     description: This step extracts tags from the latest unprocessed post's fields using a Python function.
@@ -43,7 +44,7 @@ steps:
         You are going to receive a blog post. 
         Generate the following information and return it in a json with the keys:
         - slug (a slug for the blog post)
-        - tags
+        - tags (tags that describe the blog post)
         - category (one of NORMAL, WORKFLOW (describing a workflow step-by-step), CASE_STUDY, TUTORIAL, FEATURE, RELEASE)
         - title
         - subtitle
@@ -69,6 +70,7 @@ steps:
         subtitle: ${get-meta-from-post.response.subtitle}
         tags: ${get-meta-from-post.response.tags}
         blogCategory: ${get-meta-from-post.response.category}
+        publisher: Edurata Team
         # standard
         __typename: BlogArticle
         updatedAt: ${get-today-date}

@@ -69,8 +69,8 @@ steps:
         blogCategory: ${get-meta-from-post.response.category}
         # standard
         __typename: BlogArticle
-        updatedAt: ${get-today-date.response}
-        createdAt: ${get-today-date.response}
+        updatedAt: ${get-today-date}
+        createdAt: ${get-today-date}
   # todo make notifications to social media
   update-airtable-blog:
     if:

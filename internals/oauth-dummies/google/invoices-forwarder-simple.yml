@@ -1,0 +1,73 @@
+name: gmail-airtable-to-send
+apiRevision: edurata.io/workflow/v1
+description: |
+  Forwards invoices to a specific email address using the Gmail API.
+  Works completely within gmail and uses the scopes: gmail.readonly, gmail.modify and gmail.send
+interface:
+  inputs:
+    type: object
+    properties:
+      source_table_id:
+        type: string
+        description: The Airtable ID in the format app/tbl for source items
+steps:
+  get-invoices:
+    description: This step is retrieving the ten most recent emails from the user's Gmail account that were received after January 1, 2021, have a PDF attachment, and do not have specific labels, using a provided API key for authorization.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: https://www.googleapis.com/gmail/v1/users/me/messages
+      headers:
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
+      params:
+        q: after:2021/01/01 invoice has:attachment filename:pdf
+        maxResults: 10
+  already-processed-mails:
+    description: This step is retrieving the ten most recent emails from the user's Gmail account that were received after January 1, 2021, have a PDF attachment, and do not have specific labels, using a provided API key for authorization.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: https://www.googleapis.com/gmail/v1/users/me/messages
+      headers:
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
+      params:
+        q: after:2021/01/01 invoice has:attachment filename:pdf
+        maxResults: 100
+  download-attachments:
+    description: This step is downloading attachments from specific messages using the Gmail API, iterating over each filtered attachment from the previous step.
+    foreach: ${filter-attachments.filtered_attachments}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      url: https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.message_id}/attachments/${each.attachment_id}
+      headers:
+        Authorization: Bearer ${secrets.GMAIL_API_KEY}
+  new-mails:
+    code: |
+      import json
+      def handler(inputs):
+          already_processed = inputs.already_processed
+          new_mails = inputs.invoice_mails
+          already_processed_ids = [mail['id'] for mail in already_processed]
+          new_mails = [mail for mail in new_mails if mail['id'] not in already_processed_ids]
+          return json.dumps(new_mails)
+    props:
+      invoice_mails: ${get-invoices.response.data.messages}
+      already_processed_mails: ${already-processed-mails.response.data.messages}
+  forward-email:
+    foreach:
+    description: This step sends an email for each prepared Gmail raw data using a POST method to the Gmail API, authorized with a specific API key.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/send-gmail-email
+    props:
+      GMAIL_API_KEY: ${secrets.GMAIL_API_KEY}
+      recipient: ${get-latest-unprocessed-item.response.data.records[0].fields.recipient}
+      subject: ${get-latest-unprocessed-item.response.data.records[0].fields.subject}
+      body: ${generate-email-body.response}
+      createDraft: false

@@ -29,8 +29,8 @@ steps:
     code: |
       import datetime
       def handler(inputs):
-          now = datetime.datetime.now()
-          # return iso string
+          now = datetime.datetime.now(datetime.timezone.utc)
+          # return iso string with timezone
           return now.isoformat(timespec='seconds')
     runtime: python3_10
   get-meta-from-post:

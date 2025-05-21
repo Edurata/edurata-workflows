@@ -109,7 +109,7 @@ steps:
       item:
         id: ${get-english-meta-from-post.response.slug}
         htmlBody: ${get-english-meta-from-post.response.htmlBody}
-        htmlBodyDe: ${get-german-meta-from-post.response.htmlBodyDe}
+        htmlBodyDe: ${get-german-meta-from-post.response.htmlBody}
         # computed
         title: ${get-english-meta-from-post.response.title}
         titleDe: ${get-german-meta-from-post.response.title}

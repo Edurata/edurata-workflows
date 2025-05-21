@@ -33,7 +33,7 @@ steps:
           # return iso string with timezone
           return now.isoformat(timespec='seconds')
     runtime: python3_10
-  get-meta-from-post:
+  get-english-meta-from-post:
     description: This step extracts tags from the latest unprocessed post's fields using a Python function.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -50,8 +50,52 @@ steps:
         - subtitle
         - htmlBody (the body of the blog post in html without linebreaks)
         Only return the json without any other text, formatting and linebreaks and return it in one line.
+        Make sure to format any references to images in the blog post with the following format:
+        <img src="https://cdn.edurata.com/blog/${slug}/${index}.jpg" alt="Image description">
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
       parseResponseToJson: true
+  get-german-meta-from-post:
+    description: This step extracts tags from the latest unprocessed post's fields using a Python function.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
+    props:
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: |
+        Du erhältst einen Blog Post.
+        Generiere die folgenden Informationen auf Deutsch und gib sie in einem JSON mit den folgenden Keys zurück:
+        - tags (tags die den Blog Post beschreiben)
+        - title
+        - subtitle
+        - htmlBody (der Body des Blog Posts auf Deutsch in html ohne Zeilenumbrüche)
+        Alle Bilder im Blog Post sollen mit dem folgenden Format referenziert werden:
+        <img src="https://cdn.edurata.com/blog/${slug}/${index}.jpg" alt="Image description">
+      message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
+      parseResponseToJson: true
+  download-images:
+    foreach: ${get-latest-unprocessed-post.response.data.records[0].fields.images}
+    description: This step downloads images from the blog post and saves them to the local file system.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: ${each.url}
+      streamToFile: true
+  upload-images-to-s3:
+    foreach: ${download-images[*].response.file}
+    description: This step uploads images to an S3 bucket using the data-to-s3 function.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/upload-s3
+    props:
+      AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID_S3}
+      AWS_SECRET_ACCESS_KEY: ${secrets.AWS_SECRET_ACCESS_KEY_S3}
+      AWS_REGION: ${secrets.AWS_REGION}
+      bucket_name: edurata-cdn-prod
+      files:
+        - path: ${each.response.file}
+          key: blog/${get-english-meta-from-post.response.slug}/${each.index}.jpg
   post-to-dynamodb:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -63,13 +107,17 @@ steps:
       operation: create
       table_name: ${inputs.blog_dynamodb_table_name}
       item:
-        id: ${get-meta-from-post.response.slug}
-        htmlBody: ${get-meta-from-post.response.htmlBody}
+        id: ${get-english-meta-from-post.response.slug}
+        htmlBody: ${get-english-meta-from-post.response.htmlBody}
+        htmlBodyDe: ${get-german-meta-from-post.response.htmlBodyDe}
         # computed
-        title: ${get-meta-from-post.response.title}
-        subtitle: ${get-meta-from-post.response.subtitle}
-        tags: ${get-meta-from-post.response.tags}
-        blogCategory: ${get-meta-from-post.response.category}
+        title: ${get-english-meta-from-post.response.title}
+        titleDe: ${get-german-meta-from-post.response.title}
+        subtitle: ${get-english-meta-from-post.response.subtitle}
+        subtitleDe: ${get-german-meta-from-post.response.subtitle}
+        tags: ${get-english-meta-from-post.response.tags}
+        tagsDe: ${get-german-meta-from-post.response.tags}
+        blogCategory: ${get-english-meta-from-post.response.category}
         publisher: Edurata Team
         # standard
         __typename: BlogArticle

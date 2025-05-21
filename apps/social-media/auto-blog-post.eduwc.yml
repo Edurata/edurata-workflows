@@ -51,7 +51,7 @@ steps:
         - htmlBody (the body of the blog post in html without linebreaks)
         Only return the json without any other text, formatting and linebreaks and return it in one line.
         Make sure to format any references to images in the blog post with the following format:
-        <img src="https://cdn.edurata.com/blog/${slug}/${index}.jpg" alt="Image description">
+        <img src="https://cdn.edurata.com/blog/{slug}/{index}.jpg" alt="Image description">
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
       parseResponseToJson: true
   get-german-meta-from-post:
@@ -69,7 +69,7 @@ steps:
         - subtitle
         - htmlBody (der Body des Blog Posts auf Deutsch in html ohne Zeilenumbrüche)
         Alle Bilder im Blog Post sollen mit dem folgenden Format referenziert werden:
-        <img src="https://cdn.edurata.com/blog/${slug}/${index}.jpg" alt="Image description">
+        <img src="https://cdn.edurata.com/blog/{slug}/{index}.jpg" alt="Image description">
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
       parseResponseToJson: true
   download-images:

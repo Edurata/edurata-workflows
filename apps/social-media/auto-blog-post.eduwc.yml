@@ -83,7 +83,7 @@ steps:
       url: ${each.url}
       streamToFile: true
   upload-images-to-s3:
-    foreach: ${download-images[*].response.file}
+    foreach: ${download-images}
     description: This step uploads images to an S3 bucket using the data-to-s3 function.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

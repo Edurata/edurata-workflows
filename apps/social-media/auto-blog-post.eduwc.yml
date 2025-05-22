@@ -45,6 +45,7 @@ steps:
         Generate the following information in english and return it in a json with the keys:
         - slug (a slug for the blog post)
         - tags (tags that describe the blog post)
+        - unsplash_tags (a single string of unsplash tags that describe the blog post and are more likely to be found on unsplash)
         - category (one of NORMAL, WORKFLOW (describing a workflow step-by-step), CASE_STUDY, TUTORIAL, FEATURE, RELEASE)
         - title
         - subtitle
@@ -98,6 +99,19 @@ steps:
       files:
         - path: ${each.response.file}
           key: blog/${get-english-meta-from-post.response.slug}/${each.index}.jpg
+  search-image-on-unsplash:
+    description: This step searches for an image on Unsplash using the tags generated in the English version.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: general/axios
+    props:
+      method: GET
+      url: https://api.unsplash.com/search/photos
+      headers:
+        Authorization: Client-ID ${secrets.UNSPLASH_ACCESS_KEY}
+      params:
+        query: ${get-english-meta-from-post.response.unsplash_tags}
+        per_page: 1
   post-to-dynamodb:
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -120,6 +134,7 @@ steps:
         tags: ${get-english-meta-from-post.response.tags}
         tagsDe: ${get-german-meta-from-post.response.tags}
         blogCategory: ${get-english-meta-from-post.response.category}
+        heroImageUrl: ${search-image-on-unsplash.response.data.results[0].urls.full}
         publisher: Edurata Team
         # standard
         __typename: BlogArticle

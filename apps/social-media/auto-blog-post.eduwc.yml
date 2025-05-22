@@ -42,13 +42,13 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         You are going to receive a blog post. 
-        Generate the following information and return it in a json with the keys:
+        Generate the following information in english and return it in a json with the keys:
         - slug (a slug for the blog post)
         - tags (tags that describe the blog post)
         - category (one of NORMAL, WORKFLOW (describing a workflow step-by-step), CASE_STUDY, TUTORIAL, FEATURE, RELEASE)
         - title
         - subtitle
-        - htmlBody (the body of the blog post in html without linebreaks)
+        - htmlBody (the english body of the blog post in html without linebreaks)
         Only return the json without any other text, formatting and linebreaks and return it in one line.
         Make sure to format any references to images in the blog post with the following format:
         <img src="https://cdn.edurata.com/blog/{slug}/{index}.jpg" alt="Image description">

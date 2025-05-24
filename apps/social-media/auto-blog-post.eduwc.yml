@@ -76,7 +76,7 @@ steps:
       message: ${get-latest-unprocessed-post.response.data.records[0].fields.content}
       parseResponseToJson: true
   download-images:
-    foreach: ${get-latest-unprocessed-post.response.data.records[0].fields.images}
+    foreach: ${get-latest-unprocessed-post.response.data.records[0].fields.images?}
     description: This step downloads images from the blog post and saves them to the local file system.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

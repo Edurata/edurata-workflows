@@ -1,0 +1,5 @@
+name: Cleanup GDPR
+description: Cleans up executions older than 30 days
+steps:
+  cleanup-notifications:
+

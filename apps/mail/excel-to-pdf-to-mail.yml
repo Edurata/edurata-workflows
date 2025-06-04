@@ -1,0 +1,97 @@
+name: fetch-excel-generate-pdf-email
+apiRevision: edurata.io/v1
+description: |
+  Searches Gmail for an Excel attachment from a specific sender with a subject pattern,
+  then generates PDFs for each row using 'VIN' and 'Vertragsnummer', and emails them to the 'E-Mail' column.
+interface:
+  inputs:
+    type: object
+    properties:
+      gmailSender:
+        type: string
+      subjectPattern:
+        type: string
+    required: [gmailSender, subjectPattern]
+  outputs:
+    type: object
+    properties: {}
+steps:
+  get-matching-emails:
+    description: Search Gmail for emails from a sender and subject pattern with Excel attachments
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      url: https://www.googleapis.com/gmail/v1/users/me/messages
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      params:
+        q: "from:${inputs.gmailSender} subject:${inputs.subjectPattern} has:attachment filename:xlsx after:1d"
+        maxResults: 1
+  get-email-attachment:
+    description: Get the Excel attachment from the found email
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/extract-attachments-gmail
+    props:
+      message_id: ${get-matching-emails.response.data.messages[0].id}
+      GMAIL_API_KEY: ${secrets.GMAIL_API_KEY}
+  parse-excel:
+    description: Parse the Excel file into a list of rows
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/excel-to-list
+    props:
+      file: ${get-email-attachment.new_files[0]}
+  get-today-date:
+    description: Get the current date
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/date
+    props:
+      format: "localized"
+      locale: "de_DE"
+  generate-pdf:
+    foreach: ${parse-excel.rows}
+    description: Generate a PDF for each row with VIN and Vertragsnummer
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/fill-out-pdf
+    props:
+      pdf_template: ${files.templatePdf}
+      field_values:
+        Adresse: >
+          ${each.Betrieb}
+          ${each.Straße} 
+          ${each.Ort}
+          Leasingvertrag ${each.Vertragsnummer} ${each.Kennzeichen}
+          ${each.VIN}
+        Datum: ${get-today-date.date}
+        Firma1: Firma1 TODO
+        Firma2: Firma2 TODO
+  send-email:
+    foreach: ${parse-excel.rows}
+    description: This step forwards a PDF by making a POST request to the Gmail API, using an encoded email attachment.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/send-gmail-email
+    props:
+      GMAIL_API_KEY: ${secrets.GMAIL_API_KEY}
+      userEmail: ${secrets.EMAIL_SENDER}
+      recipient: ${each.E-Mail}
+      subject: "Ihre Vertragsunterlagen"
+      body: |
+        <!DOCTYPE html>
+          <html>
+            <body style="font-family: Arial, sans-serif; color: #000; font-size: 14px; line-height: 1.6;">
+              <p>Sehr geehrte Damen und Herren,</p>
+              <p>wir haben Ihre Vertragsunterlagen erhalten und verarbeiten diese gerade.</p>
+              <p>Sobald wir fertig sind, senden wir Ihnen eine E-Mail mit den Unterlagen.</p>
+              <p>Vielen Dank für Ihre Geduld.</p>
+              <p>Ihr Leasingvertrag</p>
+            </body>
+          </html>
+
+      attachments:
+        - ${generate-pdf.filled_pdf}
+      createDraft: true

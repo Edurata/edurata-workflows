@@ -49,7 +49,7 @@ steps:
         - category (one of NORMAL, WORKFLOW (describing a workflow step-by-step), CASE_STUDY, TUTORIAL, FEATURE, RELEASE)
         - title
         - subtitle
-        - htmlBody (the english body of the blog post in html without linebreaks)
+        - htmlBody (the english body of the blog post in html without linebreaks. Use <strong> <p> <li> <ul> <ol> <em> <h1> etc for formatting.)
         Only return the json without any other text, formatting and linebreaks and return it in one line.
         Make sure to format any references to images in the blog post with the following format:
         <img src="https://cdn.edurata.com/blog/{slug}/{index}.jpg" alt="Image description">
@@ -69,7 +69,7 @@ steps:
         - tags (tags die den Blog Post beschreiben)
         - title
         - subtitle
-        - htmlBody (der Body des Blog Posts auf Deutsch in html ohne Zeilenumbrüche)
+        - htmlBody (der Body des Blog Posts auf Deutsch in html ohne Zeilenumbrüche. Halte dich an die Struktur des englischen Blog Posts. Benutze <strong> <p> <li> <ul> <ol> <em> <h1> etc. für Formatierung.)
         Alle Bilder im Blog Post sollen mit dem folgenden Format referenziert werden:
         <img src="https://cdn.edurata.com/blog/{slug}/{index}.jpg" alt="Image description">
         wobei der index mit 0 beginnt.

@@ -56,7 +56,6 @@ steps:
     runtime: python3_10
     code: |
       def handler(event):
-        // trigger
         print("Hello, World!")
     props:
       message: "Message from python inline: ${construct-message.string}"

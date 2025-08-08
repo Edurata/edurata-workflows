@@ -4,19 +4,9 @@ description: |
   Lookup Airtable leads with status "Kontaktiert Interesse", no Email Status, and a decision‑maker name present. For each, generate a personalized email from a template (stored in Google Docs) and send via Gmail API.
 interface:
   inputs:
-    airtable_base_id:
+    airtable_id:
       type: string
-    airtable_table_name:
-      type: string
-    airtable_api_key_env:
-      type: env
-    gmail_user_id:
-      type: string
-    google_docs_template_id:
-      type: string
-  outputs:
-    sent_count:
-      type: integer
+  required:
 steps:
   list-leads:
     description: Retrieve matching Airtable records
@@ -25,55 +15,13 @@ steps:
       path: general/axios
     props:
       method: GET
-      url: "https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_name}"
+      url: "https://api.airtable.com/v0/${inputs.airtable_id}"
       headers:
         Authorization: "Bearer ${secrets.AIRTABLE_API_KEY}"
       params:
         filterByFormula: "AND({Lead Status} = 'Kontaktiert Interesse', {Email Status} = '', {Name Entscheider} != '')"
       maxResults: 100
-  fetch-template:
-    description: Get email template content from Google Docs
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
-    props:
-      method: GET
-      url: "https://docs.googleapis.com/v1/documents/${inputs.google_docs_template_id}"
-      headers:
-        Authorization: "Bearer ${secrets.G_DOCS}"
-  generate-email:
-    foreach: ${list-leads.response.records}
-    description: Generate personalized email from template
-    interface:
-      inputs:
-        record:
-          type: object
-        template: 
-          type: object
-    runtime: python3_10
-    code: |
-      import base64
-      from string import Template
-      def handler(inputs):
-          rec = inputs["record"]["fields"]
-          tpl = inputs["template"]
-          body_plain = tpl["body_plain"]
-          body_html = tpl.get("body_html", body_plain)
-          subs = {
-            "Name": rec.get("Name Entscheider"),
-            "Company": rec.get("Company", ""),
-            "Email": rec.get("Email")
-          }
-          txt = Template(body_plain).substitute(subs)
-          html = Template(body_html).substitute(subs)
-          message = f"From: me\nTo: {subs['Email']}\nSubject: Interesse an Zusammenarbeit\nMIME-Version: 1.0\nContent-Type: multipart/alternative; boundary=BOUNDARY\n\n--BOUNDARY\nContent-Type: text/plain; charset=UTF‑8\n\n{txt}\n\n--BOUNDARY\nContent-Type: text/html; charset=UTF‑8\n\n{html}\n--BOUNDARY--"
-          raw = base64.urlsafe_b64encode(message.encode("utf-8")).decode("utf-8")
-          return {"handler_raw": raw}
-    props:
-      record: ${each}
-      template: ${fetch-template.response}
   send-email:
-    foreach: ${list-leads.response.records}
     description: Generate personalized email and send via Gmail
     if:
       "!!": ${each.fields.Email} 
@@ -82,12 +30,77 @@ steps:
       path: general/axios
     props:
       method: POST
-      url: "https://gmail.googleapis.com/gmail/v1/users/${inputs.gmail_user_id}/messages/send"
+      url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
       headers:
         Authorization: "Bearer ${secrets.G_MAIL}"
         Content-Type: "application/json"
       data:
         raw: "${generate-email[each.index].handler_raw}"
+  send-email:
+    foreach: ${list-leads.response.records}
+    description: This step forwards a PDF by making a POST request to the Gmail API, using an encoded email attachment.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/send-gmail-email
+    props:
+      GMAIL_API_KEY: ${secrets.G_MAIL}
+      userEmail: ${secrets.EMAIL_SENDER}
+      recipient: ${each.E-Mail}
+      subject: "Ihre Vertragsunterlagen"
+      body: |
+        <!DOCTYPE html>
+          <html lang="de">
+          <head>
+            <meta charset="utf-8">
+            <title>Wie versprochen – Einblicke & unser Modell</title>
+          </head>
+          <body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #000;">
+            <p><strong>Betreff:</strong> Wie versprochen – Einblicke &amp; unser Modell</p>
+
+            <p>Hallo Herr Sirocko,</p>
+
+            <p>
+              vielen Dank nochmal für das Gespräch! Anbei wie angekündigt unsere kurze Präsentation
+              mit Beispielen aus der Praxis.
+            </p>
+
+            <p>
+              Was uns von anderen unterscheidet – kurz zusammengefasst
+              (mehr dazu <a href="https://edurata.com/pricing?lang=de" target="_blank">hier im Preismodell</a>):
+            </p>
+
+            <ul>
+              <li><strong>Keine Entwicklungskosten</strong> – wir gehen in Vorleistung, Sie zahlen erst im Betrieb.</li>
+              <li><strong>Abrechnung nach Nutzung</strong> – je nach automatisierter Menge weit <strong>unter 1 € pro Ausführung</strong>.</li>
+              <li><strong>Skalierbar mit Mengenrabatten</strong> – <strong>bis zu 70 % Ersparnis</strong> möglich bei hohem Volumen.</li>
+            </ul>
+
+            <p>
+              Ein Beispiel aus der Praxis:<br>
+              📄 <a href="https://edurata.com/blog/sueddeutscher-reifenhaendler-edurata-abholbevollmaechtigung-autohaeuser-automatisiert?lang=de" target="_blank"><strong>Wie ein süddeutscher Händler Prozesse automatisiert hat</strong></a>
+            </p>
+
+            <p>
+              Ich melde mich gerne nach einiger Zeit nochmal – und wenn vorher schon eine Idee aufkommt,
+              bei der wir unterstützen können, freue ich mich über eine kurze Nachricht.
+            </p>
+
+            <p>
+              Viele Grüße<br><br>
+              <strong>Julian de Mourgues</strong><br>
+              Geschäftsführer – Edurata GmbH
+            </p>
+
+            <p>
+              📧 <a href="mailto:juliandemourgues@edurata.com">juliandemourgues@edurata.com</a><br>
+              📞 +49 1520 2787043<br>
+              🌐 <a href="https://www.edurata.com/?lang=de" target="_blank">www.edurata.com</a>
+            </p>
+          </body>
+          </html>
+      attachments:
+        - ${files.Unternehmenspräsentation.pdf}
+      createDraft: true
   update-status:
     foreach: ${send-email}
     if:

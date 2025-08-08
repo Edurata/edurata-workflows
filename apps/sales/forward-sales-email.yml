@@ -50,6 +50,7 @@ steps:
           type: object
         template: 
           type: object
+    runtime: python3_10
     code: |
       import base64
       from string import Template

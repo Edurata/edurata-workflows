@@ -89,6 +89,9 @@ steps:
       data:
         raw: "${generate-email[each.index].handler_raw}"
   update-status:
+    foreach: ${send-email}
+    if:
+      "!!": ${each.id}
     description: Mark Email Status in Airtable
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -102,5 +105,4 @@ steps:
       data:
         fields:
           Email Status: "Sent"
-    if:
-      "!!": ${send-email}
+

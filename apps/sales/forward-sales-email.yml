@@ -22,21 +22,6 @@ steps:
         filterByFormula: "AND({Lead Status} = 'Kontaktiert Interesse', {Email Status} = '', {Name Entscheider} != '')"
       maxResults: 100
   send-email:
-    description: Generate personalized email and send via Gmail
-    if:
-      "!!": ${each.fields.Email} 
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
-    props:
-      method: POST
-      url: "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
-      headers:
-        Authorization: "Bearer ${secrets.G_MAIL}"
-        Content-Type: "application/json"
-      data:
-        raw: "${generate-email[each.index].handler_raw}"
-  send-email:
     foreach: ${list-leads.response.records}
     description: This step forwards a PDF by making a POST request to the Gmail API, using an encoded email attachment.
     source:
@@ -44,8 +29,8 @@ steps:
       path: etl/load/send-gmail-email
     props:
       GMAIL_API_KEY: ${secrets.G_MAIL}
-      userEmail: ${secrets.EMAIL_SENDER}
-      recipient: ${each.E-Mail}
+      userEmail: juliandemourgues@edurata.com
+      recipient: ${each.Email}
       subject: "Ihre Vertragsunterlagen"
       body: |
         <!DOCTYPE html>

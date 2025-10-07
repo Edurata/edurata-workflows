@@ -133,7 +133,7 @@ steps:
           <body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #000;">
             <p><strong>Betreff:</strong> Kurze Nachfrage zu unserem Gespräch</p>
 
-            <p>Hallo ${each.Name Entscheider},</p>
+            <p>Hallo ${each["Name Entscheider"]},</p>
 
             <p>
               ich hoffe, Sie hatten Zeit, sich unsere Präsentation anzusehen. Haben Sie bereits eine erste Einschätzung,

@@ -253,99 +253,21 @@ steps:
       url: https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.message_id}/attachments/${each.attachment_id}
       headers:
         Authorization: Bearer ${secrets.GMAIL_API_KEY}
-  save-attachments:
-    description: This step involves saving the data from downloaded attachments.
-    runtime: python3_10
-    props:
-      attachments_data: ${download-attachments[*].response.data}
-    interface:
-      inputs:
-        properties:
-          attachments_data:
-            type: array
-            items:
-              type: object
-              properties:
-                attachmentId:
-                  type: string
-                  description: |
-                    The name of the attachment
-                data:
-                  type: string
-            description: |
-              The data of the attachments
-      outputs:
-        properties:
-          new_files:
-            type: array
-            items:
-              type: file
-              description: |
-                The new file name
-    code: |
-      import base64
-      import uuid
-
-      def correct_base64url_padding(data):
-          # Add padding if necessary
-          padding_needed = 4 - (len(data) % 4)
-          if padding_needed and padding_needed < 4:
-              data += '=' * padding_needed
-          return data
-
-      def handler(inputs):
-          new_files = []
-          for attachment_data in inputs["attachments_data"]:
-              try:
-                  # Correct the base64url padding
-                  corrected_data = correct_base64url_padding(attachment_data["data"])
-                  random_id = str(uuid.uuid4())
-                  new_file = f"/tmp/{random_id}.pdf"
-                  with open(new_file, "wb") as f:
-                      f.write(base64.urlsafe_b64decode(corrected_data))
-                  new_files.append(new_file)
-              except (base64.binascii.Error, IOError) as e:
-                  print(f"Error processing attachment: {e}")
-                  # Handle the error as needed, e.g., skip the file or return an error response
-          return {"new_files": new_files}
+      streamToFile: true
   forward-pdf:
-    description: This step forwards a PDF by making a POST request to the Gmail API, using an encoded email attachment.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
-    props:
-      method: POST
-      url: https://gmail.googleapis.com/gmail/v1/users/me/messages/send
-      headers:
-        Authorization: Bearer ${secrets.GMAIL_API_KEY}
-      data:
-        raw: ${encode_email_attachments.raw}
-  encode_email_attachments:
-    description: This step involves encoding email attachments for a specific user and forwarding them to a configured email address, given that the forward email configuration is set.
+    description: This step forwards PDF attachments using the Outlook email function.
     if:
       "!!": ${merge-config.config.forwardEmail}
     else: success
-    runtime: python3_10
-    interface:
-      inputs:
-        properties:
-          forwardEmail:
-            type: string
-            description: The email address to forward the attachments to
-          attachments:
-            type: array
-            items:
-              type: file
-            description: A list of paths to the attachment files
-      outputs:
-        properties:
-          raw:
-            type: string
-            description: The base64 encoded email message with multiple attachments
-    code: "import base64\nimport email\nfrom email.mime.multipart import MIMEMultipart\nfrom email.mime.text import MIMEText\nfrom email.mime.base import MIMEBase\nfrom email import encoders\nimport os\n\ndef handler(inputs):\n    sender = inputs[\"userEmail\"]\n    to = inputs[\"forwardEmail\"]\n    subject = \"Invoice\"\n    body = \"Please find the attached invoices.\"\n\n    # Create email message\n    msg = MIMEMultipart()\n    msg['From'] = sender\n    msg['To'] = to\n    msg['Subject'] = subject\n    msg.attach(MIMEText(body, 'plain'))\n\n    # Iterate over attachments and encode each one\n    for attachment_path in inputs[\"attachments\"]:\n        attachment_name = os.path.basename(attachment_path)\n        \n        with open(attachment_path, \"rb\") as attachment_file:\n            part = MIMEBase('application', 'octet-stream')\n            part.set_payload(attachment_file.read())\n            encoders.encode_base64(part)\n            part.add_header('Content-Disposition', f\"attachment; filename= {attachment_name}\")\n            msg.attach(part)\n\n    # Encode the message in base64 and prepare it for Gmail API\n    raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode()\n    return {\"raw\": raw_message}\n"
+    source:
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/load/send-outlook-email
     props:
+      OUTLOOK_API_KEY: ${secrets.OUTLOOK_API_KEY}
       userEmail: ${inputs.userEmail}
-      forwardEmail: ${merge-config.config.forwardEmail}
+      recipient: ${merge-config.config.forwardEmail}
+      subject: "Invoice"
+      body: "Please find the attached invoices."
       attachments: ${save-attachments.new_files}
   get-folder-id:
     description: This step involves obtaining the folder ID, provided that the Google Drive folder name in the merge-config is not null.

@@ -268,7 +268,7 @@ steps:
       recipient: ${merge-config.config.forwardEmail}
       subject: "Invoice"
       body: "Please find the attached invoices."
-      attachments: ${save-attachments.new_files}
+      attachments: ${download-attachments[*].response.file}
   get-folder-id:
     description: This step involves obtaining the folder ID, provided that the Google Drive folder name in the merge-config is not null.
     runtime: python3_10
@@ -327,8 +327,8 @@ steps:
         q: name='${get-folder-id.folder_name}' and mimeType='application/vnd.google-apps.folder'
       __create-folderpath: ${create-folderpath}
   upload-files-in-gdrive:
-    description: This step uploads files to Google Drive, specifically to a parent folder, by iterating through each new file saved in the 'save-attachments' step, using the Gmail API key for authorization.
-    foreach: ${save-attachments.new_files}
+    description: This step uploads files to Google Drive, specifically to a parent folder, by iterating through each downloaded attachment file, using the Gmail API key for authorization.
+    foreach: ${download-attachments[*].response.file}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: clients/gdrive

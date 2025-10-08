@@ -175,7 +175,6 @@ steps:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       params:
         $filter: receivedDateTime ge 2021-01-01T00:00:00Z and hasAttachments eq true
-        $search: "attachment:pdf"
         $top: 10
         $orderby: receivedDateTime desc
       __create-folders: ${create-folders}

@@ -88,8 +88,8 @@ steps:
           merged_config:
             type: object
             description: Merged configuration data
-  create-labels:
-    description: This step creates labels in Gmail for success, failure, and skip tags, using a POST request to the Gmail API.
+  create-folders:
+    description: This step creates folders in Outlook for success, failure, and skip tags, using Microsoft Graph API.
     optional: true
     foreach:
       - ${merge-config.config.successTag}
@@ -99,49 +99,49 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: https://gmail.googleapis.com/gmail/v1/users/me/labels
+      url: https://graph.microsoft.com/v1.0/me/mailFolders
       method: POST
       headers:
-        Authorization: Bearer ${secrets.GMAIL_API_KEY}
+        Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       data:
-        name: ${each}
+        displayName: ${each}
       throwError: false
-  get-label-ids:
-    description: This step retrieves the label IDs from Gmail's API using a specified URL and authorization headers, depending on the creation of labels.
+  get-folder-ids:
+    description: This step retrieves the folder IDs from Outlook's API using Microsoft Graph API, depending on the creation of folders.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: https://gmail.googleapis.com/gmail/v1/users/me/labels
+      url: https://graph.microsoft.com/v1.0/me/mailFolders
       headers:
-        Authorization: Bearer ${secrets.GMAIL_API_KEY}
-      __create-labels: ${create-labels}
-  transform-tags-to-label-ids:
-    description: This step transforms tags into label IDs, using the label IDs obtained from the 'get-label-ids' step and the tags specified in the merge-config configuration (successTag, failTag, skipTag).
+        Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
+      __create-folders: ${create-folders}
+  transform-tags-to-folder-ids:
+    description: This step transforms tags into folder IDs, using the folder IDs obtained from the 'get-folder-ids' step and the tags specified in the merge-config configuration (successTag, failTag, skipTag).
     runtime: python3_10
     code: |
       def handler(inputs):
-          label_ids = {}
-          for label in inputs["get-label-ids"]["response"]["data"]["labels"]:
-            if label["name"] == inputs["successTag"]:
-              label_ids["successTag"] = label["id"]
-            elif label["name"] == inputs["failTag"]:
-              label_ids["failTag"] = label["id"]
-            elif label["name"] == inputs["skipTag"]:
-              label_ids["skipTag"] = label["id"]
-          return {"label_ids": label_ids}
+          folder_ids = {}
+          for folder in inputs["get-folder-ids"]["response"]["data"]["value"]:
+            if folder["displayName"] == inputs["successTag"]:
+              folder_ids["successTag"] = folder["id"]
+            elif folder["displayName"] == inputs["failTag"]:
+              folder_ids["failTag"] = folder["id"]
+            elif folder["displayName"] == inputs["skipTag"]:
+              folder_ids["skipTag"] = folder["id"]
+          return {"folder_ids": folder_ids}
     props:
-      get-label-ids: ${get-label-ids}
+      get-folder-ids: ${get-folder-ids}
       successTag: ${merge-config.config.successTag}
       failTag: ${merge-config.config.failTag}
       skipTag: ${merge-config.config.skipTag}
     interface:
       inputs:
         properties:
-          get-label-ids:
+          get-folder-ids:
             type: object
-            description: Object containing label ids
+            description: Object containing folder ids
           successTag:
             type: string
             description: Tag to be used for successful operations
@@ -152,7 +152,7 @@ steps:
             type: string
             description: Tag to be used for skipped operations
         required:
-          - get-label-ids
+          - get-folder-ids
           - successTag
           - failTag
           - skipTag
@@ -160,33 +160,35 @@ steps:
         properties:
           transformedTags:
             type: object
-            description: Object containing transformed tags to label ids
+            description: Object containing transformed tags to folder ids
         required:
           - transformedTags
   get-new-mails-without-tag:
-    description: This step is retrieving the ten most recent emails from the user's Gmail account that were received after January 1, 2021, have a PDF attachment, and do not have specific labels, using a provided API key for authorization.
+    description: This step is retrieving the ten most recent emails from the user's Outlook account that were received after January 1, 2021, have a PDF attachment, and are not in specific folders, using Microsoft Graph API.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: https://www.googleapis.com/gmail/v1/users/me/messages
+      url: https://graph.microsoft.com/v1.0/me/messages
       headers:
-        Authorization: Bearer ${secrets.GMAIL_API_KEY}
+        Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       params:
-        q: after:2021/01/01 ${merge-config.config.addFilter} -label:${merge-config.config.successTag} -label:${merge-config.config.failTag} -label:${merge-config.config.skipTag} has:attachment filename:pdf
-        maxResults: 10
-      __create-labels: ${create-labels}
+        $filter: receivedDateTime ge 2021-01-01T00:00:00Z and hasAttachments eq true
+        $search: "attachment:pdf"
+        $top: 10
+        $orderby: receivedDateTime desc
+      __create-folders: ${create-folders}
   continue-if-new-mails:
     description: This step continues the process if there are new emails without tags.
     if:
       ">":
-        - ${get-new-mails-without-tag.response.data.resultSizeEstimate}
+        - ${get-new-mails-without-tag.response.data.value.length}
         - 0
     runtime: python3_10
     code: |
       def handler(inputs):
-          return {"mails": inputs["get-new-mails-without-tag"]["response"]["data"]["messages"]}
+          return {"mails": inputs["get-new-mails-without-tag"]["response"]["data"]["value"]}
     props:
       get-new-mails-without-tag: ${get-new-mails-without-tag}
     interface:
@@ -224,18 +226,17 @@ steps:
         required:
           - continue
   get-mails-info:
-    description: This step fetches detailed information for each new email message from the Gmail API, using the message ID, in a full format with specific fields such as 'id' and 'payload'.
+    description: This step fetches detailed information for each new email message from the Outlook API, using the message ID, with attachments and body content.
     foreach: ${continue-if-new-mails.mails}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.id}
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.id}
       headers:
-        Authorization: Bearer ${secrets.GMAIL_API_KEY}
+        Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       params:
-        format: full
-        fields: id,payload
+        $expand: attachments
   filter-attachments:
     description: This step involves filtering attachments from the data received from the 'get-mails-info' responses.
     source:
@@ -244,15 +245,15 @@ steps:
     props:
       messages: ${get-mails-info[*].response.data}
   download-attachments:
-    description: This step is downloading attachments from specific messages using the Gmail API, iterating over each filtered attachment from the previous step.
+    description: This step is downloading attachments from specific messages using the Outlook API, iterating over each filtered attachment from the previous step.
     foreach: ${filter-attachments.filtered_attachments}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: https://gmail.googleapis.com/gmail/v1/users/me/messages/${each.message_id}/attachments/${each.attachment_id}
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.message_id}/attachments/${each.attachment_id}/$value
       headers:
-        Authorization: Bearer ${secrets.GMAIL_API_KEY}
+        Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       streamToFile: true
   forward-pdf:
     description: This step forwards PDF attachments using the Outlook email function.
@@ -367,9 +368,9 @@ steps:
     props:
       all_messages: ${get-new-mails-without-tag.response.data.messages}
       filtered_attachments: ${filter-attachments.filtered_attachments}
-      successTag: ${transform-tags-to-label-ids.label_ids.successTag}
-      failTag: ${transform-tags-to-label-ids.label_ids.failTag}
-      skipTag: ${transform-tags-to-label-ids.label_ids.skipTag}
+      successTag: ${transform-tags-to-folder-ids.folder_ids.successTag}
+      failTag: ${transform-tags-to-folder-ids.folder_ids.failTag}
+      skipTag: ${transform-tags-to-folder-ids.folder_ids.skipTag}
     interface:
       inputs:
         properties:
@@ -401,18 +402,16 @@ steps:
               type: object
         required:
           - tagged_messages
-  tag-emails:
-    description: This step automates the process of tagging emails by posting a request to the Gmail API for each thread specified in the 'map-tags-to-threads' object, using the 'GMAIL_API_KEY' for authorization.
+  move-emails-to-folders:
+    description: This step automates the process of moving emails to folders by posting a request to the Outlook API for each message specified in the 'map-tags-to-threads' object, using the 'OUTLOOK_API_KEY' for authorization.
     foreach: ${map-tags-to-threads.tagged_messages}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: POST
-      url: https://gmail.googleapis.com/gmail/v1/users/me/threads/${each.threadId}/modify
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.threadId}/move
       headers:
-        Authorization: Bearer ${secrets.GMAIL_API_KEY}
+        Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       data:
-        addLabelIds:
-          - ${each.tag}
-        removeLabelIds: []
+        destinationId: ${each.tag}

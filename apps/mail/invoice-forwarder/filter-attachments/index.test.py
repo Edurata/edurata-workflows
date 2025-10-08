@@ -1,5 +1,4 @@
 import unittest
-import base64
 from index import handler
 
 class TestHandlerFunction(unittest.TestCase):
@@ -7,30 +6,27 @@ class TestHandlerFunction(unittest.TestCase):
     def setUp(self):
         self.handler = handler
 
-    def encode_body(self, body):
-        return base64.urlsafe_b64encode(body.encode('utf-8')).decode('utf-8')
-
     def test_single_invoice(self):
         messages = [
             {
                 "id": "message1",
-                "payload": {
-                    "body": {
-                        "data": self.encode_body('This is an invoice for your recent purchase.')
-                    },
-                    "headers": [
-                        {"name": "Subject", "value": "Your Invoice from Example Company"},
-                        {"name": "From", "value": "billing@example.com"}
-                    ],
-                    "parts": [
-                        {
-                            "filename": "invoice.pdf",
-                            "body": {
-                                "attachmentId": "ATTACHMENT_ID_1"
-                            }
-                        }
-                    ]
-                }
+                "subject": "Your Invoice from Example Company",
+                "from": {
+                    "emailAddress": {
+                        "address": "billing@example.com"
+                    }
+                },
+                "body": {
+                    "content": "<html>This is an invoice for your recent purchase.</html>",
+                    "contentType": "html"
+                },
+                "attachments": [
+                    {
+                        "id": "ATTACHMENT_ID_1",
+                        "name": "invoice.pdf",
+                        "contentType": "application/pdf"
+                    }
+                ]
             }
         ]
         inputs = {"messages": messages}
@@ -46,23 +42,23 @@ class TestHandlerFunction(unittest.TestCase):
         messages = [
             {
                 "id": "message2",
-                "payload": {
-                    "body": {
-                        "data": self.encode_body('This is a receipt for your recent purchase.')
-                    },
-                    "headers": [
-                        {"name": "Subject", "value": "Your Receipt from Example Company"},
-                        {"name": "From", "value": "billing@example.com"}
-                    ],
-                    "parts": [
-                        {
-                            "filename": "receipt.pdf",
-                            "body": {
-                                "attachmentId": "ATTACHMENT_ID_2"
-                            }
-                        }
-                    ]
-                }
+                "subject": "Your Receipt from Example Company",
+                "from": {
+                    "emailAddress": {
+                        "address": "billing@example.com"
+                    }
+                },
+                "body": {
+                    "content": "<html>This is a receipt for your recent purchase.</html>",
+                    "contentType": "html"
+                },
+                "attachments": [
+                    {
+                        "id": "ATTACHMENT_ID_2",
+                        "name": "receipt.pdf",
+                        "contentType": "application/pdf"
+                    }
+                ]
             }
         ]
         inputs = {"messages": messages}
@@ -78,35 +74,33 @@ class TestHandlerFunction(unittest.TestCase):
         messages = [
             {
                 "id": "message3",
-                "payload": {
-                    "body": {
-                        "data": self.encode_body('This is an invoice for your recent purchase.')
+                "subject": "Your Invoice from Example Company",
+                "from": {
+                    "emailAddress": {
+                        "address": "billing@example.com"
+                    }
+                },
+                "body": {
+                    "content": "<html>This is an invoice for your recent purchase.</html>",
+                    "contentType": "html"
+                },
+                "attachments": [
+                    {
+                        "id": "ATTACHMENT_ID_3",
+                        "name": "invoice.pdf",
+                        "contentType": "application/pdf"
                     },
-                    "headers": [
-                        {"name": "Subject", "value": "Your Invoice from Example Company"},
-                        {"name": "From", "value": "billing@example.com"}
-                    ],
-                    "parts": [
-                        {
-                            "filename": "invoice.pdf",
-                            "body": {
-                                "attachmentId": "ATTACHMENT_ID_3"
-                            }
-                        },
-                        {
-                            "filename": "receipt.pdf",
-                            "body": {
-                                "attachmentId": "ATTACHMENT_ID_4"
-                            }
-                        },
-                        {
-                            "filename": "document.pdf",
-                            "body": {
-                                "attachmentId": "ATTACHMENT_ID_5"
-                            }
-                        }
-                    ]
-                }
+                    {
+                        "id": "ATTACHMENT_ID_4",
+                        "name": "receipt.pdf",
+                        "contentType": "application/pdf"
+                    },
+                    {
+                        "id": "ATTACHMENT_ID_5",
+                        "name": "document.pdf",
+                        "contentType": "application/pdf"
+                    }
+                ]
             }
         ]
         inputs = {"messages": messages}
@@ -118,46 +112,27 @@ class TestHandlerFunction(unittest.TestCase):
         }
         self.assertEqual(output, expected_output)
 
-    def test_recursive_body(self):
+    def test_html_body_with_invoice_keyword(self):
         messages = [
             {
                 "id": "message4",
-                "payload": {
-                    "body": {
-                        "data": self.encode_body('')
-                    },
-                    "headers": [
-                        {"name": "Subject", "value": "Your Invoice from Example Company"},
-                        {"name": "From", "value": "billing@example.com"}
-                    ],
-                    "parts": [
-                        {
-                            "mimeType": "multipart/alternative",
-                            "parts": [
-                                {
-                                    "body": {
-                                        "data": self.encode_body('This is an invoice for your recent purchase.')
-                                    },
-                                    "mimeType": "text/plain",
-                                    "partId": "0.0"
-                                },
-                                {
-                                    "body": {
-                                        "data": self.encode_body('<p>This is an invoice for your recent purchase.</p>')
-                                    },
-                                    "mimeType": "text/html",
-                                    "partId": "0.1"
-                                }
-                            ]
-                        },
-                        {
-                            "filename": "invoice.pdf",
-                            "body": {
-                                "attachmentId": "ATTACHMENT_ID_6"
-                            }
-                        }
-                    ]
-                }
+                "subject": "Your Invoice from Example Company",
+                "from": {
+                    "emailAddress": {
+                        "address": "billing@example.com"
+                    }
+                },
+                "body": {
+                    "content": "<html><p>This is an invoice for your recent purchase.</p></html>",
+                    "contentType": "html"
+                },
+                "attachments": [
+                    {
+                        "id": "ATTACHMENT_ID_6",
+                        "name": "invoice.pdf",
+                        "contentType": "application/pdf"
+                    }
+                ]
             }
         ]
         inputs = {"messages": messages}
@@ -173,23 +148,23 @@ class TestHandlerFunction(unittest.TestCase):
         messages = [
             {
                 "id": "message5",
-                "payload": {
-                    "body": {
-                        "data": self.encode_body('This is a document.')
-                    },
-                    "headers": [
-                        {"name": "Subject", "value": "Your Document from Example Company"},
-                        {"name": "From", "value": "info@example.com"}
-                    ],
-                    "parts": [
-                        {
-                            "filename": "document.pdf",
-                            "body": {
-                                "attachmentId": "ATTACHMENT_ID_7"
-                            }
-                        }
-                    ]
-                }
+                "subject": "Your Document from Example Company",
+                "from": {
+                    "emailAddress": {
+                        "address": "info@example.com"
+                    }
+                },
+                "body": {
+                    "content": "<html>This is a document.</html>",
+                    "contentType": "html"
+                },
+                "attachments": [
+                    {
+                        "id": "ATTACHMENT_ID_7",
+                        "name": "document.pdf",
+                        "contentType": "application/pdf"
+                    }
+                ]
             }
         ]
         inputs = {"messages": messages}

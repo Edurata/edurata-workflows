@@ -26,39 +26,40 @@ def handler(inputs):
                 return True
         return False
 
-    def extract_body_and_headers(message):
-        body_data = message.get('body', {}).get('data', '')
-        body = base64.urlsafe_b64decode(body_data).decode('utf-8', errors='ignore') if body_data else ''
-        headers = ' '.join([header['value'] for header in message.get('headers', [])])
-        return body, headers
-
-    def extract_content_recursive(parts, content_accumulator):
-        for part in parts:
-            if 'parts' in part:
-                extract_content_recursive(part['parts'], content_accumulator)
-            if 'body' in part and 'data' in part['body']:
-                part_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8', errors='ignore')
-                content_accumulator.append(part_body)
-            if 'filename' in part and part['filename'].endswith('.pdf'):
-                attachment_id = part['body'].get('attachmentId')
-                if attachment_id:
-                    attachment_type = is_invoice_or_receipt(part['filename'])
-                    if attachment_type:
-                        content_accumulator.append((attachment_id, attachment_type))
-                    else:
-                        content_accumulator.append((attachment_id, 'unknown'))
+    def extract_body_and_subject(message):
+        # Microsoft Graph API format
+        body_content = message.get('body', {}).get('content', '')
+        subject = message.get('subject', '')
+        return body_content, subject
 
     def filter_attachments(message):
-        body, headers = extract_body_and_headers(message['payload'])
-        content_accumulator = [body, headers]
+        # Extract body and subject for Microsoft Graph API
+        body, subject = extract_body_and_subject(message)
+        content_accumulator = [body, subject]
+        
+        # Get sender email
+        from_email = message.get('from', {}).get('emailAddress', {}).get('address', '')
+        content_accumulator.append(from_email)
 
-        parts = message['payload'].get('parts', [])
-        extract_content_recursive(parts, content_accumulator)
+        # Process attachments from Microsoft Graph API
+        attachments = message.get('attachments', [])
+        pdf_attachments = []
+        
+        for attachment in attachments:
+            filename = attachment.get('name', '')
+            attachment_id = attachment.get('id', '')
+            content_type = attachment.get('contentType', '')
+            
+            # Check if it's a PDF
+            if content_type == 'application/pdf' or filename.lower().endswith('.pdf'):
+                attachment_type = is_invoice_or_receipt(filename)
+                if attachment_type:
+                    pdf_attachments.append((attachment_id, attachment_type))
+                else:
+                    pdf_attachments.append((attachment_id, 'unknown'))
 
-        relevant_content = ' '.join([content for content in content_accumulator if isinstance(content, str)])
+        relevant_content = ' '.join(content_accumulator)
         content_has_keywords = search_keywords_in_text(relevant_content)
-
-        pdf_attachments = [content for content in content_accumulator if isinstance(content, tuple)]
 
         # Filter out receipts if there are invoices
         invoices = [att for att in pdf_attachments if att[1] == 'invoice']
@@ -92,65 +93,62 @@ def handler(inputs):
 
     return {'filtered_attachments': filtered_attachments}
 
-# Example usage:
+# Example usage (Microsoft Graph API format):
 # messages = [
 #     {
 #         "id": "message1",
-#         "payload": {
-#             "body": {
-#                 "data": base64.urlsafe_b64encode(b'This is an invoice for your recent purchase.').decode('utf-8')
+#         "subject": "Your Invoice from Example Company",
+#         "from": {
+#             "emailAddress": {
+#                 "address": "billing@example.com"
+#             }
+#         },
+#         "body": {
+#             "content": "<html>This is an invoice for your recent purchase.</html>",
+#             "contentType": "html"
+#         },
+#         "attachments": [
+#             {
+#                 "id": "ATTACHMENT_ID_1",
+#                 "name": "invoice.pdf",
+#                 "contentType": "application/pdf"
 #             },
-#             "headers": [
-#                 {"name": "Subject", "value": "Your Invoice from Example Company"},
-#                 {"name": "From", "value": "billing@example.com"}
-#             ],
-#             "parts": [
-#                 {
-#                     "filename": "invoice.pdf",
-#                     "body": {
-#                         "attachmentId": "ATTACHMENT_ID_1"
-#                     }
-#                 },
-#                 {
-#                     "filename": "receipt.pdf",
-#                     "body": {
-#                         "attachmentId": "ATTACHMENT_ID_2"
-#                     }
-#                 },
-#                 {
-#                     "filename": "document.pdf",
-#                     "body": {
-#                         "attachmentId": "ATTACHMENT_ID_3"
-#                     }
-#                 }
-#             ]
-#         }
+#             {
+#                 "id": "ATTACHMENT_ID_2",
+#                 "name": "receipt.pdf",
+#                 "contentType": "application/pdf"
+#             },
+#             {
+#                 "id": "ATTACHMENT_ID_3",
+#                 "name": "document.pdf",
+#                 "contentType": "application/pdf"
+#             }
+#         ]
 #     },
 #     {
 #         "id": "message2",
-#         "payload": {
-#             "body": {
-#                 "data": base64.urlsafe_b64encode(b'This is a receipt for your recent purchase.').decode('utf-8')
+#         "subject": "Your Receipt from Example Company",
+#         "from": {
+#             "emailAddress": {
+#                 "address": "billing@example.com"
+#             }
+#         },
+#         "body": {
+#             "content": "<html>This is a receipt for your recent purchase.</html>",
+#             "contentType": "html"
+#         },
+#         "attachments": [
+#             {
+#                 "id": "ATTACHMENT_ID_4",
+#                 "name": "receipt.pdf",
+#                 "contentType": "application/pdf"
 #             },
-#             "headers": [
-#                 {"name": "Subject", "value": "Your Receipt from Example Company"},
-#                 {"name": "From", "value": "billing@example.com"}
-#             ],
-#             "parts": [
-#                 {
-#                     "filename": "receipt.pdf",
-#                     "body": {
-#                         "attachmentId": "ATTACHMENT_ID_4"
-#                     }
-#                 },
-#                 {
-#                     "filename": "document.pdf",
-#                     "body": {
-#                         "attachmentId": "ATTACHMENT_ID_5"
-#                     }
-#                 }
-#             ]
-#         }
+#             {
+#                 "id": "ATTACHMENT_ID_5",
+#                 "name": "document.pdf",
+#                 "contentType": "application/pdf"
+#             }
+#         ]
 #     }
 # ]
 

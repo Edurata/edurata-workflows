@@ -103,7 +103,7 @@ steps:
       method: POST
       headers:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
-      data:
+      body:
         displayName: ${each}
       throwError: false
   get-folder-ids:
@@ -123,13 +123,34 @@ steps:
     code: |
       def handler(inputs):
           folder_ids = {}
-          for folder in inputs["get-folder-ids"]["response"]["data"]["value"]:
-            if folder["displayName"] == inputs["successTag"]:
-              folder_ids["successTag"] = folder["id"]
-            elif folder["displayName"] == inputs["failTag"]:
-              folder_ids["failTag"] = folder["id"]
-            elif folder["displayName"] == inputs["skipTag"]:
-              folder_ids["skipTag"] = folder["id"]
+          folders = inputs["get-folder-ids"]["response"]["data"]["value"]
+          folder_map = {folder["displayName"]: folder["id"] for folder in folders}
+          
+          success_tag = inputs["successTag"]
+          fail_tag = inputs["failTag"]
+          skip_tag = inputs["skipTag"]
+          
+          # Check if folders exist
+          missing_folders = []
+          if success_tag not in folder_map:
+              missing_folders.append(success_tag)
+          else:
+              folder_ids["successTag"] = folder_map[success_tag]
+              
+          if fail_tag not in folder_map:
+              missing_folders.append(fail_tag)
+          else:
+              folder_ids["failTag"] = folder_map[fail_tag]
+              
+          if skip_tag not in folder_map:
+              missing_folders.append(skip_tag)
+          else:
+              folder_ids["skipTag"] = folder_map[skip_tag]
+          
+          if missing_folders:
+              available_folders = list(folder_map.keys())
+              raise Exception(f"Required folders not found: {missing_folders}. Available folders: {available_folders}")
+          
           return {"folder_ids": folder_ids}
     props:
       get-folder-ids: ${get-folder-ids}
@@ -158,11 +179,18 @@ steps:
           - skipTag
       outputs:
         properties:
-          transformedTags:
+          folder_ids:
             type: object
             description: Object containing transformed tags to folder ids
+            properties:
+              successTag:
+                type: string
+              failTag:
+                type: string
+              skipTag:
+                type: string
         required:
-          - transformedTags
+          - folder_ids
   get-new-mails-without-tag:
     description: This step is retrieving the ten most recent emails from the user's Outlook account that were received after January 1, 2021, have a PDF attachment, and are not in specific folders, using Microsoft Graph API.
     source:

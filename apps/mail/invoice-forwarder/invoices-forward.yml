@@ -202,15 +202,12 @@ steps:
                   data:
                     type: object
                     properties:
-                      resultSizeEstimate:
-                        type: integer
-                      messages:
+                      value:
                         type:
                           - array
                           - "null"
                     required:
-                      - resultSizeEstimate
-                      - messages
+                      - value
                 required:
                   - data
             required:
@@ -345,27 +342,27 @@ steps:
       def handler(inputs):
         thread_to_tags = {}
         for message in inputs["all_messages"]:
-            thread_id = message["threadId"]
+            conversation_id = message["conversationId"]
 
-            if thread_id in thread_to_tags:
+            if conversation_id in thread_to_tags:
                 continue
 
             is_in_filtered_attachments = any(
                 attachment["message_id"] == message["id"]
                 for attachment in inputs["filtered_attachments"]
             )
-            thread_to_tags[thread_id] = (
+            thread_to_tags[conversation_id] = (
                 inputs["successTag"] if is_in_filtered_attachments else inputs["skipTag"]
             )
 
         return {  # ✅ wrap in a dict with key matching output schema
             "tagged_messages": [
-                {"threadId": thread_id, "tag": tag}
-                for thread_id, tag in thread_to_tags.items()
+                {"threadId": conversation_id, "tag": tag}
+                for conversation_id, tag in thread_to_tags.items()
             ]
         }
     props:
-      all_messages: ${get-new-mails-without-tag.response.data.messages}
+      all_messages: ${get-new-mails-without-tag.response.data.value}
       filtered_attachments: ${filter-attachments.filtered_attachments}
       successTag: ${transform-tags-to-folder-ids.folder_ids.successTag}
       failTag: ${transform-tags-to-folder-ids.folder_ids.failTag}

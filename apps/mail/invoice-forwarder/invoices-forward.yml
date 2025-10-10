@@ -369,27 +369,32 @@ steps:
     runtime: python3_10
     code: |
       def handler(inputs):
-        thread_to_tags = {}
+        message_to_tags = []
+        processed_conversations = set()
+        
         for message in inputs["all_messages"]:
             conversation_id = message["conversationId"]
+            message_id = message["id"]
 
-            if conversation_id in thread_to_tags:
+            # Only process the first message in each conversation
+            if conversation_id in processed_conversations:
                 continue
+            
+            processed_conversations.add(conversation_id)
 
             is_in_filtered_attachments = any(
-                attachment["message_id"] == message["id"]
+                attachment["message_id"] == message_id
                 for attachment in inputs["filtered_attachments"]
             )
-            thread_to_tags[conversation_id] = (
-                inputs["successTag"] if is_in_filtered_attachments else inputs["skipTag"]
-            )
+            tag = inputs["successTag"] if is_in_filtered_attachments else inputs["skipTag"]
+            
+            message_to_tags.append({
+                "threadId": conversation_id,
+                "messageId": message_id,
+                "tag": tag
+            })
 
-        return {  # ✅ wrap in a dict with key matching output schema
-            "tagged_messages": [
-                {"threadId": conversation_id, "tag": tag}
-                for conversation_id, tag in thread_to_tags.items()
-            ]
-        }
+        return {"tagged_messages": message_to_tags}
     props:
       all_messages: ${get-new-mails-without-tag.response.data.value}
       filtered_attachments: ${filter-attachments.filtered_attachments}
@@ -435,8 +440,8 @@ steps:
       path: general/axios
     props:
       method: POST
-      url: https://graph.microsoft.com/v1.0/me/messages/${each.threadId}/move
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.messageId}/move
       headers:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
-      data:
-        destinationId: ${each.tag}
+      body:
+        DestinationId: ${each.tag}

@@ -279,6 +279,7 @@ steps:
       headers:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       streamToFile: true
+      streamToFileName: ${each.attachment_id}.pdf
   forward-pdf:
     description: This step forwards PDF attachments using the Outlook email function.
     if:

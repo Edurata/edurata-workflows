@@ -120,6 +120,8 @@ steps:
       url: https://graph.microsoft.com/v1.0/me/mailFolders
       headers:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
+      params:
+        $top: 1000
       __create-folders: ${create-folders}
   transform-tags-to-folder-ids:
     description: This step transforms tags into folder IDs, using the folder IDs obtained from the 'get-folder-ids' step and the tags specified in the merge-config configuration (successTag, failTag, skipTag).

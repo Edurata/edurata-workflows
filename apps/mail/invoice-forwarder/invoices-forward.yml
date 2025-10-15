@@ -222,8 +222,8 @@ steps:
         $top: 100
         $orderby: receivedDateTime desc
       __transform-tags-to-folder-ids: ${transform-tags-to-folder-ids}
-    description: This step fetches detailed information for each new email message from the Outlook API, using the message ID, with attachments and body content.
   get-mails-info:
+    description: This step fetches detailed information for each new email message from the Outlook API, using the message ID, with attachments and body content.
     foreach: ${get-new-mails-without-tag.response.data.value}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

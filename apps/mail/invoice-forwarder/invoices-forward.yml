@@ -237,25 +237,18 @@ steps:
       params:
         $expand: attachments
       __get-new-mails-without-tag: ${get-new-mails-without-tag}
-  filter-attachments:
-    description: This step involves filtering attachments from the data received from the 'get-mails-info' responses.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-workflows.git
-      path: apps/mail/invoice-forwarder/filter-attachments
-    props:
-      messages: ${get-mails-info[*].response.data}
   download-attachments:
-    description: This step is downloading attachments from specific messages using the Outlook API, iterating over each filtered attachment from the previous step.
-    foreach: ${filter-attachments.filtered_attachments}
+    description: This step is downloading attachments from specific messages using the Outlook API, iterating over each attachment from the messages.
+    foreach: ${get-mails-info[*].response.data.attachments}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: https://graph.microsoft.com/v1.0/me/messages/${each.message_id}/attachments/${each.attachment_id}/$value
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.parentMessageId}/attachments/${each.id}/$value
       headers:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       streamToFile: true
-      streamToFileName: ${each.attachment_id}.pdf
+      streamToFileName: ${each.name}
   forward-pdf:
     description: This step forwards PDF attachments using the Outlook email function.
     if:
@@ -307,8 +300,8 @@ steps:
           - folderId
   create-folderpath:
     if:
-      "!!": ${filter-attachments.filtered_attachments}
-    description: This step creates a new folder path in Google Drive using the provided OAuth token and folder name, only if there are filtered attachments present.
+      "!!": ${download-attachments}
+    description: This step creates a new folder path in Google Drive using the provided OAuth token and folder name, only if there are attachments to upload.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: etl/load/create-gdrive-folderpath
@@ -337,11 +330,11 @@ steps:
     props:
       OAUTH_TOKEN: ${secrets.G_DRIVE}
       action: upload
-      upload_file_name: ${filter-attachments.filtered_attachments[each.index].attachment_id}
+      upload_file_name: ${each.name}
       parent_folder_id: ${get-parent-folder-id.response.data.files[0].id}
       file_path: ${each}
   map-messages-to-folders:
-    description: This step involves mapping messages to folders based on the properties of new emails, filtered attachments, and specific success, fail, and skip folder destinations.
+    description: This step involves mapping messages to folders based on the properties of new emails and specific success, fail, and skip folder destinations.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -358,11 +351,9 @@ steps:
             
             processed_conversations.add(conversation_id)
 
-            is_in_filtered_attachments = any(
-                attachment["message_id"] == message_id
-                for attachment in inputs["filtered_attachments"]
-            )
-            folder_id = inputs["successFolder"] if is_in_filtered_attachments else inputs["skipFolder"]
+            # Since all emails in Rechnungen folder are assumed to be valid invoices,
+            # move all to success folder
+            folder_id = inputs["successFolder"]
             
             message_to_folders.append({
                 "conversationId": conversation_id,
@@ -373,7 +364,6 @@ steps:
         return {"mapped_messages": message_to_folders}
     props:
       all_messages: ${get-new-mails-without-tag.response.data.value}
-      filtered_attachments: ${filter-attachments.filtered_attachments}
       successFolder: ${transform-tags-to-folder-ids.folder_ids.successTag}
       failFolder: ${transform-tags-to-folder-ids.folder_ids.failTag}
       skipFolder: ${transform-tags-to-folder-ids.folder_ids.skipTag}
@@ -381,10 +371,6 @@ steps:
       inputs:
         properties:
           all_messages:
-            type: array
-            items:
-              type: object
-          filtered_attachments:
             type: array
             items:
               type: object
@@ -396,7 +382,6 @@ steps:
             type: string
         required:
           - all_messages
-          - filtered_attachments
           - successFolder
           - failFolder
           - skipFolder

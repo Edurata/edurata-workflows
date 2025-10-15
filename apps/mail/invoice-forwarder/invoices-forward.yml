@@ -237,9 +237,51 @@ steps:
       params:
         $expand: attachments
       __get-new-mails-without-tag: ${get-new-mails-without-tag}
+  flatten-attachments:
+    description: This step flattens all attachments from all messages into a single array with proper message ID references.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          flattened_attachments = []
+          messages = inputs["messages"]
+          
+          for message in messages:
+              message_id = message["response"]["data"]["id"]
+              attachments = message["response"]["data"].get("attachments", [])
+              
+              for attachment in attachments:
+                  flattened_attachment = {
+                      "id": attachment["id"],
+                      "name": attachment["name"],
+                      "parentMessageId": message_id,
+                      "contentType": attachment.get("contentType", ""),
+                      "size": attachment.get("size", 0)
+                  }
+                  flattened_attachments.append(flattened_attachment)
+          
+          return {"flattened_attachments": flattened_attachments}
+    props:
+      messages: ${get-mails-info[*]}
+    interface:
+      inputs:
+        properties:
+          messages:
+            type: array
+            items:
+              type: object
+        required:
+          - messages
+      outputs:
+        properties:
+          flattened_attachments:
+            type: array
+            items:
+              type: object
+        required:
+          - flattened_attachments
   download-attachments:
-    description: This step is downloading attachments from specific messages using the Outlook API, iterating over each attachment from the messages.
-    foreach: ${get-mails-info[*].response.data.attachments}
+    description: This step is downloading attachments from specific messages using the Outlook API, iterating over each attachment from the flattened attachments list.
+    foreach: ${flatten-attachments.flattened_attachments}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -321,18 +363,60 @@ steps:
       params:
         q: name='${get-folder-id.folder_name}' and mimeType='application/vnd.google-apps.folder'
       __create-folderpath: ${create-folderpath}
+  map-downloaded-files:
+    description: This step maps downloaded files to their original attachment names for proper upload to Google Drive.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          downloaded_files = inputs["downloaded_files"]
+          flattened_attachments = inputs["flattened_attachments"]
+          
+          mapped_files = []
+          for i, file_path in enumerate(downloaded_files):
+              if i < len(flattened_attachments):
+                  mapped_files.append({
+                      "file_path": file_path,
+                      "original_name": flattened_attachments[i]["name"]
+                  })
+          
+          return {"mapped_files": mapped_files}
+    props:
+      downloaded_files: ${download-attachments[*].response.file}
+      flattened_attachments: ${flatten-attachments.flattened_attachments}
+    interface:
+      inputs:
+        properties:
+          downloaded_files:
+            type: array
+            items:
+              type: string
+          flattened_attachments:
+            type: array
+            items:
+              type: object
+        required:
+          - downloaded_files
+          - flattened_attachments
+      outputs:
+        properties:
+          mapped_files:
+            type: array
+            items:
+              type: object
+        required:
+          - mapped_files
   upload-files-in-gdrive:
-    description: This step uploads files to Google Drive, specifically to a parent folder, by iterating through each downloaded attachment file, using the Gmail API key for authorization.
-    foreach: ${download-attachments[*].response.file}
+    description: This step uploads files to Google Drive, specifically to a parent folder, by iterating through each mapped downloaded attachment file, using the Gmail API key for authorization.
+    foreach: ${map-downloaded-files.mapped_files}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: clients/gdrive
     props:
       OAUTH_TOKEN: ${secrets.G_DRIVE}
       action: upload
-      upload_file_name: ${each.name}
+      upload_file_name: ${each.original_name}
       parent_folder_id: ${get-parent-folder-id.response.data.files[0].id}
-      file_path: ${each}
+      file_path: ${each.file_path}
   map-messages-to-folders:
     description: This step involves mapping messages to folders based on the properties of new emails and specific success, fail, and skip folder destinations.
     runtime: python3_10

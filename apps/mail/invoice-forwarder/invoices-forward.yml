@@ -36,6 +36,9 @@ interface:
           skipTag:
             type: string
             default: to-datev/skipped
+          invoiceTag:
+            type: string
+            default: Rechnungen
           additionalQuery:
             type: string
             description: |
@@ -95,6 +98,7 @@ steps:
       - ${merge-config.config.successTag}
       - ${merge-config.config.failTag}
       - ${merge-config.config.skipTag}
+      - ${merge-config.config.invoiceTag}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -129,6 +133,7 @@ steps:
           success_tag = inputs["successTag"]
           fail_tag = inputs["failTag"]
           skip_tag = inputs["skipTag"]
+          invoice_tag = inputs["invoiceTag"]
           
           # Check if folders exist
           missing_folders = []
@@ -146,6 +151,11 @@ steps:
               missing_folders.append(skip_tag)
           else:
               folder_ids["skipTag"] = folder_map[skip_tag]
+              
+          if invoice_tag not in folder_map:
+              missing_folders.append(invoice_tag)
+          else:
+              folder_ids["invoiceTag"] = folder_map[invoice_tag]
           
           if missing_folders:
               available_folders = list(folder_map.keys())
@@ -157,6 +167,7 @@ steps:
       successTag: ${merge-config.config.successTag}
       failTag: ${merge-config.config.failTag}
       skipTag: ${merge-config.config.skipTag}
+      invoiceTag: ${merge-config.config.invoiceTag}
     interface:
       inputs:
         properties:
@@ -172,11 +183,15 @@ steps:
           skipTag:
             type: string
             description: Tag to be used for skipped operations
+          invoiceTag:
+            type: string
+            description: Tag to be used for invoice folder
         required:
           - get-folder-ids
           - successTag
           - failTag
           - skipTag
+          - invoiceTag
       outputs:
         properties:
           folder_ids:
@@ -189,69 +204,27 @@ steps:
                 type: string
               skipTag:
                 type: string
+              invoiceTag:
+                type: string
         required:
           - folder_ids
   get-new-mails-without-tag:
-    description: This step is retrieving the ten most recent emails from the user's Outlook account that were received after January 1, 2021, have a PDF attachment, and are not in specific folders, using Microsoft Graph API.
+    description: This step is retrieving emails from the "Rechnungen" folder in the user's Outlook account using Microsoft Graph API.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
       method: GET
-      url: https://graph.microsoft.com/v1.0/me/messages
+      url: https://graph.microsoft.com/v1.0/me/mailFolders/${transform-tags-to-folder-ids.folder_ids.invoiceTag}/messages
       headers:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       params:
-        $filter: receivedDateTime ge 2021-01-01T00:00:00Z and hasAttachments eq true
-        $top: 10
+        $top: 100
         $orderby: receivedDateTime desc
-      __create-folders: ${create-folders}
-  continue-if-new-mails:
-    description: This step continues the process if there are new emails without tags.
-    if:
-      ">":
-        - ${get-new-mails-without-tag.response.data.value.length}
-        - 0
-    runtime: python3_10
-    code: |
-      def handler(inputs):
-          return {"mails": inputs["get-new-mails-without-tag"]["response"]["data"]["value"]}
-    props:
-      get-new-mails-without-tag: ${get-new-mails-without-tag}
-    interface:
-      inputs:
-        properties:
-          get-new-mails-without-tag:
-            type: object
-            properties:
-              response:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      value:
-                        type:
-                          - array
-                          - "null"
-                    required:
-                      - value
-                required:
-                  - data
-            required:
-              - response
-        required:
-          - get-new-mails-without-tag
-      outputs:
-        type: object
-        properties:
-          continue:
-            type: boolean
-        required:
-          - continue
-  get-mails-info:
+      __transform-tags-to-folder-ids: ${transform-tags-to-folder-ids}
     description: This step fetches detailed information for each new email message from the Outlook API, using the message ID, with attachments and body content.
-    foreach: ${continue-if-new-mails.mails}
+  get-mails-info:
+    foreach: ${get-new-mails-without-tag.response.data.value}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -261,6 +234,7 @@ steps:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       params:
         $expand: attachments
+      __get-new-mails-without-tag: ${get-new-mails-without-tag}
   filter-attachments:
     description: This step involves filtering attachments from the data received from the 'get-mails-info' responses.
     source:
@@ -364,12 +338,12 @@ steps:
       upload_file_name: ${filter-attachments.filtered_attachments[each.index].attachment_id}
       parent_folder_id: ${get-parent-folder-id.response.data.files[0].id}
       file_path: ${each}
-  map-tags-to-threads:
-    description: This step involves mapping tags to threads based on the properties of new emails without tags, filtered attachments, and specific success, fail, and skip tags.
+  map-messages-to-folders:
+    description: This step involves mapping messages to folders based on the properties of new emails, filtered attachments, and specific success, fail, and skip folder destinations.
     runtime: python3_10
     code: |
       def handler(inputs):
-        message_to_tags = []
+        message_to_folders = []
         processed_conversations = set()
         
         for message in inputs["all_messages"]:
@@ -386,21 +360,21 @@ steps:
                 attachment["message_id"] == message_id
                 for attachment in inputs["filtered_attachments"]
             )
-            tag = inputs["successTag"] if is_in_filtered_attachments else inputs["skipTag"]
+            folder_id = inputs["successFolder"] if is_in_filtered_attachments else inputs["skipFolder"]
             
-            message_to_tags.append({
-                "threadId": conversation_id,
+            message_to_folders.append({
+                "conversationId": conversation_id,
                 "messageId": message_id,
-                "tag": tag
+                "folderId": folder_id
             })
 
-        return {"tagged_messages": message_to_tags}
+        return {"mapped_messages": message_to_folders}
     props:
       all_messages: ${get-new-mails-without-tag.response.data.value}
       filtered_attachments: ${filter-attachments.filtered_attachments}
-      successTag: ${transform-tags-to-folder-ids.folder_ids.successTag}
-      failTag: ${transform-tags-to-folder-ids.folder_ids.failTag}
-      skipTag: ${transform-tags-to-folder-ids.folder_ids.skipTag}
+      successFolder: ${transform-tags-to-folder-ids.folder_ids.successTag}
+      failFolder: ${transform-tags-to-folder-ids.folder_ids.failTag}
+      skipFolder: ${transform-tags-to-folder-ids.folder_ids.skipTag}
     interface:
       inputs:
         properties:
@@ -412,29 +386,29 @@ steps:
             type: array
             items:
               type: object
-          successTag:
+          successFolder:
             type: string
-          failTag:
+          failFolder:
             type: string
-          skipTag:
+          skipFolder:
             type: string
         required:
           - all_messages
           - filtered_attachments
-          - successTag
-          - failTag
-          - skipTag
+          - successFolder
+          - failFolder
+          - skipFolder
       outputs:
         properties:
-          tagged_messages:
+          mapped_messages:
             type: array
             items:
               type: object
         required:
-          - tagged_messages
+          - mapped_messages
   move-emails-to-folders:
-    description: This step automates the process of moving emails to folders by posting a request to the Outlook API for each message specified in the 'map-tags-to-threads' object, using the 'OUTLOOK_API_KEY' for authorization.
-    foreach: ${map-tags-to-threads.tagged_messages}
+    description: This step automates the process of moving emails to folders by posting a request to the Outlook API for each message specified in the 'map-messages-to-folders' object, using the 'OUTLOOK_API_KEY' for authorization.
+    foreach: ${map-messages-to-folders.mapped_messages}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
@@ -444,4 +418,4 @@ steps:
       headers:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       body:
-        DestinationId: ${each.tag}
+        DestinationId: ${each.folderId}

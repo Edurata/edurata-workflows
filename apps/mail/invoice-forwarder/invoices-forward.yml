@@ -302,18 +302,19 @@ steps:
         required:
           - flattened_attachments
   download-attachments:
-    description: This step is downloading attachments from specific messages using the Outlook API with properly encoded IDs, iterating over each attachment from the flattened attachments list.
+    description: This step is downloading attachments from specific messages using the Outlook API with properly encoded IDs via mailFolders path, iterating over each attachment from the flattened attachments list.
     foreach: ${flatten-attachments.flattened_attachments}
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: https://graph.microsoft.com/v1.0/me/messages/${each.encoded_parent_message_id}/attachments/${each.encoded_id}/$value
+      url: https://graph.microsoft.com/v1.0/me/mailFolders/${transform-tags-to-folder-ids.folder_ids.invoiceTag}/messages/${each.encoded_parent_message_id}/attachments/${each.encoded_id}/$value
       headers:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       streamToFile: true
       streamToFileName: ${each.name}
       throwError: false
+      __transform-tags-to-folder-ids: ${transform-tags-to-folder-ids}
   forward-pdf:
     description: This step forwards PDF attachments using the Outlook email function.
     if:

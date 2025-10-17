@@ -286,12 +286,11 @@ steps:
       repoUrl: https://github.com/Edurata/edurata-functions.git
       path: general/axios
     props:
-      url: https://graph.microsoft.com/v1.0/me/messages/${each.parentMessageId}/attachments/${each.id}/$value
+      url: https://graph.microsoft.com/v1.0/me/mailFolders/${transform-tags-to-folder-ids.folder_ids.invoiceTag}/messages/${each.parentMessageId}/attachments/${each.id}/$value
       headers:
         Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
       streamToFile: true
       streamToFileName: ${each.name}
-      decompress: true
   forward-pdf:
     description: This step forwards PDF attachments using the Outlook email function.
     if:

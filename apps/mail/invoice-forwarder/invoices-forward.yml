@@ -375,7 +375,9 @@ steps:
   forward-pdf:
     description: This step forwards PDF attachments using the Outlook email function.
     if:
-      "!!": ${merge-config.config.forwardEmail}
+      and:
+        - "!!": ${merge-config.config.forwardEmail}
+        - "!!": ${save-attachments-from-binary.saved_files}
     else: success
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git

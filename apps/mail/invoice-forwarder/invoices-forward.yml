@@ -271,7 +271,8 @@ steps:
                               "parentMessageId": message_id,
                               "encoded_parent_message_id": encoded_message_id,
                               "contentType": attachment.get("contentType", ""),
-                              "size": attachment.get("size", 0)
+                              "size": attachment.get("size", 0),
+                              "binaryData": attachment.get("contentBytes", "")
                           }
                           flattened_attachments.append(flattened_attachment)
                       except (KeyError, TypeError) as e:
@@ -301,20 +302,76 @@ steps:
               type: object
         required:
           - flattened_attachments
-  download-attachments:
-    description: This step is downloading attachments from specific messages using the Outlook API with properly encoded IDs via mailFolders path, iterating over each attachment from the flattened attachments list.
-    foreach: ${flatten-attachments.flattened_attachments}
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
+  save-attachments-from-binary:
+    description: This step saves attachments from binary data that was already retrieved with the messages, avoiding the need for separate download requests.
+    runtime: python3_10
+    code: |
+      import base64
+      import os
+      import tempfile
+      
+      def handler(inputs):
+          saved_files = []
+          flattened_attachments = inputs["flattened_attachments"]
+          
+          for attachment in flattened_attachments:
+              try:
+                  binary_data = attachment.get("binaryData", "")
+                  attachment_name = attachment.get("name", "unknown")
+                  
+                  if binary_data:
+                      # Decode the base64 binary data
+                      decoded_data = base64.b64decode(binary_data)
+                      
+                      # Create a temporary file with the attachment name
+                      temp_dir = tempfile.gettempdir()
+                      file_path = os.path.join(temp_dir, attachment_name)
+                      
+                      # Write the decoded data to the file
+                      with open(file_path, 'wb') as f:
+                          f.write(decoded_data)
+                      
+                      saved_files.append({
+                          "file_path": file_path,
+                          "original_name": attachment_name,
+                          "attachment_id": attachment.get("id", ""),
+                          "parent_message_id": attachment.get("parentMessageId", "")
+                      })
+                  else:
+                      print(f"No binary data found for attachment: {attachment_name}")
+              except Exception as e:
+                  print(f"Error saving attachment {attachment.get('name', 'unknown')}: {e}")
+                  continue
+          
+          return {"saved_files": saved_files}
     props:
-      url: https://graph.microsoft.com/v1.0/me/mailFolders/${transform-tags-to-folder-ids.folder_ids.invoiceTag}/messages/${each.encoded_parent_message_id}/attachments/${each.encoded_id}/$value
-      headers:
-        Authorization: Bearer ${secrets.OUTLOOK_API_KEY}
-      streamToFile: true
-      streamToFileName: ${each.name}
-      throwError: false
-      __transform-tags-to-folder-ids: ${transform-tags-to-folder-ids}
+      flattened_attachments: ${flatten-attachments.flattened_attachments}
+    interface:
+      inputs:
+        properties:
+          flattened_attachments:
+            type: array
+            items:
+              type: object
+        required:
+          - flattened_attachments
+      outputs:
+        properties:
+          saved_files:
+            type: array
+            items:
+              type: object
+              properties:
+                file_path:
+                  type: file
+                original_name:
+                  type: string
+                attachment_id:
+                  type: string
+                parent_message_id:
+                  type: string
+        required:
+          - saved_files
   forward-pdf:
     description: This step forwards PDF attachments using the Outlook email function.
     if:
@@ -329,7 +386,7 @@ steps:
       recipient: ${merge-config.config.forwardEmail}
       subject: "Invoice"
       body: "Please find the attached invoices."
-      attachments: ${download-attachments[*].response.file}
+      attachments: ${save-attachments-from-binary.saved_files[*].file_path}
   get-folder-id:
     description: This step involves obtaining the folder ID, provided that the Google Drive folder name in the merge-config is not null.
     runtime: python3_10
@@ -366,7 +423,7 @@ steps:
           - folderId
   create-folderpath:
     if:
-      "!!": ${download-attachments}
+      "!!": ${save-attachments-from-binary.saved_files}
     description: This step creates a new folder path in Google Drive using the provided OAuth token and folder name, only if there are attachments to upload.
     source:
       repoUrl: https://github.com/Edurata/edurata-functions.git
@@ -388,45 +445,51 @@ steps:
         q: name='${get-folder-id.folder_name}' and mimeType='application/vnd.google-apps.folder'
       __create-folderpath: ${create-folderpath}
   map-downloaded-files:
-    description: This step maps downloaded files to their original attachment names for proper upload to Google Drive.
+    description: This step maps saved files to their original attachment names for proper upload to Google Drive.
     runtime: python3_10
     code: |
       def handler(inputs):
-          downloaded_files = inputs["downloaded_files"]
-          flattened_attachments = inputs["flattened_attachments"]
+          saved_files = inputs["saved_files"]
           
           mapped_files = []
-          for i, file_path in enumerate(downloaded_files):
-              if i < len(flattened_attachments):
-                  mapped_files.append({
-                      "file_path": file_path,
-                      "original_name": flattened_attachments[i]["name"]
-                  })
+          for saved_file in saved_files:
+              mapped_files.append({
+                  "file_path": saved_file["file_path"],
+                  "original_name": saved_file["original_name"]
+              })
           
           return {"mapped_files": mapped_files}
     props:
-      downloaded_files: ${download-attachments[*].response.file}
-      flattened_attachments: ${flatten-attachments.flattened_attachments}
+      saved_files: ${save-attachments-from-binary.saved_files}
     interface:
       inputs:
         properties:
-          downloaded_files:
-            type: array
-            items:
-              type: string
-          flattened_attachments:
+          saved_files:
             type: array
             items:
               type: object
+              properties:
+                file_path:
+                  type: file
+                original_name:
+                  type: string
+                attachment_id:
+                  type: string
+                parent_message_id:
+                  type: string
         required:
-          - downloaded_files
-          - flattened_attachments
+          - saved_files
       outputs:
         properties:
           mapped_files:
             type: array
             items:
               type: object
+              properties:
+                file_path:
+                  type: file
+                original_name:
+                  type: string
         required:
           - mapped_files
   upload-files-in-gdrive:

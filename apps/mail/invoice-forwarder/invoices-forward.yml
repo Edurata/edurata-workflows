@@ -260,6 +260,14 @@ steps:
                       try:
                           attachment_id = attachment["id"]
                           attachment_name = attachment.get("name", "unknown")
+                          content_type = attachment.get("contentType", "").lower()
+                          
+                          # Filter to only include PDF attachments
+                          if not (attachment_name.lower().endswith('.pdf') or 
+                                 content_type == 'application/pdf' or 
+                                 'pdf' in content_type):
+                              print(f"Skipping non-PDF attachment: {attachment_name} (type: {content_type})")
+                              continue
                           
                           # URL encode the attachment ID
                           encoded_attachment_id = urllib.parse.quote(attachment_id, safe='')

@@ -27,6 +27,17 @@ outputs:
   messageFromPython: ${test-python.message}
   messageFromNode: ${test-node.message}
 steps:
+  test-secret:
+    description: This step involves testing a secret.
+    runtime: nodejs20
+    code: |
+      exports.handler = async (event) => {
+        return {
+          secret: event.secret
+        };
+      };
+    props:
+      secret: ${secrets.HELLO_WORLD_SECRET}
   construct-message:
     description: This step involves constructing a message based on the inputted messages.
     runtime: nodejs20

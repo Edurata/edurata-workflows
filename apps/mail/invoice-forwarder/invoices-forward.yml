@@ -393,7 +393,9 @@ steps:
     props:
       OUTLOOK_API_KEY: ${secrets.OUTLOOK_API_KEY}
       userEmail: ${inputs.userEmail}
-      recipient: ${merge-config.config.forwardEmail}
+      recipients: 
+        - ${merge-config.config.forwardEmail}
+        - receipts-do8vcg40s5yr@inbox.qonto.com
       subject: "Invoice"
       body: "Please find the attached invoices."
       attachments: ${save-attachments-from-binary.saved_files[*].file_path}

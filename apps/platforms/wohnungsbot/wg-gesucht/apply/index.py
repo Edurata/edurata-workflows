@@ -24,9 +24,18 @@ def extract_ad_details(session, listing_url, debug_file="response.html"):
         response = session.get(listing_url)
         response.raise_for_status()  # Raise an error for HTTP issues
 
-        # Save the raw HTML response to a file for debugging
-        with open(debug_file, "w", encoding="utf-8") as file:
-            file.write(response.text)
+        # Save the raw HTML response to a file for debugging (optional, skip if permission denied)
+        try:
+            # Try to write to /tmp first (writable in cloud environments like Lambda)
+            if os.path.exists('/tmp'):
+                debug_file_path = os.path.join('/tmp', os.path.basename(debug_file))
+            else:
+                debug_file_path = debug_file
+            with open(debug_file_path, "w", encoding="utf-8") as file:
+                file.write(response.text)
+        except (PermissionError, OSError) as e:
+            # Debug file writing is optional, continue even if it fails
+            print(f"Warning: Could not write debug file: {e}")
 
         # Parse the HTML content
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -99,9 +108,12 @@ def send_application_via_http(application_list):
         recipient_name = application["recipient_name"]
         application_text = application["application"]
 
-        # Transform listing URL to the message URL
-        message_url = listing_url.replace("wohnungen-in-", "nachricht-senden/wohnungen-in-")
-        ad_id, ad_type = extract_ad_details(session, message_url)
+        # Extract ad_id and ad_type from the original listing URL (not the message URL)
+        ad_id, ad_type = extract_ad_details(session, listing_url)
+        
+        if not ad_id or not ad_type:
+            print(f"Failed to extract ad_id and ad_type for {recipient_name} at {listing_url}")
+            raise Exception(f"Failed to extract ad details from listing page")
         messages = [{"content": application_text, "message_type": "text"}]
 
         # Construct payload and headers
@@ -122,9 +134,9 @@ def send_application_via_http(application_list):
         response = session.post(submit_url, headers=headers, data=json.dumps(payload))
 
         if response.status_code == 200:
-            print(f"Message sent successfully to {recipient_name} at {message_url}")
+            print(f"Message sent successfully to {recipient_name} at {listing_url}")
         else:
-            print(f"Failed to send message to {recipient_name} at {message_url} with status code {response.status_code}")
+            print(f"Failed to send message to {recipient_name} at {listing_url} with status code {response.status_code}")
             print("Response:", response.text)
             if response.status_code == 400 and "detail" in response.json() and ("Conversation already" in response.json()["detail"] or "Restricted request" in response.json()["detail"]):
                 print("Skipping this application as the conversation already exists or restricted request.")
@@ -150,9 +162,11 @@ def handler(inputs):
 # Sample function call (uncomment to use)
 # handler({
 #     "application_list": [
-#         {"listing_url": "https://www.wg-gesucht.de/wg-zimmer-in-Berlin-Friedrichshain.10790722.html", 
-#          "application": "Hallo Sandro! 🌟\n\nIch bin Surya und habe deine Anzeige für das Zimmer gesehen. Deine Leidenschaft für Techno, Filme und gutes Essen spricht mich total an! 🎶🍿🍲\n\nAls Masterstudent bei OVGU Magdeburg und derzeit Praktikant bei DB in Berlin, plane ich für meine Masterarbeit im Dezember nach Berlin zu ziehen. Deine Wohnung klingt perfekt für mich, da ich gerne eine nette und aufgeschlossene Mitbewohnerin hätte, mit der man Zeit verbringen, zusammen kochen und Filme schauen kann.\n\nIch bin 26 Jahre alt, spiele in meiner Freizeit gerne Klavier, koche regelmäßig indisches vegetarisches Essen und verbringe gerne Zeit mit anderen. Sauberkeit ist mir wichtig und ich bin auch sportbegeistert. Ich würde mich freuen, dich persönlich kennenzulernen und mehr über das Zimmer zu erfahren.\n\nMeine Telefonnummer lautet: 015906104976. Ich würde mich freuen, von dir zu hören! 🌟\n\nViele Grüße und bis bald! 🌼✨🎬", 
-#          "recipient_name": "Albian Mustafa"},
+# {
+#   "application": "Hallo Elizaveta,\n\nich bin ein Mensch und interessiere mich sehr für deine helle, voll möblierte 2-Zimmer-Wohnung im 4. Stock. Deine Beschreibung klingt perfekt für mich! Ich bin auf der Suche nach einem gemütlichen Ort für 2 bis 3 Monate, und deine Wohnung scheint ideal zu sein.\n\nDie Lage an der Schönhauser Allee klingt einfach großartig, vor allem mit der U-Bahn und der Ringbahn in der Nähe. Ich liebe es, in meiner Freizeit Cafés und Bars zu erkunden, daher wäre deine Nachbarschaft perfekt für mich.\n\nDer Preis von 1400 € all-inclusive monatlich passt gut in mein Budget, und ich habe die Kaution bereits parat. Ich bin ein zuverlässiger Mieter und Nichtraucher – du könntest keine bessere Person für deine Wohnung finden.\n\nIch würde mich freuen, wenn wir eine Besichtigung vereinbaren könnten. Lass mich wissen, ob ich dir noch weitere Informationen senden soll. Vielen Dank im Voraus!\n\nViele Grüße,\n[Your Name]",
+#   "listing_url": "https://www.wg-gesucht.de/wohnungen-in-Berlin-Prenzlauer-Berg.12803171.html",
+#   "recipient_name": "Elizaveta Kiseleva"
+# }
 #     ]
 # })
 

@@ -5,3 +5,4 @@ reddit_accounts.json
 output.json
 response.html
 *.log
+.env

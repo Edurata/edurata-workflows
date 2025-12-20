@@ -182,10 +182,64 @@ def search_listings(session, filters):
             continue
 
         title_element = listing.find("h3", class_="truncate_title")
-        title = title_element.text.strip() if title_element else "No title"
-        link_element = title_element.find("a", href=True) if title_element else None
-        relative_link = link_element["href"] if link_element else None
-        link = "https://www.wg-gesucht.de" + relative_link if relative_link else None
+        
+        # Try to find link in multiple ways
+        link_element = None
+        relative_link = None
+        
+        # Method 1: Link inside h3 element
+        if title_element:
+            link_element = title_element.find("a", href=True)
+        
+        # Method 2: Link as parent of h3 element
+        if not link_element and title_element:
+            link_element = title_element.find_parent("a", href=True)
+        
+        # Method 3: Find any link in the listing that looks like a listing link
+        if not link_element:
+            all_links = listing.find_all("a", href=True)
+            for a_tag in all_links:
+                # Check if this link looks like a listing link
+                href = a_tag.get("href", "")
+                if href and (
+                    "/wohnungen/" in href or 
+                    "/zimmer/" in href or 
+                    "/wg-zimmer" in href or  # Matches /wg-zimmer-in-Berlin-...
+                    href.startswith("/wg-zimmer") or
+                    href.startswith("/wohnungen") or
+                    href.startswith("/zimmer")
+                ):
+                    link_element = a_tag
+                    break
+        
+        # Extract title: first try from h3, then from link text
+        if title_element:
+            title = title_element.text.strip()
+        elif link_element:
+            title = link_element.text.strip() if link_element.text else "No title"
+        else:
+            title = "No title"
+        
+        if link_element:
+            relative_link = link_element.get("href")
+            print(f"Found link element: {relative_link}")
+        else:
+            print(f"DEBUG: title_element found: {title_element is not None}")
+            if title_element:
+                print(f"DEBUG: title_element HTML: {str(title_element)[:200]}")
+            all_links = listing.find_all("a", href=True)
+            print(f"DEBUG: Found {len(all_links)} links in listing")
+            for i, a_tag in enumerate(all_links[:3]):  # Show first 3 links
+                print(f"DEBUG: Link {i}: {a_tag.get('href')}")
+        
+        # Handle both relative and absolute URLs
+        if relative_link:
+            if relative_link.startswith("http://") or relative_link.startswith("https://"):
+                link = relative_link
+            else:
+                link = "https://www.wg-gesucht.de" + relative_link
+        else:
+            link = None
         print(f"Title: {title}, Link: {link}")
 
         rent_element = listing.find("div", class_="col-xs-3")
@@ -295,27 +349,25 @@ def handler(inputs):
     return {"listings": listings}
 
 # Sample usage:
-# inputs = {
-#     "filter":
-#     {
-#         "age": 35,
-#         "gender": "Mann",
-#         "categories": ["WG-Zimmer"],
-#         "city_name": "Berlin",
-#         "district_names": [],
-#         "rent_max": 1500,
-#         "room_size_min": 10,
-#         "room_number_min": 2,
-#         "only_furnished": False,
-#         "max_online_hours": 10,
-#         "balcony": False,
-#         "move_in_earliest": "2024-12-01",
-#         "move_in_latest": "2025-01-01",
-#         "min_stay_days": 20
-#     }
-# }
-# results = handler(inputs)
-# # write to file
-# with open("output.json", "w") as f:
-#     json.dump(results, f, indent=4)
-# print(results)
+inputs = {
+    "filter":
+    {
+        "age": 35,
+        "gender": "Mann",
+        "categories": ["WG-Zimmer"],
+        "city_name": "Berlin",
+        "district_names": [],
+        "rent_max": 1500,
+        "room_size_min": 10,
+        "room_number_min": 2,
+        "only_furnished": False,
+        "max_online_hours": 10,
+        "balcony": False,
+        "move_in_earliest": "2024-12-01",
+        "move_in_latest": "2025-01-01",
+        "min_stay_days": 20
+    }
+}
+results = handler(inputs)
+
+print(results)

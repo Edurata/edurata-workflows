@@ -87,7 +87,17 @@ steps:
       path: etl/transform/chatgpt
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: "\"Write a personalized message to apply for the flat listing. \nWrite it in the language of listing description. \nDon't use emoticons.\nIf the name of lister consists of multiple words, use the first word only to make it more personal.\n\nTake the following information into account:\n- Title: ${each.title}\n- Description: ${each.description}\n- Name of lister: ${each.lister_name}\n- About the applicant: ${get-customer-details.response.data.records[0].fields.applicantDescription}\n"
+      systemMessage: |
+        Write a personalized message to apply for the flat listing.
+        Write it in the language that the applicant's description is written in.
+        Don't use emoticons.
+        If the name of lister consists of multiple words, use the first word only to make it more personal.
+        The response should be fine for sending without any modifications, so no placeholders or variables should be inserted.
+        Take the following information into account:
+        - Title: ${each.title}
+        - Description: ${each.description}
+        - Name of lister: ${each.lister_name}
+        - About the applicant: ${get-customer-details.response.data.records[0].fields.applicantDescription}
       message: Create the message.
   merge-info:
     runtime: python3_10

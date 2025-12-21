@@ -88,16 +88,17 @@ steps:
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
-        Write a personalized message to apply for the flat listing.
-        Write it in the language that the applicant's description is written in.
+        I am ${get-customer-details.response.data.records[0].fields.name}
+        Write a personalized message that i can use to apply for the flat listing.
+        Write it in the language that my description is written in.
         Don't use emoticons.
         If the name of lister consists of multiple words, use the first word only to make it more personal.
         The response should be fine for sending without any modifications, so no placeholders or variables should be inserted .
         Take the following information into account:
-        - Title: ${each.title}
-        - Description: ${each.description}
+        - Title of the listing: ${each.title}
+        - Description of listing: ${each.description}
         - Name of lister: ${each.lister_name}
-        - About the applicant: ${get-customer-details.response.data.records[0].fields.applicantDescription}
+        - About me: ${get-customer-details.response.data.records[0].fields.applicantDescription}
       message: Create the message.
   merge-info:
     runtime: python3_10

@@ -1,0 +1,260 @@
+name: kleinanzeigen-auto-reply
+apiRevision: edurata.io/v1
+description: |
+  Durchsucht regelmäßig den Mail-Eingang nach neuen Nachrichten von kleinanzeigen.de ohne Tag,
+  analysiert die Konversation mit OpenAI und erstellt automatisch eine passende Antwort als Entwurf.
+
+interface:
+  inputs:
+    type: object
+    properties:
+      emailProvider:
+        type: string
+        default: gmail
+        description: Email provider to use (gmail or outlook)
+        enum:
+          - gmail
+          - outlook
+      fromDomain:
+        type: string
+        default: mail.kleinanzeigen.de
+        description: Domain to filter emails from (e.g., mail.kleinanzeigen.de will match anything@mail.kleinanzeigen.de)
+      maxResults:
+        type: integer
+        default: 10
+        description: Maximum number of emails to retrieve
+      excludeLabel:
+        type: string
+        default: ""
+        description: Label/category to exclude from results (e.g., 'processed' or 'skipped'). Leave empty to not filter by label.
+      customer_id:
+        type: string
+        description: Customer ID for fetching context info via API (required for AI client)
+      product_id:
+        type: string
+        description: Product ID for fetching product info via API (required for AI client)
+      airtable_base_id:
+        type: string
+        description: Airtable base ID to fetch data from
+      airtable_table_id:
+        type: string
+        description: Airtable table ID to fetch data from
+      airtable_filter_field:
+        type: string
+        default: threadId
+        description: Field name in Airtable to filter by (e.g., 'threadId', 'messageId', or 'email')
+      primary_key_regex:
+        type: string
+        description: Regex pattern with a capturing group to extract the primary key from email body (e.g., 'Anzeige-ID:\\s*([A-Z0-9]+)')
+      message_regex:
+        type: string
+        description: Regex pattern with a capturing group to extract the message content from email body (e.g., 'Nachricht:\\s*(.+?)(?:\\n\\n|$)')
+  outputs:
+    type: object
+    properties: {}
+steps:
+  get-new-mails-gmail:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - gmail
+    description: |
+      Holt neue E-Mails von kleinanzeigen.de von Gmail, die keinen Tag haben und noch nicht beantwortet wurden.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: "general/axios"
+    props:
+      url: https://www.googleapis.com/gmail/v1/users/me/messages
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+      params:
+        q: "from:${inputs.fromDomain} -label:replied -label:skip has:nouserlabels -label:${inputs.excludeLabel}"
+        maxResults: ${inputs.maxResults}
+
+  get-new-mails-outlook:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - outlook
+    description: |
+      Holt neue E-Mails von kleinanzeigen.de von Outlook, die keinen Tag haben und noch nicht beantwortet wurden.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: https://graph.microsoft.com/v1.0/me/messages
+      headers:
+        Authorization: "Bearer ${secrets.OUTLOOK_API_KEY}"
+      params:
+        $filter: "endswith(from/emailAddress/address, '@${inputs.fromDomain}') and isRead eq false and not(categories/any(c:c eq '${inputs.excludeLabel}'))"
+        $top: ${inputs.maxResults}
+
+  extract-message-context-gmail:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - gmail
+    description: |
+      Extrahiert die gesamte Konversation für jede neue Mail von Gmail.
+    foreach: ${get-new-mails-gmail.response.messages}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: https://www.googleapis.com/gmail/v1/users/me/messages/${each.id}
+      headers:
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+
+  extract-message-context-outlook:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - outlook
+    description: |
+      Extrahiert die gesamte Konversation für jede neue Mail von Outlook.
+    foreach: ${get-new-mails-outlook.response.value}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.id}
+      headers:
+        Authorization: "Bearer ${secrets.OUTLOOK_API_KEY}"
+
+  prepare-openai-input:
+    description: |
+      Formatiert die E-Mail-Daten von Gmail oder Outlook in ein Array mit messageId, content, context für OpenAI.
+    runtime: python3_10
+    code: |
+      import base64
+      def handler(inputs):
+          gmail_messages = inputs.get("gmail_messages") or []
+          outlook_messages = inputs.get("outlook_messages") or []
+          # One of these will be empty based on the provider used
+          all_messages = gmail_messages if gmail_messages else outlook_messages
+          result = []
+          
+          for msg in all_messages:
+              msg_id = msg.get("id")
+              
+              # Check if it's a Gmail message (has payload) or Outlook message (has body.content)
+              if "payload" in msg:
+                  # Gmail format
+                  payload = msg.get("payload", {})
+                  headers = payload.get("headers", [])
+                  thread_id = msg.get("threadId")  # Gmail threadId
+                  body_parts = []
+
+                  def extract_parts(part):
+                      if part.get("mimeType") == "text/plain" and "data" in part.get("body", {}):
+                          # Gmail body data is base64url encoded
+                          try:
+                              decoded = base64.urlsafe_b64decode(part["body"]["data"] + '===').decode('utf-8')
+                              body_parts.append(decoded)
+                          except Exception as e:
+                              print(f"Warning: Failed to decode Gmail body part: {e}")
+                      for sub in part.get("parts", []):
+                          extract_parts(sub)
+
+                  extract_parts(payload)
+                  content = "".join(body_parts)
+              else:
+                  # Outlook format
+                  body_content = msg.get("body", {}).get("content", "")
+                  content = body_content
+                  thread_id = msg.get("conversationId")  # Outlook conversationId
+              
+              result.append({
+                  "messageId": msg_id,
+                  "threadId": thread_id,
+                  "content": content,
+                  "context": content  # ggf. später erweitern mit Verlauf
+              })
+          return {"openai_inputs": result}
+    props:
+      gmail_messages: ${extract-message-context-gmail[*].response}
+      outlook_messages: ${extract-message-context-outlook[*].response}
+    interface:
+      inputs:
+        properties:
+          gmail_messages:
+            type: array
+          outlook_messages:
+            type: array
+      outputs:
+        type: object
+        properties:
+          openai_inputs:
+            type: array
+
+  extract-email-info:
+    description: |
+      Extrahiert Informationen aus dem E-Mail-Body mittels Regex. Extrahiert Primary Key für Airtable und die eigentliche Nachricht.
+    foreach: ${prepare-openai-input.openai_inputs}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      path: internals/extract-email-info
+    props:
+      content: ${each.content}
+      messageId: ${each.messageId}
+      threadId: ${each.threadId}
+      primary_key_regex: ${inputs.primary_key_regex}
+      message_regex: ${inputs.message_regex}
+
+  fetch-airtable-data:
+    description: |
+      Holt Daten aus Airtable für jede Nachricht basierend auf dem extrahierten Primary Key.
+    foreach: ${extract-email-info[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_id}
+      headers:
+        Authorization: Bearer ${secrets.AIRTABLE_API_KEY}
+      params:
+        filterByFormula: "{${inputs.airtable_filter_field}} = '${each.primaryKey}'"
+
+  generate-ai-responses:
+    description: |
+      Generiert AI-Antworten für jede neue Nachricht unter Verwendung des lokalen AI-Clients.
+    foreach: ${extract-email-info[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: https://api.edurata.com/v1/copilot/generate-response
+      headers:
+        Authorization: Bearer ${secrets.API_KEY}
+        Content-Type: application/json
+      body:
+        customer_id: ${inputs.customer_id}
+        product_id: ${inputs.product_id}
+        message: ${each.message}
+        thread_id: ${each.threadId}
+    interface:
+      inputs:
+        properties:
+          message:
+            type: string
+          thread_id:
+            type: string
+          customer_id:
+            type: string
+          product_id:
+            type: string
+          openai_api_key:
+            type: string
+          api_key:
+            type: string
+      outputs:
+        properties:
+          response:
+            type: string
+          intermediate_steps:
+            type: array

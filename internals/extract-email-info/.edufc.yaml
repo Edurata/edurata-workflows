@@ -1,0 +1,51 @@
+apiRevision: edurata.io/function/v1
+name: extract-email-info
+description: |
+  Extrahiert Informationen aus dem E-Mail-Body mittels Regex. Extrahiert Primary Key für Airtable und die eigentliche Nachricht.
+runtime: python3_10
+interface:
+  inputs:
+    properties:
+      content:
+        type: string
+        description: Email body content
+      messageId:
+        type: string
+        description: Message ID
+      threadId:
+        type: string
+        description: Thread ID
+      primary_key_regex:
+        type: string
+        description: Regex pattern to extract primary key from email body (e.g., 'Anzeige-ID:\\s*([A-Z0-9]+)')
+      message_regex:
+        type: string
+        description: Regex pattern to extract message content from email body (e.g., 'Nachricht:\\s*(.+?)(?:\\n\\n|$)')
+    required:
+      - content
+      - messageId
+      - threadId
+  outputs:
+    properties:
+      messageId:
+        type: string
+        description: Original message ID
+      threadId:
+        type: string
+        description: Original thread ID
+      primaryKey:
+        type: string
+        description: Extracted primary key (empty string if not found)
+      message:
+        type: string
+        description: Extracted message content (full content if not found)
+      originalContent:
+        type: string
+        description: Original email content
+    required:
+      - messageId
+      - threadId
+      - primaryKey
+      - message
+      - originalContent
+

@@ -85,7 +85,7 @@ steps:
       method: GET
       url: https://graph.microsoft.com/v1.0/me/messages
       headers:
-        Authorization: "Bearer ${secrets.OUTLOOK_API_KEY}"
+        Authorization: "Bearer ${secrets.OUTLOOK_API_KEY?}"
       params:
         $filter: "endswith(from/emailAddress/address, '@${inputs.fromDomain}') and isRead eq false and not(categories/any(c:c eq '${inputs.excludeLabel}'))"
         $top: ${inputs.maxResults}
@@ -105,7 +105,7 @@ steps:
       method: GET
       url: https://www.googleapis.com/gmail/v1/users/me/messages/${each.id}
       headers:
-        Authorization: "Bearer ${secrets.GMAIL_API_KEY}"
+        Authorization: "Bearer ${secrets.GMAIL_API_KEY?}"
 
   extract-message-context-outlook:
     if:

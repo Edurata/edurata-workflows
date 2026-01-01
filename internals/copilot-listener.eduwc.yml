@@ -230,7 +230,7 @@ steps:
       method: POST
       url: https://api.edurata.com/v1/copilot/generate-response
       headers:
-        Authorization: Bearer ${secrets.API_KEY}
+        Authorization: Bearer ${meta.executionToken}
         Content-Type: application/json
       body:
         customer_id: ${inputs.customer_id}

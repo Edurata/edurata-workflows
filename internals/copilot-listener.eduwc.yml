@@ -25,7 +25,7 @@ interface:
         description: Maximum number of emails to retrieve
       excludeLabel:
         type: string
-        default: ""
+        default: "processed"
         description: Label/category to exclude from results (e.g., 'processed' or 'skipped'). Leave empty to not filter by label.
       customer_id:
         type: string

@@ -23,10 +23,10 @@ interface:
         type: integer
         default: 10
         description: Maximum number of emails to retrieve
-      excludeLabel:
+      processedLabel:
         type: string
-        default: "processed"
-        description: Label/category to exclude from results (e.g., 'processed' or 'skipped'). Leave empty to not filter by label.
+        default: ""
+        description: Label/category to mark emails as processed (e.g., 'processed' or 'skipped'). Used to exclude already processed emails from results.
       customer_id:
         type: string
         description: Customer ID for fetching context info via API (required for AI client)
@@ -68,7 +68,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.copilot-gmail-oauth}"
       params:
-        q: "from:${inputs.fromDomain} -label:replied -label:skip has:nouserlabels -label:${inputs.excludeLabel}"
+        q: "from:${inputs.fromDomain} -label:replied -label:skip has:nouserlabels -label:${inputs.processedLabel}"
         maxResults: ${inputs.maxResults}
 
   get-new-mails-outlook:
@@ -87,7 +87,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.copilot-outlook-oauth?}"
       params:
-        $filter: "endswith(from/emailAddress/address, '@${inputs.fromDomain}') and isRead eq false and not(categories/any(c:c eq '${inputs.excludeLabel}'))"
+        $filter: "endswith(from/emailAddress/address, '@${inputs.fromDomain}') and isRead eq false and categories/any(c:c eq '${inputs.processedLabel}') eq false"
         $top: ${inputs.maxResults}
 
   extract-message-context-gmail:

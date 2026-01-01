@@ -25,7 +25,7 @@ interface:
         description: Maximum number of emails to retrieve
       processedLabel:
         type: string
-        default: ""
+        default: "processed"
         description: Label/category to mark emails as processed (e.g., 'processed' or 'skipped'). Used to exclude already processed emails from results.
       customer_id:
         type: string

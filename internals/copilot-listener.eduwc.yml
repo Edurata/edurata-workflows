@@ -10,11 +10,11 @@ interface:
     properties:
       emailProvider:
         type: string
-        default: gmail
-        description: Email provider to use (gmail or outlook)
+        default: GOOGLE
+        description: Email provider to use (GOOGLE or OUTLOOK)
         enum:
-          - gmail
-          - outlook
+          - GOOGLE
+          - OUTLOOK
       fromDomain:
         type: string
         default: mail.kleinanzeigen.de
@@ -57,7 +57,7 @@ steps:
     if:
       ===:
         - ${inputs.emailProvider}
-        - gmail
+        - GOOGLE
     description: |
       Holt neue E-Mails von kleinanzeigen.de von Gmail, die keinen Tag haben und noch nicht beantwortet wurden.
     source:
@@ -75,7 +75,7 @@ steps:
     if:
       ===:
         - ${inputs.emailProvider}
-        - outlook
+        - OUTLOOK
     description: |
       Holt neue E-Mails von kleinanzeigen.de von Outlook, die keinen Tag haben und noch nicht beantwortet wurden.
     source:
@@ -94,7 +94,7 @@ steps:
     if:
       ===:
         - ${inputs.emailProvider}
-        - gmail
+        - GOOGLE
     description: |
       Extrahiert die gesamte Konversation für jede neue Mail von Gmail.
     foreach: ${get-new-mails-gmail.response.messages}
@@ -111,7 +111,7 @@ steps:
     if:
       ===:
         - ${inputs.emailProvider}
-        - outlook
+        - OUTLOOK
     description: |
       Extrahiert die gesamte Konversation für jede neue Mail von Outlook.
     foreach: ${get-new-mails-outlook.response.value}

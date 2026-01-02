@@ -175,19 +175,23 @@ steps:
 
   extract-email-info:
     description: |
-      Extrahiert Informationen aus dem E-Mail-Body mittels Regex. Extrahiert Primary Key für Airtable und die eigentliche Nachricht.
+      Extrahiert die tatsächliche Nachricht des Benutzers aus HTML-E-Mails mittels ChatGPT, entfernt HTML-Wrapper und zusätzlichen Text.
     foreach: ${prepare-openai-input.openai_inputs}
     source:
-      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-      path: internals/extract-email-info
+      repoUrl: https://github.com/Edurata/edurata-functions.git
+      path: etl/transform/chatgpt
     props:
-      content: ${each.content}
-      messageId: ${each.messageId}
-      threadId: ${each.threadId}
-      primary_key_regex: ${inputs.primary_key_regex}
-      message_regex: ${inputs.message_regex}
+      API_KEY: ${secrets.OPENAI_API_KEY}
+      systemMessage: You are a helpful assistant that extracts clean text content from HTML emails, removing all formatting, headers, and wrapper text. Return only the core message content that the user wrote.
+      message: |
+        Extract only the actual user message content from this email. Remove all HTML tags, email headers, signatures, and any wrapper text. Return only the clean message text, nothing else.
+
+        Email content:
+        ${each.content}
 
   fetch-airtable-data:
+    if:
+      "!!": ${extract-email-info.primaryKey}
     description: |
       Holt Daten aus Airtable für jede Nachricht basierend auf dem extrahierten Primary Key.
     foreach: ${extract-email-info[*]}

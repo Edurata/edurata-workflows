@@ -49,6 +49,9 @@ interface:
       message_regex:
         type: string
         description: Regex pattern with a capturing group to extract the message content from email body (e.g., 'Nachricht:\\s*(.+?)(?:\\n\\n|$)')
+      listenerId:
+        type: string
+        description: ID of the copilot listener that triggered this workflow execution
   outputs:
     type: object
     properties: {}
@@ -226,8 +229,7 @@ steps:
         Authorization: Bearer ${meta.executionToken}
         Content-Type: application/json
       body:
-        threadId: ${extract-email-info[each.index].threadId}
-        messageId: ${extract-email-info[each.index].messageId}
-        userId: ${meta.userId}
+        threadId: ${prepare-openai-input.openai_inputs[each.index].threadId}
+        messageId: ${prepare-openai-input.openai_inputs[each.index].messageId}
         messageContent: ${each}
-        context: "Opening hours from 9am-5pm."
+        listenerId: ${inputs.listenerId}

@@ -87,7 +87,7 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.copilot-outlook-oauth?}"
       params:
-        $filter: "endswith(from/emailAddress/address, '@${inputs.fromDomain}') and isRead eq false and categories/any(c:c eq '${inputs.processedLabel}') eq false"
+        $filter: "contains(from/emailAddress/address, '@${inputs.fromDomain}')"
         $top: ${inputs.maxResults}
 
   extract-message-context-gmail:

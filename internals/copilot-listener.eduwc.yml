@@ -215,7 +215,7 @@ steps:
   generate-ai-responses:
     description: |
       Generiert AI-Antworten für jede neue Nachricht unter Verwendung des lokalen AI-Clients.
-    foreach: ${extract-email-info[*]}
+    foreach: ${extract-email-info[*].response.message}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

@@ -186,7 +186,7 @@ steps:
     props:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
-        You are a helpful assistant that extracts clean text content from HTML emails, removing all formatting, headers, and wrapper text. Return only the core message content that the user wrote.
+        You are a helpful assistant that extracts clean user text content from HTML emails, removing all formatting, headers, and wrapper text. Return only the core message content that the user wrote. If there is additional text by the platform to wrap the message, remove it.
         Return the message in the following JSON format:
         {
           "message": "The actual message content that the user wrote."

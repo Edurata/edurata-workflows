@@ -224,7 +224,7 @@ steps:
       path: general/axios
     props:
       method: POST
-      url: https://api.edurata.com/v1/copilot/generate-response
+      url: https://api.dev.edurata.com/v1/copilot/generate-response
       headers:
         Authorization: Bearer ${meta.executionToken}
         Content-Type: application/json

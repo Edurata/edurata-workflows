@@ -107,23 +107,6 @@ steps:
       headers:
         Authorization: "Bearer ${secrets.copilot-gmail-oauth?}"
 
-  extract-message-context-outlook:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - OUTLOOK
-    description: |
-      Extrahiert die gesamte Konversation für jede neue Mail von Outlook.
-    foreach: ${get-new-mails-outlook.response.data.value}
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: GET
-      url: https://graph.microsoft.com/v1.0/me/messages/${each.id}
-      headers:
-        Authorization: "Bearer ${secrets.copilot-outlook-oauth}"
-
   prepare-openai-input:
     description: |
       Formatiert die E-Mail-Daten von Gmail oder Outlook in ein Array mit messageId, content, context für OpenAI.
@@ -176,7 +159,7 @@ steps:
           return {"openai_inputs": result}
     props:
       gmail_messages: ${extract-message-context-gmail[*].response}
-      outlook_messages: ${extract-message-context-outlook[*].response}
+      outlook_messages: ${get-new-mails-outlook.response.data.value}
     interface:
       inputs:
         properties:

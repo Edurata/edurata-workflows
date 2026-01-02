@@ -97,7 +97,7 @@ steps:
         - GOOGLE
     description: |
       Extrahiert die gesamte Konversation für jede neue Mail von Gmail.
-    foreach: ${get-new-mails-gmail.response.messages}
+    foreach: ${get-new-mails-gmail.response.data.messages}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -114,7 +114,7 @@ steps:
         - OUTLOOK
     description: |
       Extrahiert die gesamte Konversation für jede neue Mail von Outlook.
-    foreach: ${get-new-mails-outlook.response.value}
+    foreach: ${get-new-mails-outlook.response.data.value}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

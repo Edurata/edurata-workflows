@@ -226,28 +226,8 @@ steps:
         Authorization: Bearer ${meta.executionToken}
         Content-Type: application/json
       body:
-        customer_id: ${inputs.customer_id}
-        product_id: ${inputs.product_id}
-        message: ${each.message}
-        thread_id: ${each.threadId}
-    interface:
-      inputs:
-        properties:
-          message:
-            type: string
-          thread_id:
-            type: string
-          customer_id:
-            type: string
-          product_id:
-            type: string
-          openai_api_key:
-            type: string
-          api_key:
-            type: string
-      outputs:
-        properties:
-          response:
-            type: string
-          intermediate_steps:
-            type: array
+        threadId: ${extract-email-info[each.index].threadId}
+        messageId: ${extract-email-info[each.index].messageId}
+        userId: ${meta.userId}
+        messageContent: ${each}
+        context: "Opening hours from 9am-5pm."

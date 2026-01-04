@@ -3,6 +3,7 @@ apiRevision: edurata.io/v1
 description: |
   Durchsucht regelmäßig den Mail-Eingang nach neuen Nachrichten von kleinanzeigen.de ohne Tag,
   analysiert die Konversation mit OpenAI und erstellt automatisch eine passende Antwort als Entwurf.
+  Holt genehmigte Nachrichten und sendet sie via Gmail oder Outlook.
 
 interface:
   inputs:
@@ -52,6 +53,9 @@ interface:
       listenerId:
         type: string
         description: ID of the copilot listener that triggered this workflow execution
+      userEmail:
+        type: string
+        description: Email address to send from
   outputs:
     type: object
     properties: {}
@@ -187,6 +191,9 @@ steps:
       API_KEY: ${secrets.OPENAI_API_KEY}
       systemMessage: |
         You are a helpful assistant that extracts clean user text content from HTML emails, removing all formatting, headers, and wrapper text. Return only the core message content that the user wrote. If there is additional text by the platform to wrap the message, remove it.
+        Example for additional text by the platform:
+         - Du hast eine Antwort zur Anzeige: MacBook Pro 13 - Sehr gut erhalten (Anzeigennummer: 3267231888) erhalten.
+         - Beantworte diese Nachricht einfach mit der "Antworten"-Funktion deines E-Mail-Programms oder auf unserer Website bzw. in unseren Apps.
         Return the message in the following JSON format:
         {
           "message": "The actual message content that the user wrote."
@@ -233,3 +240,116 @@ steps:
         messageId: ${prepare-openai-input.openai_inputs[each.index].messageId}
         messageContent: ${each}
         listenerId: ${inputs.listenerId}
+
+  get-approved-messages:
+    description: |
+      Holt genehmigte Nachrichten vom Copilot API.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: https://api.dev.edurata.com/v1/copilot/approved-messages
+      headers:
+        Authorization: Bearer ${meta.executionToken}
+        Content-Type: application/json
+
+  send-messages-gmail:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - GOOGLE
+    description: |
+      Sendet genehmigte Nachrichten via Gmail.
+    foreach: ${get-approved-messages.response.data.messages}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-gmail-email
+    props:
+      GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
+      userEmail: ${inputs.userEmail}
+      recipient: ${each.recipient}
+      subject: ${each.subject}
+      body: ${each.reply}
+      createDraft: false
+
+  send-messages-outlook:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - OUTLOOK
+    description: |
+      Sendet genehmigte Nachrichten via Outlook.
+    foreach: ${get-approved-messages.response.data.messages}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-outlook-email
+    props:
+      OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
+      userEmail: ${inputs.userEmail}
+      recipients:
+        - ${each.recipient}
+      subject: ${each.subject}
+      body: ${each.reply}
+
+  prepare-mark-sent-data:
+    description: |
+      Bereitet Daten vor, um Nachrichten als gesendet zu markieren.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          gmail_results = inputs.get("gmail_results") or []
+          outlook_results = inputs.get("outlook_results") or []
+          messages = inputs.get("messages") or []
+          
+          # One of these will be empty based on the provider used
+          email_results = gmail_results if gmail_results else outlook_results
+          
+          # Collect message IDs from successful email sends
+          message_ids = []
+          for idx, result in enumerate(email_results):
+              # Check if send was successful (result exists)
+              if result:
+                  if idx < len(messages):
+                      msg_id = messages[idx].get("messageId") or messages[idx].get("id")
+                      if msg_id:
+                          message_ids.append(msg_id)
+          
+          return {
+              "messageIds": message_ids
+          }
+    props:
+      gmail_results: ${send-messages-gmail[*]}
+      outlook_results: ${send-messages-outlook[*]}
+      messages: ${get-approved-messages.response.data.messages}
+    interface:
+      inputs:
+        properties:
+          gmail_results:
+            type: array
+          outlook_results:
+            type: array
+          messages:
+            type: array
+      outputs:
+        type: object
+        properties:
+          messageIds:
+            type: array
+
+  mark-sent-messages:
+    if:
+      "!!": ${prepare-mark-sent-data.messageIds}
+    description: |
+      Markiert erfolgreich gesendete Nachrichten als gesendet im Copilot API.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: https://api.dev.edurata.com/v1/copilot/mark-sent-messages
+      headers:
+        Authorization: Bearer ${meta.executionToken}
+        Content-Type: application/json
+      body:
+        messageIds: ${prepare-mark-sent-data.messageIds}

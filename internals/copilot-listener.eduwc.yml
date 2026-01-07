@@ -73,7 +73,7 @@ steps:
     props:
       url: https://www.googleapis.com/gmail/v1/users/me/messages
       headers:
-        Authorization: "Bearer ${secrets.copilot-gmail-oauth}"
+        Authorization: "Bearer ${secrets.copilot-gmail-oauth?}"
       params:
         q: "from:${inputs.fromDomain} -label:replied -label:skip has:nouserlabels -label:${inputs.processedLabel}"
         maxResults: ${inputs.maxResults}

@@ -69,7 +69,6 @@ steps:
   ensure-outlook-categories:
     if:
       all:
-        - ===: [${inputs.emailProvider}, OUTLOOK]
         - "!!": ${inputs.customCategories}
     description: |
       Erstellt fehlende Outlook-Kategorien im Format name:value aus customCategories (lazy),
@@ -128,12 +127,7 @@ steps:
     props:
       customCategories: ${inputs.customCategories}
       outlook_api_key: ${secrets.copilot-outlook-oauth}
-
   get-outlook-unanswered:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - OUTLOOK
     description: |
       Holt unbeantwortete Outlook-Nachrichten von der Absender-Domain (ohne Entwurf und ohne gesendete Antwort).
     source:
@@ -145,10 +139,6 @@ steps:
       top: ${inputs.maxResults}
 
   get-outlook-conversation:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - OUTLOOK
     description: |
       Holt alle Nachrichten einer Konversation (Thread) per Microsoft Graph API.
     foreach: ${get-outlook-unanswered.messages}
@@ -168,10 +158,6 @@ steps:
         $top: 100
 
   extract-outlook-conversation-info:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - OUTLOOK
     description: |
       Wendet primary_key_regex und message_regex auf alle Nachrichten der Konversation an;
       bei fehlendem Treffer wird der gesamte Nachrichtentext verwendet.
@@ -207,9 +193,7 @@ steps:
 
   fetch-airtable-data-outlook:
     if:
-      all:
-        - ===: [${inputs.emailProvider}, OUTLOOK]
-        - "!!": ${inputs.airtable_base_id}
+      "!!": ${inputs.airtable_base_id}
     description: |
       Holt Airtable-Daten für jede Konversation anhand des extrahierten Primary Key.
     foreach: ${extract-outlook-conversation-info[*]}
@@ -225,10 +209,6 @@ steps:
         filterByFormula: "{${inputs.airtable_filter_field}} = '${each.primaryKey}'"
 
   prepare-outlook-chatgpt-prompt:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - OUTLOOK
     description: |
       Baut System- und Nutzer-Prompt: Konversation, optional Airtable aus fetch-airtable-data-outlook,
       immer userInfo; bei customCategories wird Antwort inkl. Kategorien (summary, reply, categories) verlangt.
@@ -278,10 +258,6 @@ steps:
       customCategories: ${inputs.customCategories}
 
   generate-ai-responses-outlook:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - OUTLOOK
     description: |
       Ruft ChatGPT direkt auf: gute Antwort, Kurzfassung und ggf. Kategorien (kein interner API-URL).
     foreach: ${get-outlook-unanswered.messages}
@@ -296,10 +272,6 @@ steps:
       message: ${prepare-outlook-chatgpt-prompt[each.index].message}
 
   prepare-outlook-draft-content:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - OUTLOOK
     description: |
       Mappt AI-Antwort auf Entwurf-Inhalt: reply als body, categories-Objekt auf displayNames (name:value),
       damit sie mit ensure-outlook-categories übereinstimmen (keine ID-Mapping nötig).
@@ -331,10 +303,6 @@ steps:
       processedLabel: ${inputs.processedLabel}
 
   create-outlook-reply-draft:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - OUTLOOK
     description: |
       Erstellt den Reply-Entwurf (Graph createReply).
     foreach: ${prepare-outlook-draft-content[*]}
@@ -350,10 +318,6 @@ steps:
       body: {}
 
   update-outlook-draft:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - OUTLOOK
     description: |
       Setzt Body, Kategorien und isReplyTo auf dem Entwurf (kein extensionMetadata).
     foreach: ${create-outlook-reply-draft[*]}

@@ -9,13 +9,6 @@ interface:
   inputs:
     type: object
     properties:
-      emailProvider:
-        type: string
-        default: GOOGLE
-        description: Email provider to use (GOOGLE or OUTLOOK)
-        enum:
-          - GOOGLE
-          - OUTLOOK
       fromDomain:
         type: string
         default: mail.kleinanzeigen.de
@@ -24,16 +17,6 @@ interface:
         type: integer
         default: 10
         description: Maximum number of emails to retrieve
-      processedLabel:
-        type: string
-        default: "processed"
-        description: Label/category to mark emails as processed (e.g., 'processed' or 'skipped'). Used to exclude already processed emails from results.
-      customer_id:
-        type: string
-        description: Customer ID for fetching context info via API (required for AI client)
-      product_id:
-        type: string
-        description: Product ID for fetching product info via API (required for AI client)
       airtable_base_id:
         type: string
         description: Airtable base ID to fetch data from
@@ -53,38 +36,122 @@ interface:
       listenerId:
         type: string
         description: ID of the copilot listener that triggered this workflow execution
-      userEmail:
+      userInfo:
         type: string
-        description: Email address to send from
+        description: User information to use for the response
+      customCategories:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Category name
+            description:
+              type: string
+              description: Category description
+            possibleValues:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: Possible value name
+                  color:
+                    type: string
+                    description: Possible value color
+        description: Custom categories to add to the draft
   outputs:
     type: object
     properties: {}
 steps:
-  get-new-mails-gmail:
+  ensure-outlook-categories:
     if:
-      ===:
-        - ${inputs.emailProvider}
-        - GOOGLE
+      all:
+        - ===: [${inputs.emailProvider}, OUTLOOK]
+        - "!!": ${inputs.customCategories}
     description: |
-      Holt neue E-Mails von kleinanzeigen.de von Gmail, die keinen Tag haben und noch nicht beantwortet wurden.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: "general/axios"
+      Erstellt fehlende Outlook-Kategorien im Format name:value aus customCategories (lazy),
+      damit sie beim Entwurf-Erstellen verfügbar sind.
+    runtime: python3_10
+    code: |
+      import json
+      import urllib.request
+      import urllib.error
+      def handler(inputs):
+          custom_categories = inputs.get("customCategories") or []
+          token = (inputs.get("outlook_api_key") or "").strip()
+          if not token or not custom_categories:
+              return {"created": [], "existing": []}
+          base = "https://graph.microsoft.com/v1.0/me/outlook/masterCategories"
+          headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+          existing = set()
+          try:
+              req = urllib.request.Request(base, headers=headers)
+              with urllib.request.urlopen(req) as resp:
+                  data = json.loads(resp.read().decode())
+              for c in data.get("value", []):
+                  existing.add((c.get("displayName") or "").strip())
+          except Exception:
+              pass
+          desired = []
+          for cat in custom_categories:
+              cat_name = (cat.get("name") or "").strip()
+              if not cat_name:
+                  continue
+              for pv in (cat.get("possibleValues") or []):
+                  val_name = (pv.get("name") or "").strip() if isinstance(pv, dict) else str(pv).strip()
+                  if not val_name:
+                      continue
+                  display_name = cat_name + ":" + val_name
+                  color = (pv.get("color") or "preset0").strip() if isinstance(pv, dict) else "preset0"
+                  if not color.startswith("preset"):
+                      color = "preset0"
+                  desired.append((display_name, color))
+          created = []
+          for display_name, color in desired:
+              if display_name in existing:
+                  continue
+              try:
+                  body = json.dumps({"displayName": display_name, "color": color}).encode()
+                  req = urllib.request.Request(base, data=body, headers=headers, method="POST")
+                  with urllib.request.urlopen(req) as resp:
+                      created.append(display_name)
+                      existing.add(display_name)
+              except urllib.error.HTTPError as e:
+                  if e.code != 409:
+                      raise
+              except Exception:
+                  pass
+          return {"created": created, "existing": list(existing)}
     props:
-      url: https://www.googleapis.com/gmail/v1/users/me/messages
-      headers:
-        Authorization: "Bearer ${secrets.copilot-gmail-oauth}"
-      params:
-        q: "from:${inputs.fromDomain} -label:replied -label:skip has:nouserlabels -label:${inputs.processedLabel}"
-        maxResults: ${inputs.maxResults}
+      customCategories: ${inputs.customCategories}
+      outlook_api_key: ${secrets.copilot-outlook-oauth}
 
-  get-new-mails-outlook:
+  get-outlook-unanswered:
     if:
       ===:
         - ${inputs.emailProvider}
         - OUTLOOK
     description: |
-      Holt neue E-Mails von kleinanzeigen.de von Outlook, die keinen Tag haben und noch nicht beantwortet wurden.
+      Holt unbeantwortete Outlook-Nachrichten von der Absender-Domain (ohne Entwurf und ohne gesendete Antwort).
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/list-outlook-unanswered
+    props:
+      OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
+      senderDomain: ${inputs.fromDomain}
+      top: ${inputs.maxResults}
+
+  get-outlook-conversation:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - OUTLOOK
+    description: |
+      Holt alle Nachrichten einer Konversation (Thread) per Microsoft Graph API.
+    foreach: ${get-outlook-unanswered.messages}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -92,125 +159,60 @@ steps:
       method: GET
       url: https://graph.microsoft.com/v1.0/me/messages
       headers:
-        Authorization: "Bearer ${secrets.copilot-outlook-oauth}"
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
       params:
-        $filter: "contains(from/emailAddress/address, '@${inputs.fromDomain}')"
-        $top: ${inputs.maxResults}
+        $filter: "conversationId eq '${each.conversationId}'"
+        $select: id,body,from,receivedDateTime,subject
+        $orderby: receivedDateTime asc
+        $top: 100
 
-  extract-message-context-gmail:
+  extract-outlook-conversation-info:
     if:
       ===:
         - ${inputs.emailProvider}
-        - GOOGLE
+        - OUTLOOK
     description: |
-      Extrahiert die gesamte Konversation für jede neue Mail von Gmail.
-    foreach: ${get-new-mails-gmail.response.data.messages}
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: GET
-      url: https://www.googleapis.com/gmail/v1/users/me/messages/${each.id}
-      headers:
-        Authorization: "Bearer ${secrets.copilot-gmail-oauth?}"
-
-  prepare-openai-input:
-    description: |
-      Formatiert die E-Mail-Daten von Gmail oder Outlook in ein Array mit messageId, content, context für OpenAI.
+      Wendet primary_key_regex und message_regex auf alle Nachrichten der Konversation an;
+      bei fehlendem Treffer wird der gesamte Nachrichtentext verwendet.
+    foreach: ${get-outlook-unanswered.messages}
     runtime: python3_10
     code: |
-      import base64
+      import re
       def handler(inputs):
-          gmail_messages = inputs.get("gmail_messages") or []
-          outlook_messages = inputs.get("outlook_messages") or []
-          # One of these will be empty based on the provider used
-          all_messages = gmail_messages if gmail_messages else outlook_messages
-          result = []
-          
-          for msg in all_messages:
-              msg_id = msg.get("id")
-              
-              # Check if it's a Gmail message (has payload) or Outlook message (has body.content)
-              if "payload" in msg:
-                  # Gmail format
-                  payload = msg.get("payload", {})
-                  headers = payload.get("headers", [])
-                  thread_id = msg.get("threadId")  # Gmail threadId
-                  body_parts = []
-
-                  def extract_parts(part):
-                      if part.get("mimeType") == "text/plain" and "data" in part.get("body", {}):
-                          # Gmail body data is base64url encoded
-                          try:
-                              decoded = base64.urlsafe_b64decode(part["body"]["data"] + '===').decode('utf-8')
-                              body_parts.append(decoded)
-                          except Exception as e:
-                              print(f"Warning: Failed to decode Gmail body part: {e}")
-                      for sub in part.get("parts", []):
-                          extract_parts(sub)
-
-                  extract_parts(payload)
-                  content = "".join(body_parts)
+          conversation_messages = inputs.get("conversationMessages") or []
+          primary_key_regex = inputs.get("primary_key_regex") or ""
+          message_regex = inputs.get("message_regex") or ""
+          primary_key = ""
+          message_contents = []
+          for msg in conversation_messages:
+              body = msg.get("body")
+              content = body if isinstance(body, str) else ((body or {}).get("content") or "")
+              if message_regex:
+                  m = re.search(message_regex, content, re.MULTILINE | re.DOTALL)
+                  part = (m.group(1) if m and m.groups() else (m.group(0) if m else content)).strip() if m else content
               else:
-                  # Outlook format
-                  body_content = msg.get("body", {}).get("content", "")
-                  content = body_content
-                  thread_id = msg.get("conversationId")  # Outlook conversationId
-              
-              result.append({
-                  "messageId": msg_id,
-                  "threadId": thread_id,
-                  "content": content,
-                  "context": content  # ggf. später erweitern mit Verlauf
-              })
-          return {"openai_inputs": result}
+                  part = content
+              message_contents.append(part)
+              if not primary_key and primary_key_regex:
+                  pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
+                  if pk:
+                      primary_key = pk.group(1) if pk.groups() else pk.group(0)
+          combined_text = "\n\n---\n\n".join(message_contents)
+          return {"primaryKey": primary_key, "combinedText": combined_text, "messageContents": message_contents}
     props:
-      gmail_messages: ${extract-message-context-gmail[*].response}
-      outlook_messages: ${get-new-mails-outlook.response.data.value}
-    interface:
-      inputs:
-        properties:
-          gmail_messages:
-            type: array
-          outlook_messages:
-            type: array
-      outputs:
-        type: object
-        properties:
-          openai_inputs:
-            type: array
+      conversationMessages: ${get-outlook-conversation[each.index].response.data.value}
+      primary_key_regex: ${inputs.primary_key_regex}
+      message_regex: ${inputs.message_regex}
 
-  extract-email-info:
-    description: |
-      Extrahiert die tatsächliche Nachricht des Benutzers aus HTML-E-Mails mittels ChatGPT, entfernt HTML-Wrapper und zusätzlichen Text.
-    foreach: ${prepare-openai-input.openai_inputs}
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: etl/transform/chatgpt
-    props:
-      API_KEY: ${secrets.OPENAI_API_KEY}
-      systemMessage: |
-        You are a helpful assistant that extracts clean user text content from HTML emails, removing all formatting, headers, and wrapper text. Return only the core message content that the user wrote. If there is additional text by the platform to wrap the message, remove it.
-        Example for additional text by the platform:
-         - Du hast eine Antwort zur Anzeige: MacBook Pro 13 - Sehr gut erhalten (Anzeigennummer: 3267231888) erhalten.
-         - Beantworte diese Nachricht einfach mit der "Antworten"-Funktion deines E-Mail-Programms oder auf unserer Website bzw. in unseren Apps.
-        Return the message in the following JSON format:
-        {
-          "message": "The actual message content that the user wrote."
-        }
-      parseResponseToJson: true
-      message: |
-        Extract only the actual user message content from this email. Remove all HTML tags, email headers, signatures, and any wrapper text. Return only the clean message text, nothing else.
-
-        Email content:
-        ${each.content}
-
-  fetch-airtable-data:
+  fetch-airtable-data-outlook:
     if:
-      "!!": ${inputs.airtable_base_id}
+      all:
+        - ===: [${inputs.emailProvider}, OUTLOOK]
+        - "!!": ${inputs.airtable_base_id}
     description: |
-      Holt Daten aus Airtable für jede Nachricht basierend auf dem extrahierten Primary Key.
-    foreach: ${extract-email-info[*]}
+      Holt Airtable-Daten für jede Konversation anhand des extrahierten Primary Key.
+    foreach: ${extract-outlook-conversation-info[*]}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -222,134 +224,154 @@ steps:
       params:
         filterByFormula: "{${inputs.airtable_filter_field}} = '${each.primaryKey}'"
 
-  generate-ai-responses:
-    description: |
-      Generiert AI-Antworten für jede neue Nachricht unter Verwendung des lokalen AI-Clients.
-    foreach: ${extract-email-info[*].response.message}
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: POST
-      url: https://api.dev.edurata.com/v1/copilot/generate-response
-      headers:
-        Authorization: Bearer ${meta.executionToken}
-        Content-Type: application/json
-      body:
-        threadId: ${prepare-openai-input.openai_inputs[each.index].threadId}
-        messageId: ${prepare-openai-input.openai_inputs[each.index].messageId}
-        messageContent: ${each}
-        listenerId: ${inputs.listenerId}
-
-  get-approved-messages:
-    description: |
-      Holt genehmigte Nachrichten vom Copilot API.
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: GET
-      url: https://api.dev.edurata.com/v1/copilot/approved-messages
-      headers:
-        Authorization: Bearer ${meta.executionToken}
-        Content-Type: application/json
-
-  send-messages-gmail:
-    if:
-      ===:
-        - ${inputs.emailProvider}
-        - GOOGLE
-    description: |
-      Sendet genehmigte Nachrichten via Gmail.
-    foreach: ${get-approved-messages.response.data.messages}
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/send-gmail-email
-    props:
-      GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
-      userEmail: ${inputs.userEmail}
-      recipient: ${each.recipient}
-      subject: ${each.subject}
-      body: ${each.reply}
-      createDraft: false
-
-  send-messages-outlook:
+  prepare-outlook-chatgpt-prompt:
     if:
       ===:
         - ${inputs.emailProvider}
         - OUTLOOK
     description: |
-      Sendet genehmigte Nachrichten via Outlook.
-    foreach: ${get-approved-messages.response.data.messages}
+      Baut System- und Nutzer-Prompt: Konversation, optional Airtable aus fetch-airtable-data-outlook,
+      immer userInfo; bei customCategories wird Antwort inkl. Kategorien (summary, reply, categories) verlangt.
+    foreach: ${get-outlook-unanswered.messages}
+    runtime: python3_10
+    code: |
+      import json
+      def handler(inputs):
+          combined_text = inputs.get("combinedText") or ""
+          primary_key = (inputs.get("primaryKey") or "").strip()
+          airtable_data = inputs.get("airtableData")
+          user_info = (inputs.get("userInfo") or "").strip()
+          custom_categories = inputs.get("customCategories") or []
+          message_parts = [combined_text]
+          if user_info:
+              message_parts.append("Informationen zur Beantwortung (bitte nutzen):\n" + user_info)
+          if primary_key and airtable_data is not None:
+              airtable_str = json.dumps(airtable_data, ensure_ascii=False) if isinstance(airtable_data, dict) else str(airtable_data)
+              message_parts.append("Airtable-Daten (Primary Key: " + primary_key + "):\n" + airtable_str)
+          message = "\n\n---\n\n".join(message_parts)
+          system_parts = [
+              "Du bist ein hilfreicher Assistent. Analysiere die folgende E-Mail-Konversation und:",
+              "1. Formuliere eine passende, freundliche Antwort (reply). Nutze dazu die oben angegebenen Informationen zur Beantwortung.",
+              "2. Fasse die aktuelle Konversation kurz zusammen (summary).",
+          ]
+          if custom_categories and len(custom_categories) > 0:
+              cat_names = [c.get("name") or "" for c in custom_categories]
+              cat_desc = []
+              for c in custom_categories:
+                  name = c.get("name") or ""
+                  desc = (c.get("description") or "").strip()
+                  vals = c.get("possibleValues") or []
+                  val_names = [v.get("name") if isinstance(v, dict) else str(v) for v in vals]
+                  s = "- " + name + (": " + desc if desc else "") + ((" (Mögliche Werte: " + ", ".join(val_names) + ")") if val_names else "")
+                  cat_desc.append(s)
+              system_parts.append("3. Ordne die Konversation den folgenden Kategorien zu (categories): " + ", ".join(cat_names) + ".\n" + "\n".join(cat_desc))
+              system_parts.append('Antworte ausschließlich mit einem JSON-Objekt mit genau drei Schlüsseln: "reply" (Antworttext), "summary" (Kurzfassung), "categories" (Objekt mit Kategoriename als Schlüssel und gewähltem Wert als String).')
+          else:
+              system_parts.append('Antworte ausschließlich mit einem JSON-Objekt mit genau zwei Schlüsseln: "reply" (Antworttext) und "summary" (Kurzfassung).')
+          system_message = "\n".join(system_parts)
+          return {"systemMessage": system_message, "message": message}
+    props:
+      combinedText: ${extract-outlook-conversation-info[each.index].combinedText}
+      primaryKey: ${extract-outlook-conversation-info[each.index].primaryKey}
+      airtableData: ${fetch-airtable-data-outlook[each.index].response.data}
+      userInfo: ${inputs.userInfo}
+      customCategories: ${inputs.customCategories}
+
+  generate-ai-responses-outlook:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - OUTLOOK
+    description: |
+      Ruft ChatGPT direkt auf: gute Antwort, Kurzfassung und ggf. Kategorien (kein interner API-URL).
+    foreach: ${get-outlook-unanswered.messages}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/send-outlook-email
+      path: etl/transform/chatgpt
     props:
-      OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
-      userEmail: ${inputs.userEmail}
-      recipients:
-        - ${each.recipient}
-      subject: ${each.subject}
-      body: ${each.reply}
+      API_KEY: ${secrets.copilot-openai-api-key}
+      model: gpt-4o
+      parseResponseToJson: true
+      systemMessage: ${prepare-outlook-chatgpt-prompt[each.index].systemMessage}
+      message: ${prepare-outlook-chatgpt-prompt[each.index].message}
 
-  prepare-mark-sent-data:
+  prepare-outlook-draft-content:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - OUTLOOK
     description: |
-      Bereitet Daten vor, um Nachrichten als gesendet zu markieren.
+      Mappt AI-Antwort auf Entwurf-Inhalt: reply als body, categories-Objekt auf displayNames (name:value),
+      damit sie mit ensure-outlook-categories übereinstimmen (keine ID-Mapping nötig).
+    foreach: ${generate-ai-responses-outlook[*]}
     runtime: python3_10
     code: |
       def handler(inputs):
-          gmail_results = inputs.get("gmail_results") or []
-          outlook_results = inputs.get("outlook_results") or []
-          messages = inputs.get("messages") or []
-          
-          # One of these will be empty based on the provider used
-          email_results = gmail_results if gmail_results else outlook_results
-          
-          # Collect message IDs from successful email sends
-          message_ids = []
-          for idx, result in enumerate(email_results):
-              # Check if send was successful (result exists)
-              if result:
-                  if idx < len(messages):
-                      msg_id = messages[idx].get("messageId") or messages[idx].get("id")
-                      if msg_id:
-                          message_ids.append(msg_id)
-          
+          ai_response = inputs.get("aiResponse") or {}
+          original_message_id = (inputs.get("originalMessageId") or "").strip()
+          conversation_id = (inputs.get("conversationId") or "").strip()
+          processed_label = (inputs.get("processedLabel") or "").strip()
+          body = (ai_response.get("reply") or "").strip()
+          cats_obj = ai_response.get("categories")
+          categories = [processed_label] if processed_label else []
+          if isinstance(cats_obj, dict):
+              for name, value in cats_obj.items():
+                  if name and value:
+                      categories.append(str(name).strip() + ":" + str(value).strip())
           return {
-              "messageIds": message_ids
+              "body": body,
+              "categories": categories,
+              "originalMessageId": original_message_id,
+              "conversationId": conversation_id,
           }
     props:
-      gmail_results: ${send-messages-gmail[*]}
-      outlook_results: ${send-messages-outlook[*]}
-      messages: ${get-approved-messages.response.data.messages}
-    interface:
-      inputs:
-        properties:
-          gmail_results:
-            type: array
-          outlook_results:
-            type: array
-          messages:
-            type: array
-      outputs:
-        type: object
-        properties:
-          messageIds:
-            type: array
+      aiResponse: ${each.response}
+      originalMessageId: ${get-outlook-unanswered.messages[each.index].id}
+      conversationId: ${get-outlook-unanswered.messages[each.index].conversationId}
+      processedLabel: ${inputs.processedLabel}
 
-  mark-sent-messages:
+  create-outlook-reply-draft:
     if:
-      "!!": ${prepare-mark-sent-data.messageIds}
+      ===:
+        - ${inputs.emailProvider}
+        - OUTLOOK
     description: |
-      Markiert erfolgreich gesendete Nachrichten als gesendet im Copilot API.
+      Erstellt den Reply-Entwurf (Graph createReply).
+    foreach: ${prepare-outlook-draft-content[*]}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
     props:
       method: POST
-      url: https://api.dev.edurata.com/v1/copilot/mark-sent-messages
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.originalMessageId}/createReply
       headers:
-        Authorization: Bearer ${meta.executionToken}
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
+      body: {}
+
+  update-outlook-draft:
+    if:
+      ===:
+        - ${inputs.emailProvider}
+        - OUTLOOK
+    description: |
+      Setzt Body, Kategorien und isReplyTo auf dem Entwurf (kein extensionMetadata).
+    foreach: ${create-outlook-reply-draft[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: PATCH
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.response.data.id}
+      headers:
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
         Content-Type: application/json
       body:
-        messageIds: ${prepare-mark-sent-data.messageIds}
+        body:
+          contentType: HTML
+          content: ${prepare-outlook-draft-content[each.index].body}
+        categories: ${prepare-outlook-draft-content[each.index].categories}
+        singleValueExtendedProperties:
+          - id: "String {66f5a359-4659-4830-9070-00047ec6ac6e} Name isReplyTo"
+            value: ${prepare-outlook-draft-content[each.index].originalMessageId}
+

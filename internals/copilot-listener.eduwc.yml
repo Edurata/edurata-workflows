@@ -1,10 +1,7 @@
-name: kleinanzeigen-auto-reply
+name: copilot-listener
 apiRevision: edurata.io/v1
 description: |
-  Durchsucht regelmäßig den Mail-Eingang nach neuen Nachrichten von kleinanzeigen.de ohne Tag,
-  analysiert die Konversation mit OpenAI und erstellt automatisch eine passende Antwort als Entwurf.
-  Holt genehmigte Nachrichten und sendet sie via Gmail oder Outlook.
-
+  Listens to the mail inbox for new messages and responds to them with a generated response.
 interface:
   inputs:
     type: object

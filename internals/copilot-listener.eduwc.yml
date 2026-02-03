@@ -227,7 +227,7 @@ steps:
       method: POST
       url: ${inputs.copilotApiUrl}/copilot/generate-response
       headers:
-        Authorization: Bearer ${secrets.copilot-execution-token}
+        Authorization: Bearer ${meta.executionToken}
         Content-Type: application/json
       body:
         threadId: ${each.conversationId}

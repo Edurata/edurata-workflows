@@ -33,6 +33,9 @@ interface:
       listenerId:
         type: string
         description: ID of the copilot listener that triggered this workflow execution
+      listenerEmail:
+        type: string
+        description: Optional email of the listener (e.g. mailbox address) to set messages[].role and messages[].direction (outgoing = from this address, incoming = from others)
       userInfo:
         type: string
         description: User information to use for the response
@@ -157,6 +160,8 @@ steps:
     description: |
       Wendet primary_key_regex und message_regex auf alle Nachrichten der Konversation an;
       bei fehlendem Treffer wird der gesamte Nachrichtentext verwendet.
+      Gibt primaryKey und messages zurück (content, index, from, role, direction).
+      direction: incoming = von außen, outgoing = vom Listener; letzter Eintrag = neueste Nachricht.
     foreach: ${get-outlook-unanswered.messages}
     runtime: python3_10
     code: |
@@ -165,9 +170,10 @@ steps:
           conversation_messages = inputs.get("conversationMessages") or []
           primary_key_regex = inputs.get("primary_key_regex") or ""
           message_regex = inputs.get("message_regex") or ""
+          listener_email = (inputs.get("listenerEmail") or "").strip().lower()
           primary_key = ""
-          message_contents = []
-          for msg in conversation_messages:
+          messages = []
+          for idx, msg in enumerate(conversation_messages):
               body = msg.get("body")
               content = body if isinstance(body, str) else ((body or {}).get("content") or "")
               if message_regex:
@@ -175,17 +181,22 @@ steps:
                   part = (m.group(1) if m and m.groups() else (m.group(0) if m else content)).strip() if m else content
               else:
                   part = content
-              message_contents.append(part)
+              from_obj = msg.get("from") or {}
+              email_addr = (from_obj.get("emailAddress") or {}).get("address") or ""
+              is_outgoing = bool(listener_email and email_addr.lower() == listener_email)
+              role = "assistant" if is_outgoing else "user"
+              direction = "outgoing" if is_outgoing else "incoming"
+              messages.append({"content": part, "index": idx, "from": email_addr or None, "role": role, "direction": direction})
               if not primary_key and primary_key_regex:
                   pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
                   if pk:
                       primary_key = pk.group(1) if pk.groups() else pk.group(0)
-          combined_text = "\n\n---\n\n".join(message_contents)
-          return {"primaryKey": primary_key, "combinedText": combined_text, "messageContents": message_contents}
+          return {"primaryKey": primary_key, "messages": messages}
     props:
       conversationMessages: ${get-outlook-conversation[each.index].response.data.value}
       primary_key_regex: ${inputs.primary_key_regex}
       message_regex: ${inputs.message_regex}
+      listenerEmail: ${inputs.listenerEmail}
 
   fetch-airtable-data-outlook:
     if:
@@ -204,73 +215,33 @@ steps:
       params:
         filterByFormula: "{${inputs.airtable_filter_field}} = '${each.primaryKey}'"
 
-  prepare-outlook-chatgpt-prompt:
-    description: |
-      Baut System- und Nutzer-Prompt: Konversation, optional Airtable aus fetch-airtable-data-outlook,
-      immer userInfo; bei customCategories wird Antwort inkl. Kategorien (summary, reply, categories) verlangt.
-    foreach: ${get-outlook-unanswered.messages}
-    runtime: python3_10
-    code: |
-      import json
-      def handler(inputs):
-          combined_text = inputs.get("combinedText") or ""
-          primary_key = (inputs.get("primaryKey") or "").strip()
-          airtable_data = inputs.get("airtableData")
-          user_info = (inputs.get("userInfo") or "").strip()
-          custom_categories = inputs.get("customCategories") or []
-          message_parts = [combined_text]
-          if user_info:
-              message_parts.append("Informationen zur Beantwortung (bitte nutzen):\n" + user_info)
-          if primary_key and airtable_data is not None:
-              airtable_str = json.dumps(airtable_data, ensure_ascii=False) if isinstance(airtable_data, dict) else str(airtable_data)
-              message_parts.append("Airtable-Daten (Primary Key: " + primary_key + "):\n" + airtable_str)
-          message = "\n\n---\n\n".join(message_parts)
-          system_parts = [
-              "Du bist ein hilfreicher Assistent. Analysiere die folgende E-Mail-Konversation und:",
-              "1. Formuliere eine passende, freundliche Antwort (reply). Nutze dazu die oben angegebenen Informationen zur Beantwortung.",
-              "2. Fasse die aktuelle Konversation kurz zusammen (summary).",
-          ]
-          if custom_categories and len(custom_categories) > 0:
-              cat_names = [c.get("name") or "" for c in custom_categories]
-              cat_desc = []
-              for c in custom_categories:
-                  name = c.get("name") or ""
-                  desc = (c.get("description") or "").strip()
-                  vals = c.get("possibleValues") or []
-                  val_names = [v.get("name") if isinstance(v, dict) else str(v) for v in vals]
-                  s = "- " + name + (": " + desc if desc else "") + ((" (Mögliche Werte: " + ", ".join(val_names) + ")") if val_names else "")
-                  cat_desc.append(s)
-              system_parts.append("3. Ordne die Konversation den folgenden Kategorien zu (categories): " + ", ".join(cat_names) + ".\n" + "\n".join(cat_desc))
-              system_parts.append('Antworte ausschließlich mit einem JSON-Objekt mit genau drei Schlüsseln: "reply" (Antworttext), "summary" (Kurzfassung), "categories" (Objekt mit Kategoriename als Schlüssel und gewähltem Wert als String).')
-          else:
-              system_parts.append('Antworte ausschließlich mit einem JSON-Objekt mit genau zwei Schlüsseln: "reply" (Antworttext) und "summary" (Kurzfassung).')
-          system_message = "\n".join(system_parts)
-          return {"systemMessage": system_message, "message": message}
-    props:
-      combinedText: ${extract-outlook-conversation-info[each.index].combinedText}
-      primaryKey: ${extract-outlook-conversation-info[each.index].primaryKey}
-      airtableData: ${fetch-airtable-data-outlook[each.index].response.data}
-      userInfo: ${inputs.userInfo}
-      customCategories: ${inputs.customCategories}
-
   generate-ai-responses-outlook:
     description: |
-      Ruft ChatGPT direkt auf: gute Antwort, Kurzfassung und ggf. Kategorien (kein interner API-URL).
+      Ruft Copilot-API getReplyToMessage auf (threadId, messageId, listenerId, conversationHistory, optional primaryKey/airtableData).
+      Alle Nachrichten in conversationHistory; letzter Eintrag = neueste Nachricht. Kein messageContent.
     foreach: ${get-outlook-unanswered.messages}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/transform/chatgpt
+      path: general/axios
     props:
-      API_KEY: ${secrets.copilot-openai-api-key}
-      model: gpt-4o
-      parseResponseToJson: true
-      systemMessage: ${prepare-outlook-chatgpt-prompt[each.index].systemMessage}
-      message: ${prepare-outlook-chatgpt-prompt[each.index].message}
+      method: POST
+      url: ${inputs.copilotApiUrl}/copilot/generate-response
+      headers:
+        Authorization: Bearer ${secrets.copilot-execution-token}
+        Content-Type: application/json
+      body:
+        threadId: ${each.conversationId}
+        messageId: ${each.id}
+        listenerId: ${inputs.listenerId}
+        conversationHistory: ${extract-outlook-conversation-info[each.index].messages}
+        primaryKey: ${extract-outlook-conversation-info[each.index].primaryKey}
+        airtableData: ${fetch-airtable-data-outlook[each.index].response.data}
 
   prepare-outlook-draft-content:
     description: |
       Mappt AI-Antwort auf Entwurf-Inhalt: reply als body, categories-Objekt auf displayNames (name:value),
       damit sie mit ensure-outlook-categories übereinstimmen (keine ID-Mapping nötig).
+      Akzeptiert Copilot-API-Format (reply, parsedJson) oder direkt (reply, categories).
     foreach: ${generate-ai-responses-outlook[*]}
     runtime: python3_10
     code: |
@@ -281,6 +252,9 @@ steps:
           processed_label = (inputs.get("processedLabel") or "").strip()
           body = (ai_response.get("reply") or "").strip()
           cats_obj = ai_response.get("categories")
+          if cats_obj is None and "parsedJson" in ai_response:
+              pj = ai_response.get("parsedJson") or {}
+              cats_obj = pj.get("categories") if isinstance(pj, dict) else pj
           categories = [processed_label] if processed_label else []
           if isinstance(cats_obj, dict):
               for name, value in cats_obj.items():
@@ -293,14 +267,15 @@ steps:
               "conversationId": conversation_id,
           }
     props:
-      aiResponse: ${each.response}
+      aiResponse: ${each.response.data}
       originalMessageId: ${get-outlook-unanswered.messages[each.index].id}
       conversationId: ${get-outlook-unanswered.messages[each.index].conversationId}
       processedLabel: ${inputs.processedLabel}
 
   create-outlook-reply-draft:
     description: |
-      Erstellt den Reply-Entwurf (Graph createReply).
+      Erstellt den Reply-Entwurf (Graph createReply). createReply nimmt keinen Body;
+      Body/Kategorien werden im nächsten Schritt per PATCH gesetzt.
     foreach: ${prepare-outlook-draft-content[*]}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

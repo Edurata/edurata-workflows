@@ -131,7 +131,7 @@ steps:
       Holt unbeantwortete Outlook-Nachrichten von der Absender-Domain (ohne Entwurf und ohne gesendete Antwort).
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/load/list-outlook-unanswered
+      path: etl/extract/list-outlook-unanswered
     props:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
       senderDomain: ${inputs.fromDomain}

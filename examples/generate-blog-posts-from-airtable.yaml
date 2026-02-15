@@ -1,0 +1,58 @@
+name: generate-blog-posts-from-airtable
+apiRevision: edurata.io/workflow/v1
+description: This workflow retrieves unprocessed blog posts from Airtable, generates blog content using OpenAI GPT, and updates the Airtable record with the generated content.
+
+interface:
+  inputs:
+    type: object
+    properties:
+      airtable_base_id:
+        type: string
+        description: "The Airtable Base ID"
+        default: "appHMoJQ7Wlrx7pR6"
+      airtable_table_id:
+        type: string
+        description: "The Airtable Table ID"
+        default: "tblQOHK14nU4Rkw1j"
+
+steps:
+  get-unprocessed-blogs:
+    description: Fetch unprocessed blog posts from Airtable.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/fetch_airtable_posts
+    props:
+      airtable_base_id: ${inputs.airtable_base_id}
+      airtable_table_id: ${inputs.airtable_table_id}
+      airtable_api_key: ${secrets.AIRTABLE_API_KEY}
+
+  generate-blog-content:
+    foreach: ${get-unprocessed-blogs.records}
+    description: Generate a professional blog post using OpenAI GPT.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/transform/generate_gpt_content
+    props:
+      openai_api_key: ${secrets.OPENAI_API_KEY}
+      raw_content: ${each.fields.Raw Content}
+      record_id: ${each.id}
+      model: "gpt-4"
+      temperature: 0.7
+      messages:
+        - role: "system"
+          content: "You are an AI that generates professional blog posts from raw content."
+        - role: "user"
+          content: "Generate a well-structured, engaging blog post from this content:\n\n${each.fields.Raw Content}"
+
+  update-airtable:
+    foreach: ${generate-blog-content}
+    description: Update Airtable with generated blog content.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/update_airtable_record
+    props:
+      airtable_base_id: ${inputs.airtable_base_id}
+      airtable_table_id: ${inputs.airtable_table_id}
+      record_id: ${each.id}
+      generated_content: ${each.generated_content}
+      airtable_api_key: ${secrets.AIRTABLE_API_KEY}

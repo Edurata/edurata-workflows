@@ -139,22 +139,15 @@ steps:
 
   get-outlook-conversation:
     description: |
-      Holt alle Nachrichten einer Konversation (Thread) per Microsoft Graph API.
+      Holt die letzten n Nachrichten einer Konversation (Thread) per list-outlook-conversation.
     foreach: ${get-outlook-unanswered.messages}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
+      path: etl/extract/list-outlook-conversation
     props:
-      method: GET
-      url: https://graph.microsoft.com/v1.0/me/messages
-      headers:
-        Authorization: Bearer ${secrets.copilot-outlook-oauth}
-        Content-Type: application/json
-      params:
-        $filter: "conversationId eq '${each.conversationId}'"
-        $select: id,body,from,receivedDateTime,subject
-        $orderby: receivedDateTime asc
-        $top: 100
+      OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
+      conversationId: ${each.conversationId}
+      top: 100
 
   extract-outlook-conversation-info:
     description: |
@@ -193,7 +186,7 @@ steps:
                       primary_key = pk.group(1) if pk.groups() else pk.group(0)
           return {"primaryKey": primary_key, "messages": messages}
     props:
-      conversationMessages: ${get-outlook-conversation[each.index].response.data.value}
+      conversationMessages: ${get-outlook-conversation[each.index].messages}
       primary_key_regex: ${inputs.primary_key_regex}
       message_regex: ${inputs.message_regex}
       listenerEmail: ${inputs.listenerEmail}

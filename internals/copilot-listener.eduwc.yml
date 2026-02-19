@@ -218,7 +218,7 @@ steps:
       path: general/axios
     props:
       method: POST
-      url: ${inputs.copilotApiUrl}/copilot/generate-response
+      url: ${meta.apiUrl}/copilot/generate-response
       headers:
         Authorization: Bearer ${meta.executionToken}
         Content-Type: application/json

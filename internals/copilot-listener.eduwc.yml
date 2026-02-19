@@ -153,8 +153,9 @@ steps:
     description: |
       Wendet primary_key_regex und message_regex auf alle Nachrichten der Konversation an;
       bei fehlendem Treffer wird der gesamte Nachrichtentext verwendet.
-      Gibt primaryKey und messages zurück (content, index, from, role, direction).
+      Gibt primaryKey und messages zurück (content, index, from, role, direction, regex_extraction).
       direction: incoming = von außen, outgoing = vom Listener; letzter Eintrag = neueste Nachricht.
+      regex_extraction: no_regex | no_match | matched_empty | matched (nur bei gesetztem message_regex).
     foreach: ${get-outlook-unanswered.messages}
     runtime: python3_10
     code: |
@@ -166,24 +167,48 @@ steps:
           listener_email = (inputs.get("listenerEmail") or "").strip().lower()
           primary_key = ""
           messages = []
+          print(f"[extract-outlook-conversation-info] inputs keys: {list(inputs.keys())}, conversationMessages count: {len(conversation_messages)}, listenerEmail: {listener_email!r}")
           for idx, msg in enumerate(conversation_messages):
               body = msg.get("body")
               content = body if isinstance(body, str) else ((body or {}).get("content") or "")
+              content_preview = (content[:80] + "…") if len(content) > 80 else content
+              print(f"[extract-outlook-conversation-info] msg[{idx}] body type={type(body).__name__}, content len={len(content)}, preview={content_preview!r}")
               if message_regex:
                   m = re.search(message_regex, content, re.MULTILINE | re.DOTALL)
-                  part = (m.group(1) if m and m.groups() else (m.group(0) if m else content)).strip() if m else content
+                  if m is None:
+                      part = content
+                      regex_extraction = "no_match"
+                      print(f"[extract-outlook-conversation-info] msg[{idx}] message_regex: no_match (regex did not match), using full content len={len(part)}")
+                  else:
+                      part = (m.group(1) if m.groups() else m.group(0)).strip()
+                      if part:
+                          regex_extraction = "matched"
+                          print(f"[extract-outlook-conversation-info] msg[{idx}] message_regex: matched, extracted part len={len(part)}")
+                      else:
+                          regex_extraction = "matched_empty"
+                          print(f"[extract-outlook-conversation-info] msg[{idx}] message_regex: matched_empty (regex matched but captured text is empty), part len=0")
               else:
                   part = content
+                  regex_extraction = "no_regex"
               from_obj = msg.get("from") or {}
-              email_addr = (from_obj.get("emailAddress") or {}).get("address") or ""
-              is_outgoing = bool(listener_email and email_addr.lower() == listener_email)
+              email_addr = (from_obj.get("emailAddress") or {}).get("address") or from_obj.get("address") or ""
+              received_dt = (msg.get("receivedDateTime") or "").strip()
+              sent_dt = (msg.get("sentDateTime") or "").strip()
+              if received_dt and sent_dt:
+                  is_outgoing = (received_dt == sent_dt)
+                  print(f"[extract-outlook-conversation-info] msg[{idx}] receivedDateTime={received_dt!r}, sentDateTime={sent_dt!r}, equal=>outgoing: {is_outgoing}")
+              else:
+                  is_outgoing = bool(listener_email and email_addr.lower() == listener_email)
+                  print(f"[extract-outlook-conversation-info] msg[{idx}] no received/sent dates, fallback by listenerEmail: from={email_addr!r}, is_outgoing={is_outgoing}")
               role = "assistant" if is_outgoing else "user"
               direction = "outgoing" if is_outgoing else "incoming"
-              messages.append({"content": part, "index": idx, "from": email_addr or None, "role": role, "direction": direction})
+              messages.append({"content": part, "index": idx, "from": email_addr or None, "role": role, "direction": direction, "regex_extraction": regex_extraction})
               if not primary_key and primary_key_regex:
                   pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
                   if pk:
                       primary_key = pk.group(1) if pk.groups() else pk.group(0)
+                      print(f"[extract-outlook-conversation-info] primary_key extracted at msg[{idx}]: {primary_key!r}")
+          print(f"[extract-outlook-conversation-info] result: primaryKey={primary_key!r}, messages count={len(messages)}")
           return {"primaryKey": primary_key, "messages": messages}
     props:
       conversationMessages: ${get-outlook-conversation[each.index].messages}

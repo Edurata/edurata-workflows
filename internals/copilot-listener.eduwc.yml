@@ -31,7 +31,8 @@ interface:
         type: array
         items:
           type: string
-        description: List of regex patterns (each with optional capturing group); each is tried in order against the message body and the first match is used to extract message content (e.g. Kleinanzeigen: '(?is)<b>Nachricht von</b>.*?<br><br>\\s*(.*?)\\s*</font>' and '(?is)<b>Antwort von</b>.*?<br><br>\\s*(.*?)\\s*</font>')
+        description: |
+          List of regex patterns (each with optional capturing group); each is tried in order against the message body and the first match is used to extract message content.
       listenerId:
         type: string
         description: ID of the copilot listener that triggered this workflow execution

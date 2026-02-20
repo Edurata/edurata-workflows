@@ -1,0 +1,44 @@
+name: list_outlook_unanswered
+runtime: nodejs20
+description: |
+  Lists Outlook inbox messages from a given sender domain that are unanswered:
+  no draft with singleValueExtendedProperty isReplyTo pointing to the message,
+  and no already-sent reply in the same conversation.
+  Returns at most one message per conversation (the latest by receivedDateTime)
+  so the caller creates one draft per conversation.
+  Optional processedLabel: (1) excludes from the inbox query messages that already have this category;
+  (2) applies this category only to messages that have a sent reply (i.e. skipped because hasSentReply). Does not
+  mark messages skipped only due to a draft (draft might be deleted) or unanswered-but-not-latest in a conversation.
+  (Using a folder for processed messages is not needed: moving items out of Inbox already excludes them.)
+interface:
+  inputs:
+    properties:
+      OUTLOOK_API_KEY:
+        type: env
+        description: OAuth 2.0 Bearer token for Microsoft Graph.
+      senderDomain:
+        type: string
+        description: Sender domain to filter by (e.g. "company.com"). Uses contains(from/emailAddress/address, senderDomain).
+      top:
+        type: number
+        description: Maximum number of inbox messages to consider from the domain (default 50).
+        default: 50
+      since:
+        type: string
+        description: Optional ISO 8601 datetime; only messages received on or after this time are considered. Defaults to 1900-01-01T00:00:00Z if omitted.
+      processedLabel:
+        type: string
+        description: Optional Outlook category name. When set, (1) only messages without this category are considered; (2) after the run, this category is applied only to messages that have a sent reply (not draft-only; not unanswered-but-not-latest). Use exact display name (e.g. "Processed").
+    required:
+      - senderDomain
+  outputs:
+    properties:
+      messages:
+        type: array
+        description: List of unanswered messages, at most one per conversation (id, subject, from, receivedDateTime, conversationId, bodyPreview).
+      count:
+        type: number
+        description: Number of unanswered messages returned.
+    required:
+      - messages
+      - count

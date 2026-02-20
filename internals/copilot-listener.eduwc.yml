@@ -28,8 +28,10 @@ interface:
         type: string
         description: Regex pattern with a capturing group to extract the primary key from email body (e.g., 'Anzeige-ID:\\s*([A-Z0-9]+)')
       message_regex:
-        type: string
-        description: Regex pattern with a capturing group to extract the message content from email body (e.g., 'Nachricht:\\s*(.+?)(?:\\n\\n|$)')
+        type: array
+        items:
+          type: string
+        description: List of regex patterns (each with optional capturing group); each is tried in order against the message body and the first match is used to extract message content (e.g. Kleinanzeigen: '(?is)<b>Nachricht von</b>.*?<br><br>\\s*(.*?)\\s*</font>' and '(?is)<b>Antwort von</b>.*?<br><br>\\s*(.*?)\\s*</font>')
       listenerId:
         type: string
         description: ID of the copilot listener that triggered this workflow execution
@@ -62,16 +64,22 @@ interface:
                     type: string
                     description: Possible value color
         description: Custom categories to add to the draft
+      processedLabel:
+        type: string
+        description: Optional Outlook category; (1) only inbox messages without this category are considered unanswered, (2) this category is added to the created draft. Use exact display name (e.g. "Processed"). Omit if not needed.
+        default: Processed
   outputs:
     type: object
     properties: {}
 steps:
   ensure-outlook-categories:
     if:
-      "!!": ${inputs.customCategories}
+      or:
+        - "!!": ${inputs.customCategories}
+        - "!!": ${inputs.processedLabel}
     description: |
-      Erstellt fehlende Outlook-Kategorien im Format name:value aus customCategories (lazy),
-      damit sie beim Entwurf-Erstellen verfügbar sind.
+      Erstellt fehlende Outlook-Kategorien: name:value aus customCategories (lazy) sowie processedLabel (falls gesetzt),
+      damit sie beim Entwurf-Erstellen und für list-outlook-unanswered verfügbar sind.
     runtime: python3_10
     code: |
       import json
@@ -79,8 +87,9 @@ steps:
       import urllib.error
       def handler(inputs):
           custom_categories = inputs.get("customCategories") or []
+          processed_label = (inputs.get("processedLabel") or "").strip()
           token = (inputs.get("outlook_api_key") or "").strip()
-          if not token or not custom_categories:
+          if not token or (not custom_categories and not processed_label):
               return {"created": [], "existing": []}
           base = "https://graph.microsoft.com/v1.0/me/outlook/masterCategories"
           headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
@@ -107,6 +116,8 @@ steps:
                   if not color.startswith("preset"):
                       color = "preset0"
                   desired.append((display_name, color))
+          if processed_label:
+              desired.append((processed_label, "preset0"))
           created = []
           for display_name, color in desired:
               if display_name in existing:
@@ -125,17 +136,22 @@ steps:
           return {"created": created, "existing": list(existing)}
     props:
       customCategories: ${inputs.customCategories}
+      processedLabel: ${inputs.processedLabel}
       outlook_api_key: ${secrets.copilot-outlook-oauth}
   get-outlook-unanswered:
     description: |
-      Holt unbeantwortete Outlook-Nachrichten von der Absender-Domain (ohne Entwurf und ohne gesendete Antwort).
+      Holt unbeantwortete Outlook-Nachrichten von der Absender-Domain.
+      Pro Konversation wird höchstens eine Nachricht zurückgegeben (die neueste unbeantwortete).
+      Unbeantwortet = (1) kein Entwurf mit isReplyTo auf diese Nachricht, (2) keine gesendete Antwort in der Konversation danach.
+      Optional: processedLabel bewirkt, dass nur Nachrichten ohne diese Kategorie berücksichtigt werden (list-outlook-unanswered).
     source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: etl/extract/list-outlook-unanswered
+      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
+      path: internals/list-outlook-unanswered
     props:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
       senderDomain: ${inputs.fromDomain}
       top: ${inputs.maxResults}
+      processedLabel: ${inputs.processedLabel}
 
   get-outlook-conversation:
     description: |
@@ -151,7 +167,8 @@ steps:
 
   extract-outlook-conversation-info:
     description: |
-      Wendet primary_key_regex und message_regex auf alle Nachrichten der Konversation an;
+      Wendet primary_key_regex und message_regex (Array) auf alle Nachrichten der Konversation an;
+      bei message_regex werden alle Muster nacheinander getestet, der erste Treffer wird verwendet;
       bei fehlendem Treffer wird der gesamte Nachrichtentext verwendet.
       Gibt primaryKey und messages zurück (content, index, from, role, direction, regex_extraction).
       direction: incoming = von außen, outgoing = vom Listener; letzter Eintrag = neueste Nachricht.
@@ -163,7 +180,9 @@ steps:
       def handler(inputs):
           conversation_messages = inputs.get("conversationMessages") or []
           primary_key_regex = inputs.get("primary_key_regex") or ""
-          message_regex = inputs.get("message_regex") or ""
+          message_regex_list = inputs.get("message_regex") or []
+          if isinstance(message_regex_list, str):
+              message_regex_list = [message_regex_list] if message_regex_list else []
           listener_email = (inputs.get("listenerEmail") or "").strip().lower()
           primary_key = ""
           messages = []
@@ -173,12 +192,18 @@ steps:
               content = body if isinstance(body, str) else ((body or {}).get("content") or "")
               content_preview = (content[:80] + "…") if len(content) > 80 else content
               print(f"[extract-outlook-conversation-info] msg[{idx}] body type={type(body).__name__}, content len={len(content)}, preview={content_preview!r}")
-              if message_regex:
-                  m = re.search(message_regex, content, re.MULTILINE | re.DOTALL)
+              if message_regex_list:
+                  m = None
+                  for message_regex in message_regex_list:
+                      if not message_regex:
+                          continue
+                      m = re.search(message_regex, content, re.MULTILINE | re.DOTALL)
+                      if m is not None:
+                          break
                   if m is None:
                       part = content
                       regex_extraction = "no_match"
-                      print(f"[extract-outlook-conversation-info] msg[{idx}] message_regex: no_match (regex did not match), using full content len={len(part)}")
+                      print(f"[extract-outlook-conversation-info] msg[{idx}] message_regex: no_match (no pattern matched), using full content len={len(part)}")
                   else:
                       part = (m.group(1) if m.groups() else m.group(0)).strip()
                       if part:
@@ -308,7 +333,9 @@ steps:
 
   update-outlook-draft:
     description: |
-      Setzt Body, Kategorien und isReplyTo auf dem Entwurf (kein extensionMetadata).
+      Setzt Body, Kategorien und isReplyTo auf dem Entwurf.
+      isReplyTo = MAPI extended property (String {guid} Name isReplyTo), speichert originalMessageId;
+      list-outlook-unanswered filtert danach, ob bereits ein Entwurf zu dieser Nachricht existiert (Graph hat kein Standardfeld dafür).
     foreach: ${create-outlook-reply-draft[*]}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"

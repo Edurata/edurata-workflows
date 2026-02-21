@@ -67,7 +67,8 @@ interface:
     properties: {}
 steps:
   ensure-outlook-categories:
-    if: "!!": ${inputs.customCategories}
+    if:
+      "!!": ${inputs.customCategories}
     description: |
       Erstellt fehlende Outlook-Kategorien (name:value aus customCategories), damit sie beim Entwurf-Erstellen verfügbar sind.
     runtime: python3_10

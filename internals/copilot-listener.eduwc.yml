@@ -39,6 +39,10 @@ interface:
       listenerEmail:
         type: string
         description: Optional email of the listener (e.g. mailbox address) to set messages[].role and messages[].direction (outgoing = from this address, incoming = from others)
+      lang:
+        type: string
+        default: de
+        description: Language for default category value names when type is DISCRETE_THREE or SENTIMENT and values are empty (e.g. en = high/medium/low, de = hoch/mittel/niedrig)
       customCategories:
         type: array
         items:
@@ -106,17 +110,27 @@ steps:
           except Exception:
               pass
           # Default value names when type is set but values/possibleValues is empty (matches backend behaviour)
+          lang = (inputs.get("lang") or "en").strip().lower()
+          if lang not in ("de", "en"):
+              lang = "en"
           TYPE_DEFAULTS = {
-              "DISCRETE_THREE": ["high", "medium", "low"],
-              "SENTIMENT": ["positive", "neutral", "negative"],
+              "en": {
+                  "DISCRETE_THREE": ["high", "medium", "low"],
+                  "SENTIMENT": ["positive", "neutral", "negative"],
+              },
+              "de": {
+                  "DISCRETE_THREE": ["hoch", "mittel", "niedrig"],
+                  "SENTIMENT": ["positiv", "neutral", "negativ"],
+              },
           }
+          defaults_by_lang = TYPE_DEFAULTS.get(lang, TYPE_DEFAULTS["en"])
           def value_entries(cat):
               vals = cat.get("possibleValues") or cat.get("values") or []
               if vals:
                   return vals
               t = (cat.get("type") or "").strip()
-              if t in TYPE_DEFAULTS:
-                  return [{"name": n, "color": "preset0"} for n in TYPE_DEFAULTS[t]]
+              if t in defaults_by_lang:
+                  return [{"name": n, "color": "preset0"} for n in defaults_by_lang[t]]
               return []
           desired = []
           for cat in custom_categories:
@@ -150,6 +164,7 @@ steps:
           return {"created": created, "existing": list(existing)}
     props:
       customCategories: ${inputs.customCategories}
+      lang: ${inputs.lang}
       outlook_api_key: ${secrets.copilot-outlook-oauth}
   get-outlook-unanswered:
     description: |

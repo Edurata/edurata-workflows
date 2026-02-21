@@ -40,6 +40,8 @@ async function pagedGet({ url, headers, params, maxPages }) {
   return pages;
 }
 
+const LOG_PREFIX = "[list-outlook-unanswered]";
+
 async function handler(inputs) {
   const token = process.env.OUTLOOK_API_KEY;
   if (!token) throw new Error("OUTLOOK_API_KEY not set");
@@ -60,6 +62,9 @@ async function handler(inputs) {
   }
 
   const sinceDateTime = subtractHoursIso(Number(windowHours) || 72);
+  console.log(
+    `${LOG_PREFIX} start senderDomain=${senderDomain} windowHours=${windowHours} sinceUsed=${sinceDateTime} maxUnanswered=${maxUnanswered}`
+  );
 
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -83,6 +88,9 @@ async function handler(inputs) {
   });
 
   const inboxMsgs = inboxPages.flatMap((p) => p.data?.value || []);
+  console.log(
+    `${LOG_PREFIX} inbox: ${inboxPages.length} page(s), ${inboxMsgs.length} message(s) from domain`
+  );
 
   // Latest inbound per conversation
   const latestInboundByCid = new Map();
@@ -98,7 +106,11 @@ async function handler(inputs) {
   }
 
   const allConversationIds = Array.from(latestInboundByCid.keys());
+  console.log(
+    `${LOG_PREFIX} inbox: ${allConversationIds.length} unique conversation(s) (latest inbound per cid)`
+  );
   if (allConversationIds.length === 0) {
+    console.log(`${LOG_PREFIX} early return: no conversations in window`);
     return {
       unansweredConversationIds: [],
       answeredConversationIds: [],
@@ -125,6 +137,9 @@ async function handler(inputs) {
   });
 
   const sentMsgs = sentPages.flatMap((p) => p.data?.value || []);
+  console.log(
+    `${LOG_PREFIX} sent: ${sentPages.length} page(s), ${sentMsgs.length} message(s) in window`
+  );
 
   const latestSentByCid = new Map();
   for (const s of sentMsgs) {
@@ -135,6 +150,12 @@ async function handler(inputs) {
       latestSentByCid.set(s.conversationId, s.sentDateTime);
     }
   }
+  const cidsWithSent = [...latestSentByCid.keys()].filter((cid) =>
+    allConversationIds.includes(cid)
+  ).length;
+  console.log(
+    `${LOG_PREFIX} sent: ${cidsWithSent} of ${allConversationIds.length} conversation(s) have sent message in window`
+  );
 
   /* ===============================
      3) DRAFT BULK CHECK
@@ -169,6 +190,10 @@ async function handler(inputs) {
       }
     }
   }
+  const totalDrafts = newestDraftByCid.size;
+  console.log(
+    `${LOG_PREFIX} drafts: ${totalDrafts} conversation(s) have draft(s) (onlyEdurataDrafts=${onlyEdurataDrafts})`
+  );
 
   /* ===============================
      4) CLASSIFICATION
@@ -211,6 +236,10 @@ async function handler(inputs) {
 
   const limit = Math.max(0, Number(maxUnanswered) || 0);
   const cappedIds = limit > 0 ? unansweredConversationIds.slice(0, limit) : unansweredConversationIds;
+
+  console.log(
+    `${LOG_PREFIX} classification: answered=${answeredConversationIds.length} unanswered=${unansweredConversationIds.length} (returning ${cappedIds.length} after maxUnanswered=${limit})`
+  );
 
   return {
     unansweredConversationIds: cappedIds,

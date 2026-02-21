@@ -39,9 +39,6 @@ interface:
       listenerEmail:
         type: string
         description: Optional email of the listener (e.g. mailbox address) to set messages[].role and messages[].direction (outgoing = from this address, incoming = from others)
-      userInfo:
-        type: string
-        description: User information to use for the response
       customCategories:
         type: array
         items:
@@ -65,22 +62,14 @@ interface:
                     type: string
                     description: Possible value color
         description: Custom categories to add to the draft
-      processedLabel:
-        type: string
-        description: Optional Outlook category; (1) only inbox messages without this category are considered unanswered, (2) this category is added to the created draft. Use exact display name (e.g. "Processed"). Omit if not needed.
-        default: Processed
   outputs:
     type: object
     properties: {}
 steps:
   ensure-outlook-categories:
-    if:
-      or:
-        - "!!": ${inputs.customCategories}
-        - "!!": ${inputs.processedLabel}
+    if: "!!": ${inputs.customCategories}
     description: |
-      Erstellt fehlende Outlook-Kategorien: name:value aus customCategories (lazy) sowie processedLabel (falls gesetzt),
-      damit sie beim Entwurf-Erstellen und für list-outlook-unanswered verfügbar sind.
+      Erstellt fehlende Outlook-Kategorien (name:value aus customCategories), damit sie beim Entwurf-Erstellen verfügbar sind.
     runtime: python3_10
     code: |
       import json
@@ -88,9 +77,8 @@ steps:
       import urllib.error
       def handler(inputs):
           custom_categories = inputs.get("customCategories") or []
-          processed_label = (inputs.get("processedLabel") or "").strip()
           token = (inputs.get("outlook_api_key") or "").strip()
-          if not token or (not custom_categories and not processed_label):
+          if not token or not custom_categories:
               return {"created": [], "existing": []}
           base = "https://graph.microsoft.com/v1.0/me/outlook/masterCategories"
           headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
@@ -117,8 +105,6 @@ steps:
                   if not color.startswith("preset"):
                       color = "preset0"
                   desired.append((display_name, color))
-          if processed_label:
-              desired.append((processed_label, "preset0"))
           created = []
           for display_name, color in desired:
               if display_name in existing:
@@ -137,33 +123,29 @@ steps:
           return {"created": created, "existing": list(existing)}
     props:
       customCategories: ${inputs.customCategories}
-      processedLabel: ${inputs.processedLabel}
       outlook_api_key: ${secrets.copilot-outlook-oauth}
   get-outlook-unanswered:
     description: |
-      Holt unbeantwortete Outlook-Nachrichten von der Absender-Domain.
-      Pro Konversation wird höchstens eine Nachricht zurückgegeben (die neueste unbeantwortete).
-      Unbeantwortet = (1) kein Entwurf mit isReplyTo auf diese Nachricht, (2) keine gesendete Antwort in der Konversation danach.
-      Optional: processedLabel bewirkt, dass nur Nachrichten ohne diese Kategorie berücksichtigt werden (list-outlook-unanswered).
+      Holt unbeantwortete Outlook-Konversationen von der Absender-Domain (rolling time window).
+      Unbeantwortet = keine gesendete Antwort nach letzter Inbound-Nachricht im Fenster, und kein/veralteter Entwurf.
     source:
       repoUrl: "https://github.com/Edurata/edurata-workflows.git"
       path: internals/list-outlook-unanswered
     props:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
       senderDomain: ${inputs.fromDomain}
-      top: ${inputs.maxResults}
-      processedLabel: ${inputs.processedLabel}
+      maxUnanswered: ${inputs.maxResults}
 
   get-outlook-conversation:
     description: |
       Holt die letzten n Nachrichten einer Konversation (Thread) per list-outlook-conversation.
-    foreach: ${get-outlook-unanswered.messages}
+    foreach: ${get-outlook-unanswered.unansweredConversationIds}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/list-outlook-conversation
     props:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
-      conversationId: ${each.conversationId}
+      conversationId: ${each}
       top: 100
 
   extract-outlook-conversation-info:
@@ -174,7 +156,7 @@ steps:
       Gibt primaryKey und messages zurück (content, index, from, role, direction, regex_extraction).
       direction: incoming = von außen, outgoing = vom Listener; letzter Eintrag = neueste Nachricht.
       regex_extraction: no_regex | no_match | matched_empty | matched (nur bei gesetztem message_regex).
-    foreach: ${get-outlook-unanswered.messages}
+    foreach: ${get-outlook-unanswered.unansweredConversationIds}
     runtime: python3_10
     code: |
       import re
@@ -187,6 +169,8 @@ steps:
           listener_email = (inputs.get("listenerEmail") or "").strip().lower()
           primary_key = ""
           messages = []
+          latest_inbound_received = ""
+          latest_inbound_message_id = ""
           print(f"[extract-outlook-conversation-info] inputs keys: {list(inputs.keys())}, conversationMessages count: {len(conversation_messages)}, listenerEmail: {listener_email!r}")
           for idx, msg in enumerate(conversation_messages):
               body = msg.get("body")
@@ -228,14 +212,17 @@ steps:
                   print(f"[extract-outlook-conversation-info] msg[{idx}] no received/sent dates, fallback by listenerEmail: from={email_addr!r}, is_outgoing={is_outgoing}")
               role = "assistant" if is_outgoing else "user"
               direction = "outgoing" if is_outgoing else "incoming"
+              if not is_outgoing and received_dt and (not latest_inbound_received or received_dt > latest_inbound_received):
+                  latest_inbound_received = received_dt
+                  latest_inbound_message_id = (msg.get("id") or "").strip()
               messages.append({"content": part, "index": idx, "from": email_addr or None, "role": role, "direction": direction, "regex_extraction": regex_extraction})
               if not primary_key and primary_key_regex:
                   pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
                   if pk:
                       primary_key = pk.group(1) if pk.groups() else pk.group(0)
                       print(f"[extract-outlook-conversation-info] primary_key extracted at msg[{idx}]: {primary_key!r}")
-          print(f"[extract-outlook-conversation-info] result: primaryKey={primary_key!r}, messages count={len(messages)}")
-          return {"primaryKey": primary_key, "messages": messages}
+          print(f"[extract-outlook-conversation-info] result: primaryKey={primary_key!r}, messages count={len(messages)}, latestInboundMessageId={latest_inbound_message_id!r}")
+          return {"primaryKey": primary_key, "messages": messages, "latestInboundMessageId": latest_inbound_message_id}
     props:
       conversationMessages: ${get-outlook-conversation[each.index].messages}
       primary_key_regex: ${inputs.primary_key_regex}
@@ -261,9 +248,9 @@ steps:
 
   generate-ai-responses-outlook:
     description: |
-      Ruft Copilot-API getReplyToMessage auf (threadId, messageId, listenerId, conversationHistory, optional primaryKey/airtableData).
-      Alle Nachrichten in conversationHistory; letzter Eintrag = neueste Nachricht. Kein messageContent.
-    foreach: ${get-outlook-unanswered.messages}
+      Ruft Copilot-API getReplyToMessage auf (threadId, listenerId, conversationHistory, optional primaryKey/airtableData).
+      Die KI antwortet auf die letzte Nachricht in conversationHistory; messageId wird nicht benötigt.
+    foreach: ${get-outlook-unanswered.unansweredConversationIds}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -274,8 +261,7 @@ steps:
         Authorization: Bearer ${meta.executionToken}
         Content-Type: application/json
       body:
-        threadId: ${each.conversationId}
-        messageId: ${each.id}
+        threadId: ${each}
         listenerId: ${inputs.listenerId}
         conversationHistory: ${extract-outlook-conversation-info[each.index].messages}
         primaryKey: ${extract-outlook-conversation-info[each.index].primaryKey}
@@ -293,13 +279,12 @@ steps:
           ai_response = inputs.get("aiResponse") or {}
           original_message_id = (inputs.get("originalMessageId") or "").strip()
           conversation_id = (inputs.get("conversationId") or "").strip()
-          processed_label = (inputs.get("processedLabel") or "").strip()
           body = (ai_response.get("reply") or "").strip()
           cats_obj = ai_response.get("categories")
           if cats_obj is None and "parsedJson" in ai_response:
               pj = ai_response.get("parsedJson") or {}
               cats_obj = pj.get("categories") if isinstance(pj, dict) else pj
-          categories = [processed_label] if processed_label else []
+          categories = []
           if isinstance(cats_obj, dict):
               for name, value in cats_obj.items():
                   if name and value:
@@ -312,9 +297,8 @@ steps:
           }
     props:
       aiResponse: ${each.response.data}
-      originalMessageId: ${get-outlook-unanswered.messages[each.index].id}
-      conversationId: ${get-outlook-unanswered.messages[each.index].conversationId}
-      processedLabel: ${inputs.processedLabel}
+      originalMessageId: ${extract-outlook-conversation-info[each.index].latestInboundMessageId}
+      conversationId: ${get-outlook-unanswered.unansweredConversationIds[each.index]}
 
   create-outlook-reply-draft:
     description: |
@@ -334,9 +318,7 @@ steps:
 
   update-outlook-draft:
     description: |
-      Setzt Body, Kategorien und isReplyTo auf dem Entwurf.
-      isReplyTo = MAPI extended property (String {guid} Name isReplyTo), speichert originalMessageId;
-      list-outlook-unanswered filtert danach, ob bereits ein Entwurf zu dieser Nachricht existiert (Graph hat kein Standardfeld dafür).
+      Setzt Body und Kategorien auf dem Entwurf.
     foreach: ${create-outlook-reply-draft[*]}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -352,7 +334,3 @@ steps:
           contentType: HTML
           content: ${prepare-outlook-draft-content[each.index].body}
         categories: ${prepare-outlook-draft-content[each.index].categories}
-        singleValueExtendedProperties:
-          - id: "String {66f5a359-4659-4830-9070-00047ec6ac6e} Name isReplyTo"
-            value: ${prepare-outlook-draft-content[each.index].originalMessageId}
-

@@ -136,6 +136,8 @@ steps:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
       senderDomain: ${inputs.fromDomain}
       maxUnanswered: ${inputs.maxResults}
+      # Override
+      windowHours: 1000000
 
   get-outlook-conversation:
     description: |

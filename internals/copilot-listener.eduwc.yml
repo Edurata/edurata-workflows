@@ -61,6 +61,19 @@ interface:
                   color:
                     type: string
                     description: Possible value color
+            values:
+              type: array
+              description: Alternative to possibleValues; when empty, type (e.g. DISCRETE_THREE) can define default value names
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  color:
+                    type: string
+            type:
+              type: string
+              description: When values/possibleValues is empty, used to derive Outlook category value names (e.g. DISCRETE_THREE → high, medium, low; SENTIMENT → positive, neutral, negative)
         description: Custom categories to add to the draft
   outputs:
     type: object
@@ -92,12 +105,25 @@ steps:
                   existing.add((c.get("displayName") or "").strip())
           except Exception:
               pass
+          # Default value names when type is set but values/possibleValues is empty (matches backend behaviour)
+          TYPE_DEFAULTS = {
+              "DISCRETE_THREE": ["high", "medium", "low"],
+              "SENTIMENT": ["positive", "neutral", "negative"],
+          }
+          def value_entries(cat):
+              vals = cat.get("possibleValues") or cat.get("values") or []
+              if vals:
+                  return vals
+              t = (cat.get("type") or "").strip()
+              if t in TYPE_DEFAULTS:
+                  return [{"name": n, "color": "preset0"} for n in TYPE_DEFAULTS[t]]
+              return []
           desired = []
           for cat in custom_categories:
               cat_name = (cat.get("name") or "").strip()
               if not cat_name:
                   continue
-              for pv in (cat.get("possibleValues") or []):
+              for pv in value_entries(cat):
                   val_name = (pv.get("name") or "").strip() if isinstance(pv, dict) else str(pv).strip()
                   if not val_name:
                       continue

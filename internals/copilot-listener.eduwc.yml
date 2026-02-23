@@ -94,6 +94,7 @@ steps:
       import urllib.request
       import urllib.error
       def log(msg):
+          # test
           print("[ensure-outlook-categories] " + str(msg))
       def handler(inputs):
           custom_categories = inputs.get("customCategories") or []

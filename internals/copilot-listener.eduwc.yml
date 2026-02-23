@@ -93,10 +93,14 @@ steps:
       import json
       import urllib.request
       import urllib.error
+      def log(msg):
+          print("[ensure-outlook-categories] " + str(msg))
       def handler(inputs):
           custom_categories = inputs.get("customCategories") or []
           token = (inputs.get("outlook_api_key") or "").strip()
+          log("inputs: token present=%s, customCategories count=%d" % (bool(token), len(custom_categories)))
           if not token or not custom_categories:
+              log("early return: no token or no customCategories")
               return {"created": [], "existing": []}
           base = "https://graph.microsoft.com/v1.0/me/outlook/masterCategories"
           headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
@@ -107,12 +111,16 @@ steps:
                   data = json.loads(resp.read().decode())
               for c in data.get("value", []):
                   existing.add((c.get("displayName") or "").strip())
-          except Exception:
-              pass
+              log("fetched existing categories: count=%d, names=%s" % (len(existing), sorted(existing)))
+          except urllib.error.HTTPError as e:
+              log("fetch existing categories failed: HTTP %s %s body=%s" % (e.code, e.reason, e.read().decode() if e.fp else ""))
+          except Exception as ex:
+              log("fetch existing categories failed: %s" % ex)
           # Default value names when type is set but values/possibleValues is empty (matches backend behaviour)
           lang = (inputs.get("lang") or "en").strip().lower()
           if lang not in ("de", "en"):
               lang = "en"
+          log("lang=%s" % lang)
           TYPE_DEFAULTS = {
               "en": {
                   "DISCRETE_THREE": ["high", "medium", "low"],
@@ -136,19 +144,23 @@ steps:
           for cat in custom_categories:
               cat_name = (cat.get("name") or "").strip()
               if not cat_name:
+                  log("skipping category with empty name: %s" % cat)
                   continue
               for pv in value_entries(cat):
                   val_name = (pv.get("name") or "").strip() if isinstance(pv, dict) else str(pv).strip()
                   if not val_name:
+                      log("skipping empty value for category %s: %s" % (cat_name, pv))
                       continue
                   display_name = cat_name + ":" + val_name
                   color = (pv.get("color") or "preset0").strip() if isinstance(pv, dict) else "preset0"
                   if not color.startswith("preset"):
                       color = "preset0"
                   desired.append((display_name, color))
+          log("desired categories (displayName:color): %s" % desired)
           created = []
           for display_name, color in desired:
               if display_name in existing:
+                  log("skip (already exists): %s" % display_name)
                   continue
               try:
                   body = json.dumps({"displayName": display_name, "color": color}).encode()
@@ -156,11 +168,15 @@ steps:
                   with urllib.request.urlopen(req) as resp:
                       created.append(display_name)
                       existing.add(display_name)
+                  log("created: %s" % display_name)
               except urllib.error.HTTPError as e:
+                  err_body = e.read().decode() if e.fp else ""
+                  log("create failed for %s: HTTP %s %s body=%s" % (display_name, e.code, e.reason, err_body))
                   if e.code != 409:
                       raise
-              except Exception:
-                  pass
+              except Exception as ex:
+                  log("create failed for %s: %s" % (display_name, ex))
+          log("result: created=%s, existing count=%d" % (created, len(existing)))
           return {"created": created, "existing": list(existing)}
     props:
       customCategories: ${inputs.customCategories}

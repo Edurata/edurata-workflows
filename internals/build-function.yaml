@@ -26,14 +26,41 @@ interface:
 steps:
   git-clone:
     foreach: ${inputs.functionsToBuild}
-    description: This step clones a Git repository from a provided URL to a specified path for each function to be built, using the provided authentication details and reference.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: etl/extract/clone-git
+    packages:
+      isomorphic-git: ^1.25.6
+    runtime: nodejs20
+    description: Clones a Git repository from a provided URL to a temporary path for each function to be built.
+    code: |
+      const path = require("path");
+      const fs = require("fs");
+      const { execSync } = require("child_process");
+
+      async function handler(inputs) {
+        const tempDir = process.env.TMP_DIR || "/tmp";
+        const repoPath = path.join(tempDir, `repo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+        fs.mkdirSync(repoPath, { recursive: true });
+
+        let url = inputs.source.repoUrl;
+        if (inputs.auth && inputs.auth.privateToken) {
+          url = url.replace(/^https:\/\//, `https://${inputs.auth.privateToken}@`);
+        }
+        const ref = inputs.source.ref || "HEAD";
+        const branchOpt = (ref && ref !== "HEAD") ? `--branch "${ref}" ` : "";
+        execSync(`git clone --single-branch ${branchOpt}--depth 1 "${url}" .`, {
+          cwd: repoPath,
+          stdio: "inherit",
+        });
+        if (ref && ref !== "HEAD") {
+          execSync(`git checkout "${ref}"`, { cwd: repoPath, stdio: "inherit" });
+        }
+
+        const finalPath = inputs.source.path ? path.join(repoPath, inputs.source.path) : repoPath;
+        return { status: "Repository cloned successfully.", repoCode: finalPath };
+      }
+
+      module.exports = { handler };
     props:
-      repoUrl: ${each.source.repoUrl}
-      path: ${each.source.path}
-      ref: ${each.source.ref}
+      source: ${each.source}
       auth: ${each.auth}
   get-runtime:
     runtime: python3_10
@@ -93,10 +120,48 @@ steps:
       ===:
         - ${each.runtime}
         - nodejs20
-    description: This step involves building Node.js 20 by iterating over each runtime and its associated files, only if the runtime equals 'nodejs20', using the respective repository code as a dependency.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: internals/build-nodejs20
+    runtime: nodejs20
+    description: Builds Node.js 20 by running npm install in the repository code directory.
+    code: |
+      const fs = require("fs");
+      const { execSync } = require("child_process");
+
+      async function handler(inputs) {
+        const codePath = inputs.code;
+
+        try {
+          console.log("npm installing in ", codePath);
+          const tmpNpmDir = "/tmp/npm-tmp";
+          fs.mkdirSync(tmpNpmDir, { recursive: true });
+          execSync(
+            "npm install --only=production --ignore-scripts --no-audit --no-fund --cache /tmp/npm-cache",
+            {
+              cwd: codePath,
+              stdio: "inherit",
+              env: {
+                ...process.env,
+                npm_config_cache: "/tmp/npm-cache",
+                npm_config_tmp: "/tmp/npm-tmp",
+                npm_config_prefix: "/tmp/npm-prefix",
+                HOME: "/tmp",
+              },
+            }
+          );
+
+          if (fs.existsSync(`${codePath}/package-lock.json`))
+            fs.unlinkSync(`${codePath}/package-lock.json`);
+          if (fs.existsSync(`${codePath}/package.json`))
+            fs.unlinkSync(`${codePath}/package.json`);
+          console.log("NPM modules installed successfully.");
+        } catch (error) {
+          console.error("Error installing NPM modules:", error);
+          return { code: codePath };
+        }
+
+        return { code: codePath };
+      }
+
+      module.exports = { handler };
     props:
       code: ${each.repoCode}
   build-python3_10:
@@ -105,15 +170,53 @@ steps:
       ===:
         - ${each.runtime}
         - python3_10
-    description: This step builds Python 3.10 code for each runtime and file obtained from the 'get-runtime' function, only if the runtime is 'python3_10'.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: internals/build-python3_10
+    runtime: python3_10
+    description: Builds Python 3.10 code by modifying handler signatures and running pip install.
+    code: |
+      import subprocess
+      import os
+      import re
+
+      def modify_handler_signature(code):
+          pattern = r"def handler\(([^,)]+)\):"
+          replacement = r"def handler(\1, additional_parameter = 'Dummy'):"
+          return re.sub(pattern, replacement, code)
+
+      def modify_handlers_recursively(directory):
+          for root, _, files in os.walk(directory):
+              for file_name in files:
+                  if file_name.endswith('.py'):
+                      file_path = os.path.join(root, file_name)
+                      with open(file_path, 'r+') as file:
+                          content = file.read()
+                          modified_content = modify_handler_signature(content)
+                          file.seek(0)
+                          file.write(modified_content)
+                          file.truncate()
+
+      def handler(inputs):
+          codePath = inputs['code']
+          python_modules_path = codePath
+
+          modify_handlers_recursively(codePath)
+
+          try:
+              subprocess.check_call([os.sys.executable, '-m', 'pip', 'install', '-r', os.path.join(codePath, 'requirements.txt'), '-t', python_modules_path])
+              print('Python packages installed successfully in', python_modules_path)
+              files_and_folders = os.listdir(codePath)
+              print('Files and folders in', codePath, ':', files_and_folders)
+          except subprocess.CalledProcessError as error:
+              print('Error installing Python packages:', error)
+              return {'code': codePath}
+
+          return {'code': codePath}
     props:
       code: ${each.repoCode}
-  merge-results:
-    description: This step involves merging the results from building Node.js 2.0 and Python 3.10..
+  merge-and-zip:
+    description: Merges build results from Node.js 20 and Python 3.10, then zips each code path for upload.
     runtime: nodejs20
+    packages:
+      archiver: ^5.3.0
     props:
       results:
         - ${build-nodejs20?}
@@ -141,50 +244,124 @@ steps:
               properties:
                 code:
                   type: file
+                zipped:
+                  type: file
     code: |
-      const handler = async (event) => {
-        console.log(JSON.stringify(event))
-        const { results } = event;
-        return {results: results.flat().filter(result => result && result.code && !result.__pass__)}
+      const fs = require("fs");
+      const path = require("path");
+      const { execSync } = require("child_process");
+
+      function zipPath(filePath) {
+        const outputPath = path.join("/tmp", `zip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.zip`);
+        const stat = fs.statSync(filePath);
+        if (stat.isDirectory()) {
+          execSync(`zip -r "${outputPath}" .`, { cwd: filePath });
+        } else {
+          const dir = path.dirname(filePath);
+          const base = path.basename(filePath);
+          execSync(`zip "${outputPath}" "${base}"`, { cwd: dir });
+        }
+        return outputPath;
       }
-      module.exports = {handler}
+
+      const handler = async (event) => {
+        console.log(JSON.stringify(event));
+        const { results } = event;
+        const merged = results.flat().filter(result => result && result.code && !result.__pass__);
+        const resultsWithZip = merged.map((result) => ({
+          code: result.code,
+          zipped: zipPath(result.code),
+        }));
+        return { results: resultsWithZip };
+      };
+      module.exports = { handler };
   get-upload-url:
     foreach: ${get-runtime.runtime_and_files}
     if:
       "!==":
         - ${each.runtime}
         - docker
-    description: This step involves obtaining an upload URL for each runtime that isn't 'docker', by making a request to the specified API endpoint with the necessary authorization token.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
+    runtime: nodejs20
+    description: Obtains an upload URL for each non-docker runtime via a single GET request.
+    code: |
+      const https = require("https");
+      const http = require("http");
+
+      function request(url, options) {
+        const u = new URL(url);
+        const lib = u.protocol === "https:" ? https : http;
+        return new Promise((resolve, reject) => {
+          const req = lib.request(url, { method: options.method || "GET", headers: options.headers }, (res) => {
+            let data = "";
+            res.on("data", (ch) => { data += ch; });
+            res.on("end", () => {
+              try {
+                resolve({ status: res.statusCode, statusText: res.statusMessage, headers: res.headers, data: data ? JSON.parse(data) : null });
+              } catch (e) {
+                resolve({ status: res.statusCode, statusText: res.statusMessage, headers: res.headers, data });
+              }
+            });
+          });
+          req.on("error", reject);
+          req.end();
+        });
+      }
+
+      async function handler(inputs) {
+        const { url, headers = {} } = inputs;
+        const response = await request(url, { method: "GET", headers });
+        return { response: { status: response.status, statusText: response.statusText, headers: response.headers, data: response.data } };
+      }
+
+      module.exports = { handler };
     props:
       url: ${meta.apiUrl}/function/${each.name}/upload-url
       headers:
         Authorization: Bearer ${meta.executionToken}
-  zip-code:
-    foreach: ${merge-results.results}
-    if:
-      "!==":
-        - ${get-runtime.runtime_and_files[each.index].runtime}
-        - docker
-    description: This step involves processing each result from the merge-results.results operation where the runtime is not 'docker', using the corresponding code file identified by the zip-code step ID.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: etl/transform/zip
-    props:
-      file: ${each.code}
   upload-code:
-    foreach: ${merge-results.results}
+    foreach: ${merge-and-zip.results}
     if:
       "!==":
         - ${get-runtime.runtime_and_files[each.index].runtime}
         - docker
-    description: This step uploads code by putting data from a zipped file to a specified upload URL, for each result in merge-results, provided that the runtime is not 'docker'.
-    source:
-      repoUrl: https://github.com/Edurata/edurata-functions.git
-      path: general/axios
+    runtime: nodejs20
+    description: Uploads zipped code to the presigned upload URL via a single PUT request.
+    code: |
+      const https = require("https");
+      const http = require("http");
+      const fs = require("fs");
+
+      function putWithFile(url, filePath, headers = {}) {
+        const u = new URL(url);
+        const lib = u.protocol === "https:" ? https : http;
+        const stat = fs.statSync(filePath);
+        const fileStream = fs.createReadStream(filePath);
+        const h = { ...headers, "Content-Length": stat.size };
+
+        return new Promise((resolve, reject) => {
+          const req = lib.request(url, { method: "PUT", headers: h }, (res) => {
+            let data = "";
+            res.on("data", (ch) => { data += ch; });
+            res.on("end", () => {
+              try {
+                resolve({ status: res.statusCode, statusText: res.statusMessage, headers: res.headers, data: data ? JSON.parse(data) : null });
+              } catch (e) {
+                resolve({ status: res.statusCode, statusText: res.statusMessage, headers: res.headers, data });
+              }
+            });
+          });
+          req.on("error", reject);
+          fileStream.pipe(req);
+        });
+      }
+
+      async function handler(inputs) {
+        const { url, dataFromFile } = inputs;
+        const response = await putWithFile(url, dataFromFile);
+        return { response: { status: response.status, statusText: response.statusText, headers: response.headers, data: response.data } };
+      }
+
+      module.exports = { handler };
     props:
-      method: PUT
       url: ${get-upload-url[each.index].response.data.uploadUrl}
-      dataFromFile: ${zip-code[each.index].zipped}
+      dataFromFile: ${each.zipped}

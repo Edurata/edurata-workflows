@@ -122,14 +122,30 @@ steps:
           if lang not in ("de", "en"):
               lang = "en"
           log("lang=%s" % lang)
+          # Outlook category colors: preset0..preset24 (Red, Orange, Brown, Yellow, Green, Teal, Olive, Blue, Purple, Cranberry, Steel, DarkSteel, Gray, DarkGray, Black, DarkRed, ...)
+          COLOR_PRESETS = {"preset%d" % i for i in range(25)}
+          COLOR_NAME_TO_PRESET = {
+              "red": "preset0", "orange": "preset1", "brown": "preset2", "yellow": "preset3", "green": "preset4",
+              "teal": "preset5", "olive": "preset6", "blue": "preset7", "purple": "preset8", "cranberry": "preset9",
+              "steel": "preset10", "darksteel": "preset11", "gray": "preset12", "grey": "preset12", "darkgray": "preset13", "darkgrey": "preset13",
+              "black": "preset14", "darkred": "preset15", "darkorange": "preset16", "darkbrown": "preset17", "darkyellow": "preset18",
+              "darkgreen": "preset19", "darkteal": "preset20", "darkolive": "preset21", "darkblue": "preset22", "darkpurple": "preset23", "darkcranberry": "preset24",
+          }
+          def normalize_color(c):
+              if not c:
+                  return "preset0"
+              c = str(c).strip().lower()
+              if c in COLOR_PRESETS:
+                  return c
+              return COLOR_NAME_TO_PRESET.get(c, "preset0")
           TYPE_DEFAULTS = {
               "en": {
-                  "DISCRETE_THREE": ["high", "medium", "low"],
-                  "SENTIMENT": ["positive", "neutral", "negative"],
+                  "DISCRETE_THREE": [("high", "preset0"), ("medium", "preset3"), ("low", "preset4")],
+                  "SENTIMENT": [("positive", "preset4"), ("neutral", "preset3"), ("negative", "preset0")],
               },
               "de": {
-                  "DISCRETE_THREE": ["hoch", "mittel", "niedrig"],
-                  "SENTIMENT": ["positiv", "neutral", "negativ"],
+                  "DISCRETE_THREE": [("hoch", "preset0"), ("mittel", "preset3"), ("niedrig", "preset4")],
+                  "SENTIMENT": [("positiv", "preset4"), ("neutral", "preset3"), ("negativ", "preset0")],
               },
           }
           defaults_by_lang = TYPE_DEFAULTS.get(lang, TYPE_DEFAULTS["en"])
@@ -139,7 +155,7 @@ steps:
                   return vals
               t = (cat.get("type") or "").strip()
               if t in defaults_by_lang:
-                  return [{"name": n, "color": "preset0"} for n in defaults_by_lang[t]]
+                  return [{"name": n, "color": col} for n, col in defaults_by_lang[t]]
               return []
           desired = []
           for cat in custom_categories:
@@ -153,9 +169,8 @@ steps:
                       log("skipping empty value for category %s: %s" % (cat_name, pv))
                       continue
                   display_name = cat_name + ":" + val_name
-                  color = (pv.get("color") or "preset0").strip() if isinstance(pv, dict) else "preset0"
-                  if not color.startswith("preset"):
-                      color = "preset0"
+                  raw_color = (pv.get("color") or "preset0").strip() if isinstance(pv, dict) else "preset0"
+                  color = normalize_color(raw_color)
                   desired.append((display_name, color))
           log("desired categories (displayName:color): %s" % desired)
           created = []

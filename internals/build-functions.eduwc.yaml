@@ -29,7 +29,7 @@ steps:
     packages:
       isomorphic-git: 1.25.6
     runtime: nodejs20
-    description: Clones a Git repository from a provided URL to a temporary path for each function to be built.
+    description: Clones a Git repository from a provided URL to a temporary path for each function to be built..
     interface:
       inputs:
         properties:

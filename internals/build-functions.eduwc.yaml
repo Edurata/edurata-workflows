@@ -175,6 +175,17 @@ steps:
         - nodejs20
     runtime: nodejs20
     description: Builds Node.js 20 by running npm install in the repository code directory.
+    interface:
+      inputs:
+        properties:
+          code:
+            type: file
+            description: Path to the repository code directory.
+      outputs:
+        properties:
+          code:
+            type: file
+            description: Path to the built code directory.
     code: |
       const fs = require("fs");
       const { execSync } = require("child_process");
@@ -225,6 +236,17 @@ steps:
         - python3_10
     runtime: python3_10
     description: Builds Python 3.10 code by modifying handler signatures and running pip install.
+    interface:
+      inputs:
+        properties:
+          code:
+            type: file
+            description: Path to the repository code directory.
+      outputs:
+        properties:
+          code:
+            type: file
+            description: Path to the built code directory.
     code: |
       import subprocess
       import os
@@ -379,6 +401,15 @@ steps:
         - docker
     runtime: nodejs20
     description: Uploads zipped code to the presigned upload URL via a single PUT request.
+    interface:
+      inputs:
+        properties:
+          url:
+            type: string
+            description: Presigned URL to upload the zip to.
+          dataFromFile:
+            type: file
+            description: Path to the zipped code file to upload.
     code: |
       const https = require("https");
       const http = require("http");

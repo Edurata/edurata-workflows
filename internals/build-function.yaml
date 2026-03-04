@@ -33,25 +33,45 @@ steps:
     code: |
       const path = require("path");
       const fs = require("fs");
-      const { execSync } = require("child_process");
+      const { clone, checkout, init, fetch } = require("isomorphic-git");
+      const http = require("isomorphic-git/http/node");
 
       async function handler(inputs) {
         const tempDir = process.env.TMP_DIR || "/tmp";
         const repoPath = path.join(tempDir, `repo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-        fs.mkdirSync(repoPath, { recursive: true });
-
-        let url = inputs.source.repoUrl;
-        if (inputs.auth && inputs.auth.privateToken) {
-          url = url.replace(/^https:\/\//, `https://${inputs.auth.privateToken}@`);
-        }
+        const url = inputs.source.repoUrl;
         const ref = inputs.source.ref || "HEAD";
-        const branchOpt = (ref && ref !== "HEAD") ? `--branch "${ref}" ` : "";
-        execSync(`git clone --single-branch ${branchOpt}--depth 1 "${url}" .`, {
-          cwd: repoPath,
-          stdio: "inherit",
+
+        await init({ fs, dir: repoPath });
+        await clone({
+          fs,
+          dir: repoPath,
+          url,
+          singleBranch: true,
+          http,
+          depth: 1,
+          onAuth: () => {
+            if (inputs.auth && inputs.auth.privateToken) {
+              return { username: inputs.auth.privateToken };
+            }
+          },
+        });
+        await fetch({
+          fs,
+          dir: repoPath,
+          url,
+          ref,
+          http,
+          depth: 1,
+          singleBranch: true,
+          onAuth: () => {
+            if (inputs.auth && inputs.auth.privateToken) {
+              return { username: inputs.auth.privateToken };
+            }
+          },
         });
         if (ref && ref !== "HEAD") {
-          execSync(`git checkout "${ref}"`, { cwd: repoPath, stdio: "inherit" });
+          await checkout({ fs, dir: repoPath, ref });
         }
 
         const finalPath = inputs.source.path ? path.join(repoPath, inputs.source.path) : repoPath;

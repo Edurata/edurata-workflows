@@ -30,6 +30,38 @@ steps:
       isomorphic-git: 1.25.6
     runtime: nodejs20
     description: Clones a Git repository from a provided URL to a temporary path for each function to be built.
+    interface:
+      inputs:
+        properties:
+          repoUrl:
+            type: string
+            description: The URL of the Git repository to clone.
+          auth:
+            type: object
+            properties:
+              privateUser:
+                type: string
+                description: A username for accessing private repositories. Optional.
+              privateToken:
+                type: string
+                description: A token for accessing private repositories. Optional.
+          path:
+            type: string
+            description: A sub-path within the repository to return.
+          ref:
+            type: string
+            description: A reference within the repository to checkout (branch, tag, or commit). Optional.
+        required:
+          - repoUrl
+      outputs:
+        properties:
+          status:
+            type: string
+            description: Success or failure message.
+          repoCode:
+            type: file
+            description: The path to the cloned sub-path in the local file system.
+
     code: |
       const path = require("path");
       const fs = require("fs");

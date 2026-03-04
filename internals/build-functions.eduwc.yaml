@@ -187,7 +187,6 @@ steps:
             type: file
             description: Path to the built code directory.
     code: |
-      // Test
       const fs = require("fs");
       const { execSync } = require("child_process");
 
@@ -326,29 +325,37 @@ steps:
     code: |
       const fs = require("fs");
       const path = require("path");
-      const { execSync } = require("child_process");
+      const archiver = require("archiver");
 
       function zipPath(filePath) {
         const outputPath = path.join("/tmp", `zip-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.zip`);
-        const stat = fs.statSync(filePath);
-        if (stat.isDirectory()) {
-          execSync(`zip -r "${outputPath}" .`, { cwd: filePath });
-        } else {
-          const dir = path.dirname(filePath);
-          const base = path.basename(filePath);
-          execSync(`zip "${outputPath}" "${base}"`, { cwd: dir });
-        }
-        return outputPath;
+        const output = fs.createWriteStream(outputPath);
+        const archive = archiver("zip", { zlib: { level: 9 } });
+
+        return new Promise((resolve, reject) => {
+          output.on("close", () => resolve(outputPath));
+          output.on("error", (err) => reject(err));
+          archive.on("error", (err) => reject(err));
+          archive.pipe(output);
+
+          const stat = fs.statSync(filePath);
+          if (stat.isFile()) {
+            archive.file(filePath, { name: path.basename(filePath) });
+          } else {
+            archive.directory(filePath, false);
+          }
+          archive.finalize();
+        });
       }
 
       const handler = async (event) => {
         console.log(JSON.stringify(event));
         const { results } = event;
         const merged = results.flat().filter(result => result && result.code && !result.__pass__);
-        const resultsWithZip = merged.map((result) => ({
+        const resultsWithZip = await Promise.all(merged.map(async (result) => ({
           code: result.code,
-          zipped: zipPath(result.code),
-        }));
+          zipped: await zipPath(result.code),
+        })));
         return { results: resultsWithZip };
       };
       module.exports = { handler };
@@ -365,6 +372,9 @@ steps:
       const http = require("http");
 
       function request(url, options) {
+        if (typeof url !== "string" || !url.trim()) {
+          throw new Error(`Invalid URL: expected a non-empty string, got ${JSON.stringify(url)}`);
+        }
         const u = new URL(url);
         const lib = u.protocol === "https:" ? https : http;
         return new Promise((resolve, reject) => {
@@ -419,6 +429,9 @@ steps:
       const fs = require("fs");
 
       function putWithFile(url, filePath, headers = {}) {
+        if (typeof url !== "string" || !url.trim()) {
+          throw new Error(`Invalid URL: expected a non-empty string, got ${JSON.stringify(url)}`);
+        }
         const u = new URL(url);
         const lib = u.protocol === "https:" ? https : http;
         const stat = fs.statSync(filePath);

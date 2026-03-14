@@ -88,10 +88,10 @@ interface:
     properties: {}
 integrations:
   copilot-outlook-oauth:
+    provider: microsoft
     scopes:
       - Mail.Read
       - Mail.Read.Shared
-
 steps:
   ensure-outlook-categories:
     if:
@@ -213,8 +213,8 @@ steps:
       Holt unbeantwortete Outlook-Konversationen von der Absender-Domain (rolling time window).
       Unbeantwortet = keine gesendete Antwort nach letzter Inbound-Nachricht im Fenster, und kein/veralteter Entwurf.
     source:
-      repoUrl: "https://github.com/Edurata/edurata-workflows.git"
-      path: internals/list-outlook-unanswered
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/list-outlook-unanswered
     props:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
       senderDomain: ${inputs.fromDomain}

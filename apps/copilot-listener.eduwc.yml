@@ -39,6 +39,9 @@ interface:
       listenerEmail:
         type: string
         description: Optional email of the listener (e.g. mailbox address) to set messages[].role and messages[].direction (outgoing = from this address, incoming = from others)
+      customInfo:
+        type: string
+        description: Context/info for the AI reply (passed to generate-response; previously from listener).
       lang:
         type: string
         default: de
@@ -77,11 +80,18 @@ interface:
                     type: string
             type:
               type: string
+              enum: [STRINGS, DISCRETE_THREE, SENTIMENT]
               description: When values/possibleValues is empty, used to derive Outlook category value names (e.g. DISCRETE_THREE → high, medium, low; SENTIMENT → positive, neutral, negative)
         description: Custom categories to add to the draft
   outputs:
     type: object
     properties: {}
+integrations:
+  copilot-outlook-oauth:
+    scopes:
+      - Mail.Read
+      - Mail.Read.Shared
+
 steps:
   ensure-outlook-categories:
     if:
@@ -324,7 +334,7 @@ steps:
 
   generate-ai-responses-outlook:
     description: |
-      Ruft Copilot-API getReplyToMessage auf (threadId, listenerId, conversationHistory, optional primaryKey/airtableData).
+      Ruft Copilot-API generate-response auf (threadId, conversationHistory, customInfo, customCategories, optional primaryKey/airtableData).
       Die KI antwortet auf die letzte Nachricht in conversationHistory; messageId wird nicht benötigt.
     foreach: ${get-outlook-unanswered.unansweredConversationIds}
     source:
@@ -338,8 +348,9 @@ steps:
         Content-Type: application/json
       body:
         threadId: ${each}
-        listenerId: ${inputs.listenerId}
         conversationHistory: ${extract-outlook-conversation-info[each.index].messages}
+        customInfo: ${inputs.customInfo}
+        customCategories: ${inputs.customCategories}
         primaryKey: ${extract-outlook-conversation-info[each.index].primaryKey}
         airtableData: ${fetch-airtable-data-outlook[each.index].response.data}
 

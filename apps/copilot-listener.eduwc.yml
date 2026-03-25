@@ -14,6 +14,11 @@ interface:
         type: integer
         default: 10
         description: Maximum number of emails to retrieve
+      emailProvider:
+        type: string
+        enum: [OUTLOOK, GMAIL]
+        default: OUTLOOK
+        description: Email provider to use
       airtable_base_id:
         type: string
         description: Airtable base ID to fetch data from
@@ -33,15 +38,12 @@ interface:
           type: string
         description: |
           List of regex patterns (each with optional capturing group); each is tried in order against the message body and the first match is used to extract message content.
-      listenerId:
-        type: string
-        description: ID of the copilot listener that triggered this workflow execution
-      listenerEmail:
-        type: string
-        description: Optional email of the listener (e.g. mailbox address) to set messages[].role and messages[].direction (outgoing = from this address, incoming = from others)
       customInfo:
         type: string
         description: Context/info for the AI reply (passed to generate-response; previously from listener).
+      listenerEmail:
+        type: string
+        description: Optional mailbox address of the listener. Used to identify outgoing messages and as sender for Gmail drafts.
       lang:
         type: string
         default: de
@@ -54,6 +56,9 @@ interface:
             name:
               type: string
               description: Category name
+            shortName:
+              type: string
+              description: Short name for the category (e.g. for "seller intent" for "si")
             description:
               type: string
               description: Category description
@@ -68,20 +73,10 @@ interface:
                   color:
                     type: string
                     description: Possible value color
-            values:
-              type: array
-              description: Alternative to possibleValues; when empty, type (e.g. DISCRETE_THREE) can define default value names
-              items:
-                type: object
-                properties:
-                  name:
-                    type: string
-                  color:
-                    type: string
             type:
               type: string
               enum: [STRINGS, DISCRETE_THREE, SENTIMENT]
-              description: When values/possibleValues is empty, used to derive Outlook category value names (e.g. DISCRETE_THREE → high, medium, low; SENTIMENT → positive, neutral, negative)
+              description: When possibleValues is empty, used to derive Outlook category value names (e.g. DISCRETE_THREE → high, medium, low; SENTIMENT → positive, neutral, negative)
         description: Custom categories to add to the draft
   outputs:
     type: object
@@ -92,10 +87,22 @@ integrations:
     scopes:
       - Mail.Read
       - Mail.Read.Shared
+  copilot-gmail-oauth:
+    provider: google
+    scopes:
+      - https://www.googleapis.com/auth/gmail.labels
+      - https://www.googleapis.com/auth/gmail.modify
+      - https://www.googleapis.com/auth/gmail.compose
+      - https://www.googleapis.com/auth/gmail.readonly
 steps:
+  # --------------------------- OUTLOOK (CATEGORIES) ---------------------------
   ensure-outlook-categories:
     if:
-      "!!": ${inputs.customCategories}
+      and:
+        - "!!": ${inputs.customCategories}
+        - "==":
+            - ${inputs.emailProvider}
+            - "OUTLOOK"
     description: |
       Erstellt fehlende Outlook-Kategorien (name:value aus customCategories), damit sie beim Entwurf-Erstellen verfügbar sind.
     runtime: python3_10
@@ -104,35 +111,19 @@ steps:
       import urllib.request
       import urllib.error
       def log(msg):
-          # test
           print("[ensure-outlook-categories] " + str(msg))
       def handler(inputs):
           custom_categories = inputs.get("customCategories") or []
-          token = (inputs.get("outlook_api_key") or "").strip()
-          log("inputs: token present=%s, customCategories count=%d" % (bool(token), len(custom_categories)))
-          if not token or not custom_categories:
-              log("early return: no token or no customCategories")
+          outlook_token = (inputs.get("outlook_api_key") or "").strip()
+          if not custom_categories:
               return {"created": [], "existing": []}
-          base = "https://graph.microsoft.com/v1.0/me/outlook/masterCategories"
-          headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
-          existing = set()
-          try:
-              req = urllib.request.Request(base, headers=headers)
-              with urllib.request.urlopen(req) as resp:
-                  data = json.loads(resp.read().decode())
-              for c in data.get("value", []):
-                  existing.add((c.get("displayName") or "").strip())
-              log("fetched existing categories: count=%d, names=%s" % (len(existing), sorted(existing)))
-          except urllib.error.HTTPError as e:
-              log("fetch existing categories failed: HTTP %s %s body=%s" % (e.code, e.reason, e.read().decode() if e.fp else ""))
-          except Exception as ex:
-              log("fetch existing categories failed: %s" % ex)
-          # Default value names when type is set but values/possibleValues is empty (matches backend behaviour)
+          if not outlook_token:
+              return {"created": [], "existing": []}
+
           lang = (inputs.get("lang") or "en").strip().lower()
           if lang not in ("de", "en"):
               lang = "en"
-          log("lang=%s" % lang)
-          # Outlook category colors: preset0..preset24 (Red, Orange, Brown, Yellow, Green, Teal, Olive, Blue, Purple, Cranberry, Steel, DarkSteel, Gray, DarkGray, Black, DarkRed, ...)
+
           COLOR_PRESETS = {"preset%d" % i for i in range(25)}
           COLOR_NAME_TO_PRESET = {
               "red": "preset0", "orange": "preset1", "brown": "preset2", "yellow": "preset3", "green": "preset4",
@@ -141,6 +132,7 @@ steps:
               "black": "preset14", "darkred": "preset15", "darkorange": "preset16", "darkbrown": "preset17", "darkyellow": "preset18",
               "darkgreen": "preset19", "darkteal": "preset20", "darkolive": "preset21", "darkblue": "preset22", "darkpurple": "preset23", "darkcranberry": "preset24",
           }
+
           def normalize_color(c):
               if not c:
                   return "preset0"
@@ -148,6 +140,7 @@ steps:
               if c in COLOR_PRESETS:
                   return c
               return COLOR_NAME_TO_PRESET.get(c, "preset0")
+
           TYPE_DEFAULTS = {
               "en": {
                   "DISCRETE_THREE": [("high", "preset0"), ("medium", "preset3"), ("low", "preset4")],
@@ -159,6 +152,7 @@ steps:
               },
           }
           defaults_by_lang = TYPE_DEFAULTS.get(lang, TYPE_DEFAULTS["en"])
+
           def value_entries(cat):
               vals = cat.get("possibleValues") or cat.get("values") or []
               if vals:
@@ -167,6 +161,157 @@ steps:
               if t in defaults_by_lang:
                   return [{"name": n, "color": col} for n, col in defaults_by_lang[t]]
               return []
+
+          desired = []
+          for cat in custom_categories:
+              cat_name = (cat.get("name") or "").strip()
+              if not cat_name:
+                  continue
+              for pv in value_entries(cat):
+                  val_name = (pv.get("name") or "").strip() if isinstance(pv, dict) else str(pv).strip()
+                  if not val_name:
+                      continue
+                  display_name = cat_name + ":" + val_name
+                  raw_color = (pv.get("color") or "preset0").strip() if isinstance(pv, dict) else "preset0"
+                  color = normalize_color(raw_color)
+                  desired.append((display_name, color))
+
+          base = "https://graph.microsoft.com/v1.0/me/outlook/masterCategories"
+          headers = {"Authorization": "Bearer " + outlook_token, "Content-Type": "application/json"}
+          existing = set()
+          try:
+              req = urllib.request.Request(base, headers=headers)
+              with urllib.request.urlopen(req) as resp:
+                  data = json.loads(resp.read().decode())
+              for c in data.get("value", []):
+                  existing.add((c.get("displayName") or "").strip())
+          except Exception as ex:
+              log("fetch existing Outlook categories failed: %s" % ex)
+
+          created = []
+          for display_name, color in desired:
+              if display_name in existing:
+                  continue
+              try:
+                  body = json.dumps({"displayName": display_name, "color": color}).encode()
+                  req = urllib.request.Request(base, data=body, headers=headers, method="POST")
+                  with urllib.request.urlopen(req):
+                      created.append(display_name)
+                      existing.add(display_name)
+              except urllib.error.HTTPError as e:
+                  if e.code != 409:
+                      raise
+              except Exception as ex:
+                  log("create Outlook failed for %s: %s" % (display_name, ex))
+
+          return {"created": created, "existing": list(existing)}
+    props:
+      customCategories: ${inputs.customCategories}
+      lang: ${inputs.lang}
+      outlook_api_key: ${secrets.copilot-outlook-oauth}
+
+  # --------------------------- GMAIL (CATEGORIES) ---------------------------
+  ensure-gmail-categories:
+    if:
+      and:
+        - "!!": ${inputs.customCategories}
+        - "==":
+            - ${inputs.emailProvider}
+            - "GMAIL"
+    description: |
+      Erstellt fehlende Gmail-Labels (name:value aus customCategories), damit sie beim Entwurf-Erstellen verfügbar sind.
+    runtime: python3_10
+    code: |
+      import json
+      import urllib.request
+      import urllib.error
+      def log(msg):
+          print("[ensure-gmail-categories] " + str(msg))
+      def handler(inputs):
+          custom_categories = inputs.get("customCategories") or []
+          gmail_token = (inputs.get("gmail_api_key") or "").strip()
+          if not custom_categories:
+              return {"created": [], "existing": []}
+          if not gmail_token:
+              return {"created": [], "existing": []}
+          lang = (inputs.get("lang") or "en").strip().lower()
+          if lang not in ("de", "en"):
+              lang = "en"
+          COLOR_PRESETS = {"preset%d" % i for i in range(25)}
+          COLOR_NAME_TO_PRESET = {
+              "red": "preset0", "orange": "preset1", "brown": "preset2", "yellow": "preset3", "green": "preset4",
+              "teal": "preset5", "olive": "preset6", "blue": "preset7", "purple": "preset8", "cranberry": "preset9",
+              "steel": "preset10", "darksteel": "preset11", "gray": "preset12", "grey": "preset12", "darkgray": "preset13", "darkgrey": "preset13",
+              "black": "preset14", "darkred": "preset15", "darkorange": "preset16", "darkbrown": "preset17", "darkyellow": "preset18",
+              "darkgreen": "preset19", "darkteal": "preset20", "darkolive": "preset21", "darkblue": "preset22", "darkpurple": "preset23", "darkcranberry": "preset24",
+          }
+
+          def normalize_color(c):
+              if not c:
+                  return "preset0"
+              c = str(c).strip().lower()
+              if c in COLOR_PRESETS:
+                  return c
+              return COLOR_NAME_TO_PRESET.get(c, "preset0")
+
+          def hex_to_int(x):
+              try:
+                  return int(x, 16)
+              except Exception:
+                  return 0
+
+          def hex_luminance(rgb_hex):
+              # Simple relative luminance for choosing white vs black label text.
+              rgb_hex = (rgb_hex or "").strip().lstrip("#")
+              if len(rgb_hex) != 6:
+                  return 1.0
+              r = hex_to_int(rgb_hex[0:2]) / 255.0
+              g = hex_to_int(rgb_hex[2:4]) / 255.0
+              b = hex_to_int(rgb_hex[4:6]) / 255.0
+              return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+          # Gmail expects colors as hex strings. We map Outlook presets to a fixed palette.
+          _GMAIL_BG_PRESETS = [
+              "#d93025", "#f29900", "#a16207", "#fbbc05", "#188038", "#00897b", "#6d4c41", "#1a73e8",
+              "#7b1fa2", "#c2185b", "#37474f", "#2f3a3d", "#5f6368", "#3c4043", "#000000", "#8e0000",
+              "#c75c0b", "#9c3f00", "#b76d00", "#0b8043", "#00796b", "#4e342e", "#0d47a1", "#6a1b9a",
+              "#ad1457",
+          ]
+
+          def preset_to_gmail_colors(preset):
+              preset = (preset or "").strip().lower()
+              if preset.startswith("preset"):
+                  try:
+                      idx = int(preset.replace("preset", ""))
+                  except Exception:
+                      idx = 0
+              else:
+                  idx = 0
+              bg = _GMAIL_BG_PRESETS[idx] if 0 <= idx < len(_GMAIL_BG_PRESETS) else _GMAIL_BG_PRESETS[0]
+              text = "#ffffff" if hex_luminance(bg) < 0.6 else "#000000"
+              return {"backgroundColor": bg, "textColor": text}
+
+          TYPE_DEFAULTS = {
+              "en": {
+                  "DISCRETE_THREE": [("high", "preset0"), ("medium", "preset3"), ("low", "preset4")],
+                  "SENTIMENT": [("positive", "preset4"), ("neutral", "preset3"), ("negative", "preset0")],
+              },
+              "de": {
+                  "DISCRETE_THREE": [("hoch", "preset0"), ("mittel", "preset3"), ("niedrig", "preset4")],
+                  "SENTIMENT": [("positiv", "preset4"), ("neutral", "preset3"), ("negativ", "preset0")],
+              },
+          }
+          defaults_by_lang = TYPE_DEFAULTS.get(lang, TYPE_DEFAULTS["en"])
+
+          def value_entries(cat):
+              vals = cat.get("possibleValues") or cat.get("values") or []
+              if vals:
+                  return vals
+              t = (cat.get("type") or "").strip()
+              if t in defaults_by_lang:
+                  return [{"name": n, "color": col} for n, col in defaults_by_lang[t]]
+              return []
+
           desired = []
           for cat in custom_categories:
               cat_name = (cat.get("name") or "").strip()
@@ -182,33 +327,55 @@ steps:
                   raw_color = (pv.get("color") or "preset0").strip() if isinstance(pv, dict) else "preset0"
                   color = normalize_color(raw_color)
                   desired.append((display_name, color))
-          log("desired categories (displayName:color): %s" % desired)
+
+          base = "https://gmail.googleapis.com/gmail/v1/users/me/labels"
+          headers = {"Authorization": "Bearer " + gmail_token, "Content-Type": "application/json"}
+          existing = set()
+          try:
+              req = urllib.request.Request(base, headers=headers)
+              with urllib.request.urlopen(req) as resp:
+                  data = json.loads(resp.read().decode())
+              for c in data.get("labels", []) or []:
+                  existing.add((c.get("name") or "").strip())
+          except Exception as ex:
+              log("fetch existing Gmail labels failed: %s" % ex)
+
           created = []
           for display_name, color in desired:
               if display_name in existing:
-                  log("skip (already exists): %s" % display_name)
                   continue
               try:
-                  body = json.dumps({"displayName": display_name, "color": color}).encode()
+                  label_colors = preset_to_gmail_colors(color)
+                  payload = {
+                      "name": display_name,
+                      "labelListVisibility": "labelShowHide",
+                      "messageListVisibility": "showLabel",
+                      "color": label_colors,
+                  }
+                  body = json.dumps(payload).encode()
                   req = urllib.request.Request(base, data=body, headers=headers, method="POST")
-                  with urllib.request.urlopen(req) as resp:
+                  with urllib.request.urlopen(req):
                       created.append(display_name)
                       existing.add(display_name)
-                  log("created: %s" % display_name)
               except urllib.error.HTTPError as e:
                   err_body = e.read().decode() if e.fp else ""
-                  log("create failed for %s: HTTP %s %s body=%s" % (display_name, e.code, e.reason, err_body))
-                  if e.code != 409:
-                      raise
+                  if e.code in (409, 400) and "already" in (err_body or "").lower():
+                      continue
+                  raise
               except Exception as ex:
-                  log("create failed for %s: %s" % (display_name, ex))
-          log("result: created=%s, existing count=%d" % (created, len(existing)))
+                  log("create Gmail label failed for %s: %s" % (display_name, ex))
+
           return {"created": created, "existing": list(existing)}
     props:
       customCategories: ${inputs.customCategories}
       lang: ${inputs.lang}
-      outlook_api_key: ${secrets.copilot-outlook-oauth}
+      gmail_api_key: ${secrets.copilot-gmail-oauth}
+  # --------------------------- OUTLOOK (FLOW) ---------------------------
   get-outlook-unanswered:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
     description: |
       Holt unbeantwortete Outlook-Konversationen von der Absender-Domain (rolling time window).
       Unbeantwortet = keine gesendete Antwort nach letzter Inbound-Nachricht im Fenster, und kein/veralteter Entwurf.
@@ -223,6 +390,10 @@ steps:
       windowHours: 1000000
 
   get-outlook-conversation:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
     description: |
       Holt die letzten n Nachrichten einer Konversation (Thread) per list-outlook-conversation.
     foreach: ${get-outlook-unanswered.unansweredConversationIds}
@@ -233,133 +404,16 @@ steps:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
       conversationId: ${each}
       top: 100
-
-  extract-outlook-conversation-info:
-    description: |
-      Wendet primary_key_regex und message_regex (Array) auf alle Nachrichten der Konversation an;
-      bei message_regex werden alle Muster nacheinander getestet, der erste Treffer wird verwendet;
-      bei fehlendem Treffer wird der gesamte Nachrichtentext verwendet.
-      Gibt primaryKey und messages zurück (content, index, from, role, direction, regex_extraction).
-      direction: incoming = von außen, outgoing = vom Listener; letzter Eintrag = neueste Nachricht.
-      regex_extraction: no_regex | no_match | matched_empty | matched (nur bei gesetztem message_regex).
-    foreach: ${get-outlook-unanswered.unansweredConversationIds}
-    runtime: python3_10
-    code: |
-      import re
-      def handler(inputs):
-          conversation_messages = inputs.get("conversationMessages") or []
-          primary_key_regex = inputs.get("primary_key_regex") or ""
-          message_regex_list = inputs.get("message_regex") or []
-          if isinstance(message_regex_list, str):
-              message_regex_list = [message_regex_list] if message_regex_list else []
-          listener_email = (inputs.get("listenerEmail") or "").strip().lower()
-          primary_key = ""
-          messages = []
-          latest_inbound_received = ""
-          latest_inbound_message_id = ""
-          print(f"[extract-outlook-conversation-info] inputs keys: {list(inputs.keys())}, conversationMessages count: {len(conversation_messages)}, listenerEmail: {listener_email!r}")
-          for idx, msg in enumerate(conversation_messages):
-              body = msg.get("body")
-              content = body if isinstance(body, str) else ((body or {}).get("content") or "")
-              content_preview = (content[:80] + "…") if len(content) > 80 else content
-              print(f"[extract-outlook-conversation-info] msg[{idx}] body type={type(body).__name__}, content len={len(content)}, preview={content_preview!r}")
-              if message_regex_list:
-                  m = None
-                  for message_regex in message_regex_list:
-                      if not message_regex:
-                          continue
-                      m = re.search(message_regex, content, re.MULTILINE | re.DOTALL)
-                      if m is not None:
-                          break
-                  if m is None:
-                      part = content
-                      regex_extraction = "no_match"
-                      print(f"[extract-outlook-conversation-info] msg[{idx}] message_regex: no_match (no pattern matched), using full content len={len(part)}")
-                  else:
-                      part = (m.group(1) if m.groups() else m.group(0)).strip()
-                      if part:
-                          regex_extraction = "matched"
-                          print(f"[extract-outlook-conversation-info] msg[{idx}] message_regex: matched, extracted part len={len(part)}")
-                      else:
-                          regex_extraction = "matched_empty"
-                          print(f"[extract-outlook-conversation-info] msg[{idx}] message_regex: matched_empty (regex matched but captured text is empty), part len=0")
-              else:
-                  part = content
-                  regex_extraction = "no_regex"
-              from_obj = msg.get("from") or {}
-              email_addr = (from_obj.get("emailAddress") or {}).get("address") or from_obj.get("address") or ""
-              received_dt = (msg.get("receivedDateTime") or "").strip()
-              sent_dt = (msg.get("sentDateTime") or "").strip()
-              if received_dt and sent_dt:
-                  is_outgoing = (received_dt == sent_dt)
-                  print(f"[extract-outlook-conversation-info] msg[{idx}] receivedDateTime={received_dt!r}, sentDateTime={sent_dt!r}, equal=>outgoing: {is_outgoing}")
-              else:
-                  is_outgoing = bool(listener_email and email_addr.lower() == listener_email)
-                  print(f"[extract-outlook-conversation-info] msg[{idx}] no received/sent dates, fallback by listenerEmail: from={email_addr!r}, is_outgoing={is_outgoing}")
-              role = "assistant" if is_outgoing else "user"
-              direction = "outgoing" if is_outgoing else "incoming"
-              if not is_outgoing and received_dt and (not latest_inbound_received or received_dt > latest_inbound_received):
-                  latest_inbound_received = received_dt
-                  latest_inbound_message_id = (msg.get("id") or "").strip()
-              messages.append({"content": part, "index": idx, "from": email_addr or None, "role": role, "direction": direction, "regex_extraction": regex_extraction})
-              if not primary_key and primary_key_regex:
-                  pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
-                  if pk:
-                      primary_key = pk.group(1) if pk.groups() else pk.group(0)
-                      print(f"[extract-outlook-conversation-info] primary_key extracted at msg[{idx}]: {primary_key!r}")
-          print(f"[extract-outlook-conversation-info] result: primaryKey={primary_key!r}, messages count={len(messages)}, latestInboundMessageId={latest_inbound_message_id!r}")
-          return {"primaryKey": primary_key, "messages": messages, "latestInboundMessageId": latest_inbound_message_id}
-    props:
-      conversationMessages: ${get-outlook-conversation[each.index].messages}
-      primary_key_regex: ${inputs.primary_key_regex}
-      message_regex: ${inputs.message_regex}
-      listenerEmail: ${inputs.listenerEmail}
-
-  fetch-airtable-data-outlook:
-    if:
-      "!!": ${inputs.airtable_base_id}
-    description: |
-      Holt Airtable-Daten für jede Konversation anhand des extrahierten Primary Key.
-    foreach: ${extract-outlook-conversation-info[*]}
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: GET
-      url: https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_id}
-      headers:
-        Authorization: Bearer ${secrets.copilot-airtable-api-key}
-      params:
-        filterByFormula: "{${inputs.airtable_filter_field}} = '${each.primaryKey}'"
-
-  generate-ai-responses-outlook:
-    description: |
-      Ruft Copilot-API generate-response auf (threadId, conversationHistory, customInfo, customCategories, optional primaryKey/airtableData).
-      Die KI antwortet auf die letzte Nachricht in conversationHistory; messageId wird nicht benötigt.
-    foreach: ${get-outlook-unanswered.unansweredConversationIds}
-    source:
-      repoUrl: "https://github.com/Edurata/edurata-functions.git"
-      path: general/axios
-    props:
-      method: POST
-      url: ${meta.apiUrl}/copilot/generate-response
-      headers:
-        Authorization: Bearer ${meta.executionToken}
-        Content-Type: application/json
-      body:
-        threadId: ${each}
-        conversationHistory: ${extract-outlook-conversation-info[each.index].messages}
-        customInfo: ${inputs.customInfo}
-        customCategories: ${inputs.customCategories}
-        primaryKey: ${extract-outlook-conversation-info[each.index].primaryKey}
-        airtableData: ${fetch-airtable-data-outlook[each.index].response.data}
-
   prepare-outlook-draft-content:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
     description: |
       Mappt AI-Antwort auf Entwurf-Inhalt: reply als body, categories-Objekt auf displayNames (name:value),
       damit sie mit ensure-outlook-categories übereinstimmen (keine ID-Mapping nötig).
       Akzeptiert Copilot-API-Format (reply, parsedJson) oder direkt (reply, categories).
-    foreach: ${generate-ai-responses-outlook[*]}
+    foreach: ${generate-ai-responses[*]}
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -384,10 +438,14 @@ steps:
           }
     props:
       aiResponse: ${each.response.data}
-      originalMessageId: ${extract-outlook-conversation-info[each.index].latestInboundMessageId}
-      conversationId: ${get-outlook-unanswered.unansweredConversationIds[each.index]}
+      originalMessageId: ${extract-conversation-info[each.index].latestInboundMessageId}
+      conversationId: ${target-thread-ids.ids[each.index]}
 
   create-outlook-reply-draft:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
     description: |
       Erstellt den Reply-Entwurf (Graph createReply). createReply nimmt keinen Body;
       Body/Kategorien werden im nächsten Schritt per PATCH gesetzt.
@@ -404,6 +462,10 @@ steps:
       body: {}
 
   update-outlook-draft:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
     description: |
       Setzt Body und Kategorien auf dem Entwurf.
     foreach: ${create-outlook-reply-draft[*]}
@@ -421,3 +483,295 @@ steps:
           contentType: HTML
           content: ${prepare-outlook-draft-content[each.index].body}
         categories: ${prepare-outlook-draft-content[each.index].categories}
+  # --------------------------- GMAIL (FLOW) ---------------------------
+  get-gmail-unanswered:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "GMAIL"
+    description: |
+      Holt unbeantwortete Gmail-Threads von der Absender-Domain (rolling time window).
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/list-gmail-unanswered
+    props:
+      GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
+      senderDomain: ${inputs.fromDomain}
+      listenerEmail: ${inputs.listenerEmail}
+      maxUnanswered: ${inputs.maxResults}
+      windowHours: 1000000
+
+  get-gmail-thread-conversation:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "GMAIL"
+    description: |
+      Holt die Nachrichten eines Gmail-Threads (alt -> neu).
+    foreach: ${get-gmail-unanswered.unansweredThreadIds}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/get-gmail-thread-conversation
+    props:
+      GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
+      threadId: ${each}
+
+  prepare-gmail-draft-content:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "GMAIL"
+    description: |
+      Mappt AI-Antwort auf Gmail-Entwurf-Inhalt und Labels (name:value).
+    foreach: ${generate-ai-responses[*]}
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          ai_response = inputs.get("aiResponse") or {}
+          thread_id = (inputs.get("threadId") or "").strip()
+          body = (ai_response.get("reply") or "").strip()
+          cats_obj = ai_response.get("categories")
+          if cats_obj is None and "parsedJson" in ai_response:
+              pj = ai_response.get("parsedJson") or {}
+              cats_obj = pj.get("categories") if isinstance(pj, dict) else pj
+          categories = []
+          if isinstance(cats_obj, dict):
+              for name, value in cats_obj.items():
+                  if name and value:
+                      categories.append(str(name).strip() + ":" + str(value).strip())
+          return {"body": body, "categories": categories, "threadId": thread_id}
+    props:
+      aiResponse: ${each.response.data}
+      threadId: ${target-thread-ids.ids[each.index]}
+
+  create-gmail-reply-draft:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "GMAIL"
+    description: |
+      Erstellt einen Gmail-Reply-Entwurf im bestehenden Thread.
+    foreach: ${prepare-gmail-draft-content[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-gmail-email
+    props:
+      GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
+      userEmail: ${inputs.listenerEmail}
+      recipient: ${extract-conversation-info[each.index].latestInboundFromAddress}
+      subject: Re: ${extract-conversation-info[each.index].latestInboundSubject}
+      body: ${each.body}
+      threadId: ${each.threadId}
+      createDraft: true
+
+  apply-gmail-labels-to-inbound-message:
+    if:
+      and:
+        - "==":
+            - ${inputs.emailProvider}
+            - "GMAIL"
+        - "!!": ${inputs.customCategories}
+    description: |
+      Wendet die AI-Kategorien als Gmail-Labels auf die verarbeitete Inbound-Nachricht an.
+    foreach: ${prepare-gmail-draft-content[*]}
+    runtime: python3_10
+    code: |
+      import json
+      import urllib.request
+      import urllib.error
+      def handler(inputs):
+          message_id = (inputs.get("messageId") or "").strip()
+          categories = inputs.get("categories") or []
+          token = (inputs.get("gmail_api_key") or "").strip()
+          if not message_id or not categories or not token:
+              return {"appliedLabelIds": [], "missingLabels": categories or []}
+
+          headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+          labels_url = "https://gmail.googleapis.com/gmail/v1/users/me/labels"
+          req = urllib.request.Request(labels_url, headers=headers)
+          with urllib.request.urlopen(req) as resp:
+              labels_data = json.loads(resp.read().decode())
+          by_name = {}
+          for label in labels_data.get("labels", []) or []:
+              n = (label.get("name") or "").strip()
+              i = (label.get("id") or "").strip()
+              if n and i:
+                  by_name[n] = i
+
+          add_ids = []
+          missing = []
+          for n in categories:
+              if n in by_name:
+                  add_ids.append(by_name[n])
+              else:
+                  missing.append(n)
+
+          if add_ids:
+              body = json.dumps({"addLabelIds": add_ids}).encode()
+              mod_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/%s/modify" % message_id
+              req = urllib.request.Request(mod_url, data=body, headers=headers, method="POST")
+              with urllib.request.urlopen(req):
+                  pass
+          return {"appliedLabelIds": add_ids, "missingLabels": missing}
+    props:
+      messageId: ${extract-conversation-info[each.index].latestInboundMessageId}
+      categories: ${each.categories}
+      gmail_api_key: ${secrets.copilot-gmail-oauth}
+
+  # --------------------------- COMMON ---------------------------
+  target-thread-ids:
+    description: |
+      Vereinheitlicht die zu verarbeitenden Thread-/Conversation-IDs über Provider hinweg.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          provider = (inputs.get("emailProvider") or "").strip().upper()
+          if provider == "GMAIL":
+              return {"ids": inputs.get("gmailIds") or []}
+          return {"ids": inputs.get("outlookIds") or []}
+    props:
+      emailProvider: ${inputs.emailProvider}
+      outlookIds: ${get-outlook-unanswered.unansweredConversationIds}
+      gmailIds: ${get-gmail-unanswered.unansweredThreadIds}
+
+  target-conversations:
+    description: |
+      Vereinheitlicht die geladenen Konversationen über Provider hinweg.
+    foreach: ${target-thread-ids.ids}
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          provider = (inputs.get("emailProvider") or "").strip().upper()
+          if provider == "GMAIL":
+              return {"messages": inputs.get("gmailMessages") or []}
+          return {"messages": inputs.get("outlookMessages") or []}
+    props:
+      emailProvider: ${inputs.emailProvider}
+      outlookMessages: ${get-outlook-conversation[each.index].messages}
+      gmailMessages: ${get-gmail-thread-conversation[each.index].messages}
+
+  extract-conversation-info:
+    description: |
+      Extrahiert provider-agnostisch conversationHistory sowie latestInboundMessageId/latestInboundFromAddress/latestInboundSubject.
+    foreach: ${target-thread-ids.ids}
+    runtime: python3_10
+    code: |
+      import re
+      def handler(inputs):
+          provider = (inputs.get("emailProvider") or "").strip().upper()
+          conversation_messages = inputs.get("conversationMessages") or []
+          primary_key_regex = inputs.get("primary_key_regex") or ""
+          message_regex_list = inputs.get("message_regex") or []
+          if isinstance(message_regex_list, str):
+              message_regex_list = [message_regex_list] if message_regex_list else []
+          listener_email = (inputs.get("listenerEmail") or "").strip().lower()
+          primary_key = ""
+          messages = []
+          latest_inbound_received = 0
+          latest_inbound_message_id = ""
+          latest_inbound_from_address = ""
+          latest_inbound_subject = ""
+
+          for idx, msg in enumerate(conversation_messages):
+              body = msg.get("body")
+              content = body if isinstance(body, str) else ((body or {}).get("content") or "")
+              if message_regex_list:
+                  m = None
+                  for message_regex in message_regex_list:
+                      if not message_regex:
+                          continue
+                      m = re.search(message_regex, content, re.MULTILINE | re.DOTALL)
+                      if m is not None:
+                          break
+                  if m is None:
+                      part = content
+                      regex_extraction = "no_match"
+                  else:
+                      part = (m.group(1) if m.groups() else m.group(0)).strip()
+                      regex_extraction = "matched" if part else "matched_empty"
+              else:
+                  part = content
+                  regex_extraction = "no_regex"
+
+              from_obj = msg.get("from") or {}
+              if provider == "OUTLOOK":
+                  email_addr = ((from_obj.get("emailAddress") or {}).get("address") or from_obj.get("address") or "").strip()
+                  received_dt = str(msg.get("receivedDateTime") or "").strip()
+                  sent_dt = str(msg.get("sentDateTime") or "").strip()
+                  received_comp = received_dt
+                  is_outgoing = bool(received_dt and sent_dt and received_dt == sent_dt)
+                  if not (received_dt and sent_dt):
+                      is_outgoing = bool(listener_email and email_addr.lower() == listener_email)
+              else:
+                  email_addr = ((from_obj.get("address") or "") if isinstance(from_obj, dict) else "").strip()
+                  received_dt = str(msg.get("receivedDateTime") or "").strip()
+                  received_comp = int(received_dt) if received_dt.isdigit() else 0
+                  is_outgoing = bool(listener_email and listener_email in email_addr.lower())
+
+              role = "assistant" if is_outgoing else "user"
+              direction = "outgoing" if is_outgoing else "incoming"
+              if not is_outgoing and received_comp and received_comp > latest_inbound_received:
+                  latest_inbound_received = received_comp
+                  latest_inbound_message_id = (msg.get("id") or "").strip()
+                  latest_inbound_from_address = email_addr
+                  latest_inbound_subject = (msg.get("subject") or "").strip()
+              messages.append({"content": part, "index": idx, "from": email_addr or None, "role": role, "direction": direction, "regex_extraction": regex_extraction})
+              if not primary_key and primary_key_regex:
+                  pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
+                  if pk:
+                      primary_key = pk.group(1) if pk.groups() else pk.group(0)
+
+          return {
+              "primaryKey": primary_key,
+              "messages": messages,
+              "latestInboundMessageId": latest_inbound_message_id,
+              "latestInboundFromAddress": latest_inbound_from_address,
+              "latestInboundSubject": latest_inbound_subject,
+          }
+    props:
+      emailProvider: ${inputs.emailProvider}
+      conversationMessages: ${target-conversations[each.index].messages}
+      primary_key_regex: ${inputs.primary_key_regex}
+      message_regex: ${inputs.message_regex}
+      listenerEmail: ${inputs.listenerEmail}
+
+  fetch-airtable-data:
+    if:
+      and:
+        - "!!": ${inputs.airtable_base_id}
+        - "!!": ${extract-conversation-info}
+    description: |
+      Holt Airtable-Daten für jeden Thread anhand des extrahierten Primary Key.
+    foreach: ${extract-conversation-info[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_id}
+      headers:
+        Authorization: Bearer ${secrets.copilot-airtable-api-key}
+      params:
+        filterByFormula: "{${inputs.airtable_filter_field}} = '${each.primaryKey}'"
+
+  generate-ai-responses:
+    description: |
+      Ruft Copilot-API generate-response provider-agnostisch auf.
+    foreach: ${target-thread-ids.ids}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: ${meta.apiUrl}/copilot/generate-response
+      headers:
+        Authorization: Bearer ${meta.executionToken}
+        Content-Type: application/json
+      body:
+        threadId: ${each}
+        conversationHistory: ${extract-conversation-info[each.index].messages}
+        customInfo: ${inputs.customInfo}
+        customCategories: ${inputs.customCategories}
+        primaryKey: ${extract-conversation-info[each.index].primaryKey}
+        airtableData: ${fetch-airtable-data[each.index].response.data}
+

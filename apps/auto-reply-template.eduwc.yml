@@ -1,0 +1,110 @@
+name: auto-reply-template
+apiRevision: edurata.io/v1
+description: |
+  Listens for unanswered messages from a given sender hostname and creates a reply draft
+  using a fixed template (no AI). Useful for automatic out-of-office or standard replies.
+interface:
+  inputs:
+    type: object
+    properties:
+      fromDomain:
+        type: string
+        description: Sender hostname/domain to filter (e.g. mail.example.com matches anything@mail.example.com)
+      replyTemplate:
+        type: string
+        description: HTML body for the reply (e.g. "Hallo, vielen Dank für Ihre Nachricht. ...")
+      maxResults:
+        type: integer
+        default: 10
+        description: Maximum number of unanswered conversations to process
+      listenerEmail:
+        type: string
+        description: Optional. Your mailbox address; used to detect inbound vs outbound messages.
+  outputs:
+    type: object
+    properties: {}
+integrations:
+  copilot-outlook-oauth:
+    provider: microsoft
+    scopes:
+      - Mail.Read
+      - Mail.ReadWrite
+      - Mail.Send
+steps:
+  get-outlook-unanswered:
+    description: Fetch unanswered Outlook conversations from the given sender domain.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/list-outlook-unanswered
+    props:
+      OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
+      senderDomain: ${inputs.fromDomain}
+      maxUnanswered: ${inputs.maxResults}
+      windowHours: 1000000
+  get-outlook-conversation:
+    description: Load the last messages of each conversation.
+    foreach: ${get-outlook-unanswered.unansweredConversationIds}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/list-outlook-conversation
+    props:
+      OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
+      conversationId: ${each}
+      top: 100
+
+  get-latest-inbound-message-id:
+    description: Determine the latest inbound message id per conversation (to reply to).
+    foreach: ${get-outlook-unanswered.unansweredConversationIds}
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          conversation_messages = inputs.get("conversationMessages") or []
+          listener_email = (inputs.get("listenerEmail") or "").strip().lower()
+          latest_inbound_id = ""
+          latest_received = ""
+          for msg in conversation_messages:
+              from_obj = msg.get("from") or {}
+              email_addr = (from_obj.get("address") or "").strip().lower()
+              received_dt = (msg.get("receivedDateTime") or "").strip()
+              sent_dt = (msg.get("sentDateTime") or "").strip()
+              is_outgoing = (received_dt and sent_dt and received_dt == sent_dt) or (
+                  listener_email and email_addr == listener_email
+              )
+              if not is_outgoing and received_dt and (not latest_received or received_dt > latest_received):
+                  latest_received = received_dt
+                  latest_inbound_id = (msg.get("id") or "").strip()
+          return {"latestInboundMessageId": latest_inbound_id}
+    props:
+      conversationMessages: ${get-outlook-conversation[each.index].messages}
+      listenerEmail: ${inputs.listenerEmail}
+
+  create-outlook-reply-draft:
+    description: Create a reply draft in Outlook for the latest inbound message.
+    foreach: ${get-outlook-unanswered.unansweredConversationIds}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: https://graph.microsoft.com/v1.0/me/messages/${get-latest-inbound-message-id[each.index].latestInboundMessageId}/createReply
+      headers:
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
+      body: {}
+
+  update-outlook-draft:
+    description: Set the reply body to the template content.
+    foreach: ${create-outlook-reply-draft[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: PATCH
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.response.data.id}
+      headers:
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
+      body:
+        body:
+          contentType: HTML
+          content: ${inputs.replyTemplate}

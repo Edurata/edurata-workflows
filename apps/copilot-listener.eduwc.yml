@@ -316,7 +316,7 @@ steps:
       GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
       userEmail: ${inputs.listenerEmail}
       recipient: ${extract-conversation-info[each.index].latestInboundFromAddress}
-      subject: Re: ${extract-conversation-info[each.index].latestInboundSubject}
+      subject: "Re: ${extract-conversation-info[each.index].latestInboundSubject}"
       body: ${each.body}
       threadId: ${each.threadId}
       createDraft: true

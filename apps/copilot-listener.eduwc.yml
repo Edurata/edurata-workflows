@@ -19,6 +19,10 @@ interface:
         enum: [OUTLOOK, GMAIL]
         default: OUTLOOK
         description: Email provider to use
+      createDraft:
+        type: boolean
+        default: true
+        description: If true, create drafts only. If false, send replies directly.
       airtable_base_id:
         type: string
         description: Airtable base ID to fetch data from
@@ -223,7 +227,51 @@ steps:
         body:
           contentType: HTML
           content: ${prepare-outlook-draft-content[each.index].body}
-        categories: ${prepare-outlook-draft-content[each.index].categories}
+
+  apply-outlook-categories-to-inbound-message:
+    if:
+      and:
+        - "==":
+            - ${inputs.emailProvider}
+            - "OUTLOOK"
+        - "!!": ${inputs.customCategories}
+    description: |
+      Wendet die AI-Kategorien auf die verarbeitete Inbound-Outlook-Nachricht an.
+    foreach: ${prepare-outlook-draft-content[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: PATCH
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.originalMessageId}
+      headers:
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
+      body:
+        categories: ${each.categories}
+
+  send-outlook-reply:
+    if:
+      and:
+        - "==":
+            - ${inputs.emailProvider}
+            - "OUTLOOK"
+        - "==":
+            - ${inputs.createDraft}
+            - false
+    description: |
+      Sendet den vorbereiteten Outlook-Reply (statt nur Entwurf).
+    foreach: ${create-outlook-reply-draft[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.response.data.id}/send
+      headers:
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
+      body: {}
   # --------------------------- GMAIL (FLOW) ---------------------------
   get-gmail-unanswered:
     if:
@@ -301,13 +349,13 @@ steps:
       aiResponse: ${each.response.data}
       threadId: ${target-thread-ids.ids[each.index]}
 
-  create-gmail-reply-draft:
+  process-gmail-reply:
     if:
       "==":
         - ${inputs.emailProvider}
         - "GMAIL"
     description: |
-      Erstellt einen Gmail-Reply-Entwurf im bestehenden Thread.
+      Erstellt oder sendet Gmail-Reply je nach inputs.createDraft.
     foreach: ${prepare-gmail-draft-content[*]}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
@@ -319,7 +367,7 @@ steps:
       subject: "Re: ${extract-conversation-info[each.index].latestInboundSubject}"
       body: ${each.body}
       threadId: ${each.threadId}
-      createDraft: true
+      createDraft: ${inputs.createDraft}
 
   apply-gmail-labels-to-inbound-message:
     if:
@@ -424,7 +472,10 @@ steps:
           listener_email = (inputs.get("listenerEmail") or "").strip().lower()
           primary_key = ""
           messages = []
-          latest_inbound_received = 0
+          if provider == "OUTLOOK":
+              latest_inbound_key = ""
+          else:
+              latest_inbound_key = 0
           latest_inbound_message_id = ""
           latest_inbound_from_address = ""
           latest_inbound_subject = ""
@@ -455,23 +506,30 @@ steps:
                   email_addr = ((from_obj.get("emailAddress") or {}).get("address") or from_obj.get("address") or "").strip()
                   received_dt = str(msg.get("receivedDateTime") or "").strip()
                   sent_dt = str(msg.get("sentDateTime") or "").strip()
-                  received_comp = received_dt
                   is_outgoing = bool(received_dt and sent_dt and received_dt == sent_dt)
                   if not (received_dt and sent_dt):
                       is_outgoing = bool(listener_email and email_addr.lower() == listener_email)
               else:
                   email_addr = ((from_obj.get("address") or "") if isinstance(from_obj, dict) else "").strip()
                   received_dt = str(msg.get("receivedDateTime") or "").strip()
-                  received_comp = int(received_dt) if received_dt.isdigit() else 0
                   is_outgoing = bool(listener_email and listener_email in email_addr.lower())
 
               role = "assistant" if is_outgoing else "user"
               direction = "outgoing" if is_outgoing else "incoming"
-              if not is_outgoing and received_comp and received_comp > latest_inbound_received:
-                  latest_inbound_received = received_comp
-                  latest_inbound_message_id = (msg.get("id") or "").strip()
-                  latest_inbound_from_address = email_addr
-                  latest_inbound_subject = (msg.get("subject") or "").strip()
+              if not is_outgoing:
+                  if provider == "OUTLOOK":
+                      if received_dt and (not latest_inbound_key or received_dt > latest_inbound_key):
+                          latest_inbound_key = received_dt
+                          latest_inbound_message_id = (msg.get("id") or "").strip()
+                          latest_inbound_from_address = email_addr
+                          latest_inbound_subject = (msg.get("subject") or "").strip()
+                  else:
+                      rc = int(received_dt) if received_dt.isdigit() else 0
+                      if rc and rc > latest_inbound_key:
+                          latest_inbound_key = rc
+                          latest_inbound_message_id = (msg.get("id") or "").strip()
+                          latest_inbound_from_address = email_addr
+                          latest_inbound_subject = (msg.get("subject") or "").strip()
               messages.append({"content": part, "index": idx, "from": email_addr or None, "role": role, "direction": direction, "regex_extraction": regex_extraction})
               if not primary_key and primary_key_regex:
                   pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)

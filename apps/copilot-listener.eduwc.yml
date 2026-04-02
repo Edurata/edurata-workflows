@@ -91,6 +91,8 @@ integrations:
     scopes:
       - Mail.Read
       - Mail.Read.Shared
+      - Mail.ReadWrite
+      - Mail.ReadWrite.Shared
   copilot-gmail-oauth:
     provider: google
     scopes:
@@ -260,8 +262,8 @@ steps:
             - ${inputs.createDraft}
             - false
     description: |
-      Sendet den vorbereiteten Outlook-Reply (statt nur Entwurf).
-    foreach: ${create-outlook-reply-draft[*]}
+      Sendet den Outlook-Reply nach dem PATCH des Entwurfs (Body gesetzt), statt nur Entwurf.
+    foreach: ${update-outlook-draft[*]}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios

@@ -472,7 +472,7 @@ steps:
           if isinstance(message_regex_list, str):
               message_regex_list = [message_regex_list] if message_regex_list else []
           listener_email = (inputs.get("listenerEmail") or "").strip().lower()
-          primary_key = ""
+          primary_key = None
           messages = []
           if provider == "OUTLOOK":
               latest_inbound_key = ""
@@ -536,7 +536,9 @@ steps:
               if not primary_key and primary_key_regex:
                   pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
                   if pk:
-                      primary_key = pk.group(1) if pk.groups() else pk.group(0)
+                      extracted = pk.group(1) if pk.groups() else pk.group(0)
+                      extracted = str(extracted).strip() if extracted is not None else ""
+                      primary_key = extracted or None
 
           return {
               "primaryKey": primary_key,
@@ -556,10 +558,10 @@ steps:
     if:
       and:
         - "!!": ${inputs.airtable_base_id}
-        - "!!": ${extract-conversation-info}
+        - "!!": ${extract-conversation-info[each.index].primaryKey}
     description: |
       Holt Airtable-Daten für jeden Thread anhand des extrahierten Primary Key.
-    foreach: ${extract-conversation-info[*]}
+    foreach: ${target-thread-ids.ids}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: general/axios
@@ -569,7 +571,7 @@ steps:
       headers:
         Authorization: Bearer ${secrets.copilot-airtable-api-key}
       params:
-        filterByFormula: "{${inputs.airtable_filter_field}} = '${each.primaryKey}'"
+        filterByFormula: "{${inputs.airtable_filter_field}} = '${extract-conversation-info[each.index].primaryKey}'"
 
   generate-ai-responses:
     description: |

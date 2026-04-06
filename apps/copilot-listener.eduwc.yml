@@ -480,6 +480,7 @@ steps:
               latest_inbound_key = 0
           latest_inbound_message_id = ""
           latest_inbound_from_address = ""
+          latest_inbound_from_name = ""
           latest_inbound_subject = ""
 
           for idx, msg in enumerate(conversation_messages):
@@ -505,7 +506,9 @@ steps:
 
               from_obj = msg.get("from") or {}
               if provider == "OUTLOOK":
-                  email_addr = ((from_obj.get("emailAddress") or {}).get("address") or from_obj.get("address") or "").strip()
+                  email_address_obj = from_obj.get("emailAddress") or {}
+                  email_addr = (email_address_obj.get("address") or from_obj.get("address") or "").strip()
+                  from_name = (email_address_obj.get("name") or from_obj.get("name") or "").strip()
                   received_dt = str(msg.get("receivedDateTime") or "").strip()
                   sent_dt = str(msg.get("sentDateTime") or "").strip()
                   is_outgoing = bool(received_dt and sent_dt and received_dt == sent_dt)
@@ -513,6 +516,7 @@ steps:
                       is_outgoing = bool(listener_email and email_addr.lower() == listener_email)
               else:
                   email_addr = ((from_obj.get("address") or "") if isinstance(from_obj, dict) else "").strip()
+                  from_name = ((from_obj.get("name") or "") if isinstance(from_obj, dict) else "").strip()
                   received_dt = str(msg.get("receivedDateTime") or "").strip()
                   is_outgoing = bool(listener_email and listener_email in email_addr.lower())
 
@@ -524,6 +528,7 @@ steps:
                           latest_inbound_key = received_dt
                           latest_inbound_message_id = (msg.get("id") or "").strip()
                           latest_inbound_from_address = email_addr
+                          latest_inbound_from_name = from_name
                           latest_inbound_subject = (msg.get("subject") or "").strip()
                   else:
                       rc = int(received_dt) if received_dt.isdigit() else 0
@@ -531,8 +536,9 @@ steps:
                           latest_inbound_key = rc
                           latest_inbound_message_id = (msg.get("id") or "").strip()
                           latest_inbound_from_address = email_addr
+                          latest_inbound_from_name = from_name
                           latest_inbound_subject = (msg.get("subject") or "").strip()
-              messages.append({"content": part, "index": idx, "from": email_addr or None, "role": role, "direction": direction, "regex_extraction": regex_extraction})
+              messages.append({"content": part, "index": idx, "from": email_addr or None, "fromName": from_name or None, "role": role, "direction": direction, "regex_extraction": regex_extraction})
               if not primary_key and primary_key_regex:
                   pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
                   if pk:
@@ -545,6 +551,7 @@ steps:
               "messages": messages,
               "latestInboundMessageId": latest_inbound_message_id,
               "latestInboundFromAddress": latest_inbound_from_address,
+              "latestInboundFromName": latest_inbound_from_name,
               "latestInboundSubject": latest_inbound_subject,
           }
     props:

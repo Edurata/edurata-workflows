@@ -1,0 +1,151 @@
+steps:
+  # --------------------------- GMAIL (FLOW) ---------------------------
+  get-gmail-unanswered:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "GMAIL"
+    description: |
+      Holt unbeantwortete Gmail-Threads von der Absender-Domain (rolling time window).
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/list-gmail-unanswered
+    props:
+      GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
+      senderDomain: ${inputs.fromDomain}
+      listenerEmail: ${inputs.listenerEmail}
+      maxUnanswered: ${inputs.maxResults}
+      windowHours: 1000000
+
+  get-gmail-thread-conversation:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "GMAIL"
+    description: |
+      Holt die Nachrichten eines Gmail-Threads (alt -> neu).
+    foreach: ${get-gmail-unanswered.unansweredThreadIds}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/get-gmail-thread-conversation
+    props:
+      GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
+      threadId: ${each}
+  ensure-gmail-categories:
+    if:
+      and:
+        - "!!": ${inputs.customCategories}
+        - "==":
+            - ${inputs.emailProvider}
+            - "GMAIL"
+    description: |
+      Erstellt fehlende Gmail-Labels (name:value aus customCategories), damit sie beim Entwurf-Erstellen verfügbar sind.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/ensure-gmail-categories
+    props:
+      GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
+      customCategories: ${inputs.customCategories}
+      lang: ${inputs.lang}
+
+  prepare-gmail-draft-content:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "GMAIL"
+    description: |
+      Mappt AI-Antwort auf Gmail-Entwurf-Inhalt und Labels (name:value).
+    foreach: ${generate-ai-responses[*]}
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          ai_response = inputs.get("aiResponse") or {}
+          thread_id = (inputs.get("threadId") or "").strip()
+          body = (ai_response.get("reply") or "").strip()
+          cats_obj = ai_response.get("categories")
+          if cats_obj is None and "parsedJson" in ai_response:
+              pj = ai_response.get("parsedJson") or {}
+              cats_obj = pj.get("categories") if isinstance(pj, dict) else pj
+          categories = []
+          if isinstance(cats_obj, dict):
+              for name, value in cats_obj.items():
+                  if name and value:
+                      categories.append(str(name).strip() + ":" + str(value).strip())
+          return {"body": body, "categories": categories, "threadId": thread_id}
+    props:
+      aiResponse: ${each.response.data}
+      threadId: ${target-thread-ids.ids[each.index]}
+
+  process-gmail-reply:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "GMAIL"
+    description: |
+      Erstellt oder sendet Gmail-Reply je nach inputs.createDraft.
+    foreach: ${prepare-gmail-draft-content[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/send-gmail-email
+    props:
+      GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
+      userEmail: ${inputs.listenerEmail}
+      recipient: ${extract-conversation-info[each.index].latestInboundFromAddress}
+      subject: "Re: ${extract-conversation-info[each.index].latestInboundSubject}"
+      body: ${each.body}
+      threadId: ${each.threadId}
+      createDraft: ${inputs.createDraft}
+
+  apply-gmail-labels-to-inbound-message:
+    if:
+      and:
+        - "==":
+            - ${inputs.emailProvider}
+            - "GMAIL"
+        - "!!": ${inputs.customCategories}
+    description: |
+      Wendet die AI-Kategorien als Gmail-Labels auf die verarbeitete Inbound-Nachricht an.
+    foreach: ${prepare-gmail-draft-content[*]}
+    runtime: python3_10
+    code: |
+      import json
+      import urllib.request
+      import urllib.error
+      def handler(inputs):
+          message_id = (inputs.get("messageId") or "").strip()
+          categories = inputs.get("categories") or []
+          token = (inputs.get("gmail_api_key") or "").strip()
+          if not message_id or not categories or not token:
+              return {"appliedLabelIds": [], "missingLabels": categories or []}
+
+          headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
+          labels_url = "https://gmail.googleapis.com/gmail/v1/users/me/labels"
+          req = urllib.request.Request(labels_url, headers=headers)
+          with urllib.request.urlopen(req) as resp:
+              labels_data = json.loads(resp.read().decode())
+          by_name = {}
+          for label in labels_data.get("labels", []) or []:
+              n = (label.get("name") or "").strip()
+              i = (label.get("id") or "").strip()
+              if n and i:
+                  by_name[n] = i
+
+          add_ids = []
+          missing = []
+          for n in categories:
+              if n in by_name:
+                  add_ids.append(by_name[n])
+              else:
+                  missing.append(n)
+
+          if add_ids:
+              body = json.dumps({"addLabelIds": add_ids}).encode()
+              mod_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/%s/modify" % message_id
+              req = urllib.request.Request(mod_url, data=body, headers=headers, method="POST")
+              with urllib.request.urlopen(req):
+                  pass
+          return {"appliedLabelIds": add_ids, "missingLabels": missing}
+    props:
+      messageId: ${extract-conversation-info[each.index].latestInboundMessageId}
+      categories: ${each.categories}
+      gmail_api_key: ${secrets.copilot-gmail-oauth}

@@ -1,0 +1,460 @@
+steps:
+  # --------------------------- COMMON ---------------------------
+  target-thread-ids:
+    description: |
+      Vereinheitlicht die zu verarbeitenden Thread-/Conversation-IDs über Provider hinweg.
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          provider = (inputs.get("emailProvider") or "").strip().upper()
+          if provider == "GMAIL":
+              return {"ids": inputs.get("gmailIds") or []}
+          return {"ids": inputs.get("outlookIds") or []}
+    props:
+      emailProvider: ${inputs.emailProvider}
+      outlookIds: ${get-outlook-unanswered.unansweredConversationIds}
+      gmailIds: ${get-gmail-unanswered.unansweredThreadIds}
+
+  target-conversations:
+    description: |
+      Vereinheitlicht die geladenen Konversationen über Provider hinweg.
+    foreach: ${target-thread-ids.ids}
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          provider = (inputs.get("emailProvider") or "").strip().upper()
+          if provider == "GMAIL":
+              return {"messages": inputs.get("gmailMessages") or []}
+          return {"messages": inputs.get("outlookMessages") or []}
+    props:
+      emailProvider: ${inputs.emailProvider}
+      outlookMessages: ${get-outlook-conversation[each.index].messages}
+      gmailMessages: ${get-gmail-thread-conversation[each.index].messages}
+
+  extract-conversation-info:
+    description: |
+      Extrahiert provider-agnostisch conversationHistory sowie latestInboundMessageId/latestInboundFromAddress/latestInboundSubject.
+    foreach: ${target-thread-ids.ids}
+    runtime: python3_10
+    code: |
+      import re
+      def handler(inputs):
+          provider = (inputs.get("emailProvider") or "").strip().upper()
+          conversation_messages = inputs.get("conversationMessages") or []
+          primary_key_regex = inputs.get("primary_key_regex") or ""
+          message_regex_list = inputs.get("message_regex") or []
+          if isinstance(message_regex_list, str):
+              message_regex_list = [message_regex_list] if message_regex_list else []
+          listener_email = (inputs.get("listenerEmail") or "").strip().lower()
+          primary_key = None
+          messages = []
+          if provider == "OUTLOOK":
+              latest_inbound_key = ""
+          else:
+              latest_inbound_key = 0
+          latest_inbound_message_id = ""
+          latest_inbound_from_address = ""
+          latest_inbound_from_name = ""
+          latest_inbound_subject = ""
+
+          for idx, msg in enumerate(conversation_messages):
+              body = msg.get("body")
+              content = body if isinstance(body, str) else ((body or {}).get("content") or "")
+              if message_regex_list:
+                  m = None
+                  for message_regex in message_regex_list:
+                      if not message_regex:
+                          continue
+                      m = re.search(message_regex, content, re.MULTILINE | re.DOTALL)
+                      if m is not None:
+                          break
+                  if m is None:
+                      part = content
+                      regex_extraction = "no_match"
+                  else:
+                      part = (m.group(1) if m.groups() else m.group(0)).strip()
+                      regex_extraction = "matched" if part else "matched_empty"
+              else:
+                  part = content
+                  regex_extraction = "no_regex"
+
+              from_obj = msg.get("from") or {}
+              if provider == "OUTLOOK":
+                  email_address_obj = from_obj.get("emailAddress") or {}
+                  email_addr = (email_address_obj.get("address") or from_obj.get("address") or "").strip()
+                  from_name = (email_address_obj.get("name") or from_obj.get("name") or "").strip()
+                  received_dt = str(msg.get("receivedDateTime") or "").strip()
+                  sent_dt = str(msg.get("sentDateTime") or "").strip()
+                  is_outgoing = bool(received_dt and sent_dt and received_dt == sent_dt)
+                  if not (received_dt and sent_dt):
+                      is_outgoing = bool(listener_email and email_addr.lower() == listener_email)
+              else:
+                  email_addr = ((from_obj.get("address") or "") if isinstance(from_obj, dict) else "").strip()
+                  from_name = ((from_obj.get("name") or "") if isinstance(from_obj, dict) else "").strip()
+                  received_dt = str(msg.get("receivedDateTime") or "").strip()
+                  is_outgoing = bool(listener_email and listener_email in email_addr.lower())
+
+              role = "assistant" if is_outgoing else "user"
+              direction = "outgoing" if is_outgoing else "incoming"
+              if not is_outgoing:
+                  if provider == "OUTLOOK":
+                      if received_dt and (not latest_inbound_key or received_dt > latest_inbound_key):
+                          latest_inbound_key = received_dt
+                          latest_inbound_message_id = (msg.get("id") or "").strip()
+                          latest_inbound_from_address = email_addr
+                          latest_inbound_from_name = from_name
+                          latest_inbound_subject = (msg.get("subject") or "").strip()
+                  else:
+                      rc = int(received_dt) if received_dt.isdigit() else 0
+                      if rc and rc > latest_inbound_key:
+                          latest_inbound_key = rc
+                          latest_inbound_message_id = (msg.get("id") or "").strip()
+                          latest_inbound_from_address = email_addr
+                          latest_inbound_from_name = from_name
+                          latest_inbound_subject = (msg.get("subject") or "").strip()
+              messages.append({"content": part, "index": idx, "from": email_addr or None, "fromName": from_name or None, "role": role, "direction": direction, "regex_extraction": regex_extraction})
+              if not primary_key and primary_key_regex:
+                  pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
+                  if pk:
+                      extracted = pk.group(1) if pk.groups() else pk.group(0)
+                      extracted = str(extracted).strip() if extracted is not None else ""
+                      primary_key = extracted or None
+
+          return {
+              "primaryKey": primary_key,
+              "messages": messages,
+              "latestInboundMessageId": latest_inbound_message_id,
+              "latestInboundFromAddress": latest_inbound_from_address,
+              "latestInboundFromName": latest_inbound_from_name,
+              "latestInboundSubject": latest_inbound_subject,
+          }
+    props:
+      emailProvider: ${inputs.emailProvider}
+      conversationMessages: ${target-conversations[each.index].messages}
+      primary_key_regex: ${inputs.primary_key_regex}
+      message_regex: ${inputs.message_regex}
+      listenerEmail: ${inputs.listenerEmail}
+
+  prepare-calendar-availability:
+    description: |
+      Liest Outlook-Kalender (calendarView), bildet freie Slots in der Arbeitszeit und liefert calendarAvailability für generate-response.
+      Nur bei OUTLOOK und scheduleAppointments; sonst calendarAvailability null.
+    runtime: python3_10
+    code: |
+      import json
+      import urllib.request
+      import urllib.parse
+      from datetime import datetime, timedelta, time
+      from zoneinfo import ZoneInfo
+
+      def _parse_hhmm(s):
+          parts = (s or "09:00").strip().split(":")
+          h = int(parts[0])
+          m = int(parts[1]) if len(parts) > 1 else 0
+          return h, m
+
+      def _localize_graph_dt(dt_str, ev_tz_name, fallback_tz):
+          if not dt_str:
+              return None
+          dt_str = dt_str.strip()
+          if "T" not in dt_str:
+              return None
+          tzname = (ev_tz_name or fallback_tz or "UTC").strip()
+          try:
+              z = ZoneInfo(tzname)
+          except Exception:
+              z = ZoneInfo("UTC")
+          base = dt_str.split(".")[0].replace("Z", "")
+          if len(base) < 19:
+              return None
+          naive = datetime.strptime(base[:19], "%Y-%m-%dT%H:%M:%S")
+          return naive.replace(tzinfo=z)
+
+      def handler(inputs):
+          provider = (inputs.get("emailProvider") or "").strip().upper()
+          if provider != "OUTLOOK" or not inputs.get("scheduleAppointments"):
+              return {"calendarAvailability": None}
+
+          token = (inputs.get("outlookToken") or "").strip()
+          if not token:
+              return {"calendarAvailability": None, "calendarError": "missing_token"}
+
+          tz_name = (inputs.get("appointmentTimeZone") or "Europe/Berlin").strip()
+          try:
+              tz = ZoneInfo(tz_name)
+          except Exception:
+              tz = ZoneInfo("Europe/Berlin")
+              tz_name = "Europe/Berlin"
+
+          horizon = int(inputs.get("appointmentHorizonDays") or 14)
+          dur_min = int(inputs.get("appointmentDurationMinutes") or 30)
+          max_slots = int(inputs.get("appointmentMaxSlots") or 24)
+          wh_start_h, wh_start_m = _parse_hhmm(inputs.get("appointmentWorkdayStart"))
+          wh_end_h, wh_end_m = _parse_hhmm(inputs.get("appointmentWorkdayEnd"))
+
+          now = datetime.now(tz)
+          start_day = now.date()
+          end_day = start_day + timedelta(days=max(1, horizon))
+
+          start_utc = datetime.combine(start_day, time.min, tzinfo=tz).astimezone(ZoneInfo("UTC"))
+          end_utc = datetime.combine(end_day, time(23, 59, 59), tzinfo=tz).astimezone(ZoneInfo("UTC"))
+          start_utc_s = start_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+          end_utc_s = end_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+          events = []
+          url = "https://graph.microsoft.com/v1.0/me/calendarView?" + urllib.parse.urlencode({
+              "startDateTime": start_utc_s,
+              "endDateTime": end_utc_s,
+              "$select": "start,end,subject,showAs,isAllDay",
+              "$top": "100",
+          })
+          safe_pref = tz_name.replace('"', "")
+          while url:
+              req = urllib.request.Request(url, headers={
+                  "Authorization": "Bearer " + token,
+                  "Prefer": 'outlook.timezone="' + safe_pref + '"',
+              })
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as resp:
+                      data = json.loads(resp.read().decode())
+              except Exception as e:
+                  return {"calendarAvailability": None, "calendarError": str(e)[:500]}
+              events.extend(data.get("value") or [])
+              url = data.get("@odata.nextLink")
+
+          busy = []
+          for ev in events:
+              if (ev.get("showAs") or "").lower() == "free":
+                  continue
+              s = ev.get("start") or {}
+              e = ev.get("end") or {}
+              st = _localize_graph_dt(s.get("dateTime"), s.get("timeZone"), tz_name)
+              en = _localize_graph_dt(e.get("dateTime"), e.get("timeZone"), tz_name)
+              if not st or not en or en <= st:
+                  continue
+              busy.append((st.astimezone(tz), en.astimezone(tz)))
+
+          busy.sort(key=lambda x: x[0])
+          merged = []
+          for s, e in busy:
+              if not merged or s > merged[-1][1]:
+                  merged.append([s, e])
+              else:
+                  merged[-1][1] = max(merged[-1][1], e)
+
+          slots = []
+          delta = timedelta(minutes=dur_min)
+          d = start_day
+          while d <= end_day and len(slots) < max_slots:
+              day_start = datetime.combine(d, time(wh_start_h, wh_start_m), tzinfo=tz)
+              day_end = datetime.combine(d, time(wh_end_h, wh_end_m), tzinfo=tz)
+              if day_end <= day_start:
+                  d += timedelta(days=1)
+                  continue
+
+              day_busy = []
+              for bs, be in merged:
+                  seg_s = max(bs, day_start)
+                  seg_e = min(be, day_end)
+                  if seg_e > seg_s:
+                      day_busy.append([seg_s, seg_e])
+              day_busy.sort(key=lambda x: x[0])
+              merged_day = []
+              for s, e in day_busy:
+                  if not merged_day or s > merged_day[-1][1]:
+                      merged_day.append([s, e])
+                  else:
+                      merged_day[-1][1] = max(merged_day[-1][1], e)
+
+              cursor = day_start
+              for s, e in merged_day:
+                  while cursor + delta <= s and len(slots) < max_slots:
+                      slots.append({
+                          "start": cursor.isoformat(),
+                          "end": (cursor + delta).isoformat(),
+                      })
+                      cursor += delta
+                  if cursor < e:
+                      cursor = e
+              while cursor + delta <= day_end and len(slots) < max_slots:
+                  slots.append({
+                      "start": cursor.isoformat(),
+                      "end": (cursor + delta).isoformat(),
+                  })
+                  cursor += delta
+
+              d += timedelta(days=1)
+
+          summary = "%d freie Slots à %d Min in den nächsten %d Tagen (%s)." % (
+              len(slots), dur_min, horizon, tz_name)
+          return {
+              "calendarAvailability": {
+                  "timeZone": tz_name,
+                  "slots": slots,
+                  "summaryText": summary,
+              }
+          }
+    props:
+      emailProvider: ${inputs.emailProvider}
+      scheduleAppointments: ${inputs.scheduleAppointments}
+      outlookToken: ${secrets.copilot-outlook-oauth}
+      appointmentHorizonDays: ${inputs.appointmentHorizonDays}
+      appointmentDurationMinutes: ${inputs.appointmentDurationMinutes}
+      appointmentTimeZone: ${inputs.appointmentTimeZone}
+      appointmentWorkdayStart: ${inputs.appointmentWorkdayStart}
+      appointmentWorkdayEnd: ${inputs.appointmentWorkdayEnd}
+      appointmentMaxSlots: ${inputs.appointmentMaxSlots}
+
+  fetch-airtable-data:
+    if:
+      and:
+        - "!!": ${inputs.airtable_base_id}
+        - "!!": ${extract-conversation-info[each.index].primaryKey}
+    description: |
+      Holt Airtable-Daten für jeden Thread anhand des extrahierten Primary Key.
+    foreach: ${target-thread-ids.ids}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: GET
+      url: https://api.airtable.com/v0/${inputs.airtable_base_id}/${inputs.airtable_table_id}
+      headers:
+        Authorization: Bearer ${secrets.copilot-airtable-api-key}
+      params:
+        filterByFormula: "{${inputs.airtable_filter_field}} = '${extract-conversation-info[each.index].primaryKey}'"
+
+  generate-ai-responses:
+    description: |
+      Ruft Copilot-API generate-response provider-agnostisch auf.
+    foreach: ${target-thread-ids.ids}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: ${meta.apiUrl}/copilot/generate-response
+      headers:
+        Authorization: Bearer ${meta.executionToken}
+        Content-Type: application/json
+      body:
+        threadId: ${each}
+        conversationHistory: ${extract-conversation-info[each.index].messages}
+        customInfo: ${inputs.customInfo}
+        customCategories: ${inputs.customCategories}
+        primaryKey: ${extract-conversation-info[each.index].primaryKey}
+        airtableData: ${fetch-airtable-data[each.index].response.data}
+        calendarAvailability: ${prepare-calendar-availability.calendarAvailability}
+
+  create-outlook-calendar-event-from-ai:
+    if:
+      and:
+        - "==":
+            - ${inputs.emailProvider}
+            - "OUTLOOK"
+        - "==":
+            - ${inputs.scheduleAppointments}
+            - true
+    description: |
+      Legt ein Kalender-Event an, wenn die KI wantsScheduling setzt und selectedSlotStart/End exakt einem freien Slot entspricht.
+    foreach: ${generate-ai-responses[*]}
+    runtime: python3_10
+    code: |
+      import json
+      import urllib.request
+      import urllib.error
+
+      def _norm_iso(s):
+          s = (s or "").strip().replace(" ", "")
+          if "+00:00" in s:
+              s = s.replace("+00:00", "Z")
+          if "." in s and "T" in s:
+              head, tail = s.split("T", 1)
+              if "." in tail:
+                  t1, t2 = tail.split(".", 1)
+                  digits = ""
+                  for c in t2:
+                      if c.isdigit():
+                          digits += c
+                      else:
+                          break
+                  rest = t2[len(digits):] if digits else t2
+                  s = head + "T" + t1 + "." + digits[:6] + rest if digits else head + "T" + t1 + rest
+          return s
+
+      def handler(inputs):
+          token = (inputs.get("outlookToken") or "").strip()
+          if not token:
+              return {"created": False, "reason": "no_token"}
+
+          scheduling = inputs.get("scheduling")
+          if not isinstance(scheduling, dict):
+              return {"created": False, "reason": "no_scheduling"}
+
+          if not scheduling.get("wantsScheduling"):
+              return {"created": False, "reason": "no_want"}
+
+          start = (scheduling.get("selectedSlotStart") or "").strip()
+          end = (scheduling.get("selectedSlotEnd") or "").strip()
+          if not start or not end:
+              return {"created": False, "reason": "no_slot_times"}
+
+          cal = inputs.get("calendarAvailability")
+          allowed = []
+          if isinstance(cal, dict):
+              allowed = cal.get("slots") or []
+
+          ns, ne = _norm_iso(start), _norm_iso(end)
+          ok = False
+          for sl in allowed:
+              if not isinstance(sl, dict):
+                  continue
+              if _norm_iso(str(sl.get("start") or "")) == ns and _norm_iso(str(sl.get("end") or "")) == ne:
+                  ok = True
+                  break
+          if not ok:
+              return {"created": False, "reason": "slot_not_in_allowlist"}
+
+          tz = (inputs.get("appointmentTimeZone") or "Europe/Berlin").strip()
+          attendee_email = (inputs.get("attendeeEmail") or "").strip()
+          attendee_name = (inputs.get("attendeeName") or "").strip()
+          subj = (inputs.get("eventSubject") or "").strip() or "Termin"
+          body_html = (inputs.get("eventBodyHtml") or "").strip() or "<p>Termin</p>"
+
+          attendees = []
+          if attendee_email:
+              attendees.append({
+                  "emailAddress": {"address": attendee_email, "name": attendee_name or attendee_email},
+                  "type": "required",
+              })
+
+          payload = {
+              "subject": subj,
+              "body": {"contentType": "HTML", "content": body_html},
+              "start": {"dateTime": start, "timeZone": tz},
+              "end": {"dateTime": end, "timeZone": tz},
+              "attendees": attendees,
+              "allowNewTimeProposals": True,
+          }
+          req = urllib.request.Request(
+              "https://graph.microsoft.com/v1.0/me/events",
+              data=json.dumps(payload).encode(),
+              headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  out = json.loads(resp.read().decode())
+              return {"created": True, "eventId": out.get("id"), "webLink": out.get("webLink")}
+          except urllib.error.HTTPError as e:
+              detail = e.read().decode() if e.fp else str(e)
+              return {"created": False, "reason": "graph_error", "status": getattr(e, "code", None), "detail": detail[:2000]}
+    props:
+      outlookToken: ${secrets.copilot-outlook-oauth}
+      appointmentTimeZone: ${inputs.appointmentTimeZone}
+      scheduling: ${each.response.data.scheduling}
+      calendarAvailability: ${prepare-calendar-availability.calendarAvailability}
+      attendeeEmail: ${extract-conversation-info[each.index].latestInboundFromAddress}
+      attendeeName: ${extract-conversation-info[each.index].latestInboundFromName}
+      eventSubject: "Termin: ${extract-conversation-info[each.index].latestInboundSubject}"
+      eventBodyHtml: ${each.response.data.reply}

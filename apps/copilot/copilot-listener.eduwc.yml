@@ -1,0 +1,10 @@
+name: copilot-listener
+apiRevision: edurata.io/v1
+description: |
+  Listens to the mail inbox for new messages and responds to them with a generated response.
+# Composed from partials (merged in order; later files override on key conflicts).
+includes:
+  - ./partials/copilot-listener.interface-integrations.eduwc.yml
+  - ./partials/copilot-listener.outlook-steps.eduwc.yml
+  - ./partials/copilot-listener.gmail-steps.eduwc.yml
+  - ./partials/copilot-listener.common-steps.eduwc.yml

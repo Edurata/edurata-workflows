@@ -1,0 +1,174 @@
+steps:
+  # --------------------------- OUTLOOK (FLOW) ---------------------------
+  get-outlook-unanswered:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
+    description: |
+      Holt unbeantwortete Outlook-Konversationen von der Absender-Domain (rolling time window).
+      Unbeantwortet = keine gesendete Antwort nach letzter Inbound-Nachricht im Fenster, und kein/veralteter Entwurf.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/list-outlook-unanswered
+    props:
+      OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
+      senderDomain: ${inputs.fromDomain}
+      maxUnanswered: ${inputs.maxResults}
+      # Override
+      windowHours: 1000000
+
+  get-outlook-conversation:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
+    description: |
+      Holt die letzten n Nachrichten einer Konversation (Thread) per list-outlook-conversation.
+    foreach: ${get-outlook-unanswered.unansweredConversationIds}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/extract/list-outlook-conversation
+    props:
+      OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
+      conversationId: ${each}
+      top: 100
+  ensure-outlook-categories:
+    if:
+      and:
+        - "!!": ${inputs.customCategories}
+        - "==":
+            - ${inputs.emailProvider}
+            - "OUTLOOK"
+    description: |
+      Erstellt fehlende Outlook-Kategorien (name:value aus customCategories), damit sie beim Entwurf-Erstellen verfügbar sind.
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: etl/load/ensure-outlook-categories
+    props:
+      OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
+      customCategories: ${inputs.customCategories}
+      lang: ${inputs.lang}
+  prepare-outlook-draft-content:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
+    description: |
+      Mappt AI-Antwort auf Entwurf-Inhalt: reply als body, categories-Objekt auf displayNames (name:value),
+      damit sie mit ensure-outlook-categories übereinstimmen (keine ID-Mapping nötig).
+      Akzeptiert Copilot-API-Format (reply, parsedJson) oder direkt (reply, categories).
+    foreach: ${generate-ai-responses[*]}
+    runtime: python3_10
+    code: |
+      def handler(inputs):
+          ai_response = inputs.get("aiResponse") or {}
+          original_message_id = (inputs.get("originalMessageId") or "").strip()
+          conversation_id = (inputs.get("conversationId") or "").strip()
+          body = (ai_response.get("reply") or "").strip()
+          cats_obj = ai_response.get("categories")
+          if cats_obj is None and "parsedJson" in ai_response:
+              pj = ai_response.get("parsedJson") or {}
+              cats_obj = pj.get("categories") if isinstance(pj, dict) else pj
+          categories = []
+          if isinstance(cats_obj, dict):
+              for name, value in cats_obj.items():
+                  if name and value:
+                      categories.append(str(name).strip() + ":" + str(value).strip())
+          return {
+              "body": body,
+              "categories": categories,
+              "originalMessageId": original_message_id,
+              "conversationId": conversation_id,
+          }
+    props:
+      aiResponse: ${each.response.data}
+      originalMessageId: ${extract-conversation-info[each.index].latestInboundMessageId}
+      conversationId: ${target-thread-ids.ids[each.index]}
+
+  create-outlook-reply-draft:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
+    description: |
+      Erstellt den Reply-Entwurf (Graph createReply). createReply nimmt keinen Body;
+      Body/Kategorien werden im nächsten Schritt per PATCH gesetzt.
+    foreach: ${prepare-outlook-draft-content[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.originalMessageId}/createReply
+      headers:
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
+      body: {}
+
+  update-outlook-draft:
+    if:
+      "==":
+        - ${inputs.emailProvider}
+        - "OUTLOOK"
+    description: |
+      Setzt Body und Kategorien auf dem Entwurf.
+    foreach: ${create-outlook-reply-draft[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: PATCH
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.response.data.id}
+      headers:
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
+      body:
+        body:
+          contentType: HTML
+          content: ${prepare-outlook-draft-content[each.index].body}
+
+  apply-outlook-categories-to-inbound-message:
+    if:
+      and:
+        - "==":
+            - ${inputs.emailProvider}
+            - "OUTLOOK"
+        - "!!": ${inputs.customCategories}
+    description: |
+      Wendet die AI-Kategorien auf die verarbeitete Inbound-Outlook-Nachricht an.
+    foreach: ${prepare-outlook-draft-content[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: PATCH
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.originalMessageId}
+      headers:
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
+      body:
+        categories: ${each.categories}
+
+  send-outlook-reply:
+    if:
+      and:
+        - "==":
+            - ${inputs.emailProvider}
+            - "OUTLOOK"
+        - "==":
+            - ${inputs.createDraft}
+            - false
+    description: |
+      Sendet den Outlook-Reply nach dem PATCH des Entwurfs (Body gesetzt), statt nur Entwurf.
+    foreach: ${update-outlook-draft[*]}
+    source:
+      repoUrl: "https://github.com/Edurata/edurata-functions.git"
+      path: general/axios
+    props:
+      method: POST
+      url: https://graph.microsoft.com/v1.0/me/messages/${each.response.data.id}/send
+      headers:
+        Authorization: Bearer ${secrets.copilot-outlook-oauth}
+        Content-Type: application/json
+      body: {}

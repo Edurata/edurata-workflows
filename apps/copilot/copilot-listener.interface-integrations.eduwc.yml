@@ -1,0 +1,129 @@
+interface:
+  inputs:
+    type: object
+    properties:
+      fromDomain:
+        type: string
+        default: mail.kleinanzeigen.de
+        description: Domain to filter emails from (e.g., mail.kleinanzeigen.de will match anything@mail.kleinanzeigen.de)
+      maxResults:
+        type: integer
+        default: 10
+        description: Maximum number of emails to retrieve
+      emailProvider:
+        type: string
+        enum: [OUTLOOK, GMAIL]
+        default: OUTLOOK
+        description: Email provider to use
+      createDraft:
+        type: boolean
+        default: true
+        description: If true, create drafts only. If false, send replies directly.
+      airtable_base_id:
+        type: string
+        description: Airtable base ID to fetch data from
+      airtable_table_id:
+        type: string
+        description: Airtable table ID to fetch data from
+      airtable_filter_field:
+        type: string
+        default: threadId
+        description: Field name in Airtable to filter by (e.g., 'threadId', 'messageId', or 'email')
+      primary_key_regex:
+        type: string
+        description: Regex pattern with a capturing group to extract the primary key from email body (e.g., 'Anzeige-ID:\\s*([A-Z0-9]+)')
+      message_regex:
+        type: array
+        items:
+          type: string
+        description: |
+          List of regex patterns (each with optional capturing group); each is tried in order against the message body and the first match is used to extract message content.
+      customInfo:
+        type: string
+        description: Context/info for the AI reply (passed to generate-response; previously from listener).
+      listenerEmail:
+        type: string
+        description: Optional mailbox address of the listener. Used to identify outgoing messages and as sender for Gmail drafts.
+      lang:
+        type: string
+        default: de
+        description: Language for default category value names when type is DISCRETE_THREE or SENTIMENT and values are empty (e.g. en = high/medium/low, de = hoch/mittel/niedrig)
+      customCategories:
+        type: array
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Category name
+            shortName:
+              type: string
+              description: Short name for the category (e.g. for "seller intent" for "si")
+            description:
+              type: string
+              description: Category description
+            possibleValues:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: Possible value name
+                  color:
+                    type: string
+                    description: Possible value color
+            type:
+              type: string
+              enum: [STRINGS, DISCRETE_THREE, SENTIMENT]
+              description: When possibleValues is empty, used to derive Outlook category value names (e.g. DISCRETE_THREE → high, medium, low; SENTIMENT → positive, neutral, negative)
+        description: Custom categories to add to the draft
+      scheduleAppointments:
+        type: boolean
+        default: false
+        description: |
+          If true (OUTLOOK only), reads your calendar via Microsoft Graph, passes free slots to the AI, and can create an event when the model returns scheduling with an allowed slot.
+      appointmentDurationMinutes:
+        type: integer
+        default: 30
+        description: Length of each proposed free slot in minutes.
+      appointmentHorizonDays:
+        type: integer
+        default: 14
+        description: How many days ahead to scan the calendar for busy times.
+      appointmentTimeZone:
+        type: string
+        default: Europe/Berlin
+        description: IANA timezone for working hours and slot boundaries (Graph Prefer header).
+      appointmentWorkdayStart:
+        type: string
+        default: "09:00"
+        description: Local start of working day (HH:MM).
+      appointmentWorkdayEnd:
+        type: string
+        default: "18:00"
+        description: Local end of working day (HH:MM).
+      appointmentMaxSlots:
+        type: integer
+        default: 24
+        description: Maximum number of free slots to list in AI context.
+  outputs:
+    type: object
+    properties: {}
+integrations:
+  copilot-outlook-oauth:
+    provider: microsoft
+    scopes:
+      - Mail.Read
+      - Mail.Read.Shared
+      - Mail.ReadWrite
+      - Mail.ReadWrite.Shared
+      - Calendars.Read
+      - Calendars.ReadWrite
+  copilot-gmail-oauth:
+    provider: google
+    scopes:
+      - https://www.googleapis.com/auth/gmail.labels
+      - https://www.googleapis.com/auth/gmail.modify
+      - https://www.googleapis.com/auth/gmail.compose
+      - https://www.googleapis.com/auth/gmail.readonly

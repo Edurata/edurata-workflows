@@ -252,7 +252,7 @@ steps:
   generate-ai-responses:
     description: |
       message-reply-generator: Klassifikation needsSchedulingContext, dann ein Single-Shot-Reply (Kategorien + optional scheduling).
-      Nutzt build-calendar-availability-from-outlook.calendarAvailability; Kalender-Blocking in calendar-booking-Partial.
+      Nutzt build-calendar-availability-from-outlook.calendarAvailability; Termin-Block-Schritte im calendar-steps-Partial.
     foreach: ${target-thread-ids.ids}
     source:
       repoUrl: https://github.com/Edurata/edurata-workflows.git

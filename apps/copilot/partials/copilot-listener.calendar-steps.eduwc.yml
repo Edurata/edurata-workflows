@@ -1,6 +1,5 @@
 steps:
-  # --------------------------- CALENDAR: Verfügbarkeit (vor common / generate-ai) ---------------------------
-  # Termin-Block nach LLM: siehe copilot-listener.calendar-booking.eduwc.yml (nach common-steps).
+  # --------------------------- CALENDAR: Verfügbarkeit, LLM-Slot-Extraktion, Outlook-Event ---------------------------
   build-calendar-availability-from-outlook:
     description: |
       Ein Funktionsschritt: lädt Outlook-Belegungen und berechnet direkt freie Slots.
@@ -18,7 +17,7 @@ steps:
       maxSchedulingRecommendations: ${inputs.maxSchedulingRecommendations}
       appointmentWorkdayStart: ${inputs.appointmentWorkdayStart}
       appointmentWorkdayEnd: ${inputs.appointmentWorkdayEnd}
-  # Nach Commons
+
   extract-calendar-block-intent:
     description: |
       Liefert nur bei gültigem Block-Wunsch hasCalendarBlock true und ein block-Payload für Provider-Schritte.

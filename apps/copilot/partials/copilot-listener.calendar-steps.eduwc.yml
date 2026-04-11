@@ -1,0 +1,101 @@
+steps:
+  # --------------------------- CALENDAR: Verfügbarkeit (vor common / generate-ai) ---------------------------
+  # Termin-Block nach LLM: siehe copilot-listener.calendar-booking.eduwc.yml (nach common-steps).
+  build-calendar-availability-from-outlook:
+    description: |
+      Ein Funktionsschritt: lädt Outlook-Belegungen und berechnet direkt freie Slots.
+      Bei Provider != OUTLOOK, scheduleAppointments=false oder Fehlern: calendarAvailability null.
+    source:
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
+      path: apps/copilot/functions/outlook-calendar-free-slots
+    props:
+      emailProvider: ${inputs.emailProvider}
+      scheduleAppointments: ${inputs.scheduleAppointments}
+      outlookToken: ${secrets.copilot-outlook-oauth}
+      appointmentTimeZone: ${inputs.appointmentTimeZone}
+      appointmentHorizonDays: ${inputs.appointmentHorizonDays}
+      appointmentDurationMinutes: ${inputs.appointmentDurationMinutes}
+      maxSchedulingRecommendations: ${inputs.maxSchedulingRecommendations}
+      appointmentWorkdayStart: ${inputs.appointmentWorkdayStart}
+      appointmentWorkdayEnd: ${inputs.appointmentWorkdayEnd}
+  # Nach Commons
+  extract-calendar-block-intent:
+    description: |
+      Liefert nur bei gültigem Block-Wunsch hasCalendarBlock true und ein block-Payload für Provider-Schritte.
+      Implementierung: apps/copilot/functions/calendar-block-from-ai-response.
+    foreach: ${generate-ai-responses[*]}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
+      path: apps/copilot/functions/calendar-block-from-ai-response
+    props:
+      aiResponse: ${each.response.data}
+      calendarAvailability: ${build-calendar-availability-from-outlook.calendarAvailability}
+      appointmentTimeZone: ${inputs.appointmentTimeZone}
+      attendeeEmail: ${extract-conversation-info[each.index].latestInboundFromAddress}
+      attendeeName: ${extract-conversation-info[each.index].latestInboundFromName}
+      eventSubject: "Termin: ${extract-conversation-info[each.index].latestInboundSubject}"
+
+  create-outlook-calendar-block:
+    if:
+      and:
+        - "==":
+            - ${inputs.emailProvider}
+            - "OUTLOOK"
+        - "==":
+            - ${inputs.scheduleAppointments}
+            - true
+    description: |
+      Outlook: Graph POST /me/events nur wenn extract-calendar-block-intent hasCalendarBlock liefert.
+    foreach: ${generate-ai-responses[*]}
+    runtime: python3_10
+    code: |
+      import json
+      import urllib.request
+      import urllib.error
+
+      def handler(inputs):
+          bi = inputs.get("blockIntent") or {}
+          if not bi.get("hasCalendarBlock"):
+              return {"created": False, "reason": "no_block", "skipped": True}
+
+          token = (inputs.get("outlookToken") or "").strip()
+          if not token:
+              return {"created": False, "reason": "no_token", "skipped": True}
+
+          block = bi.get("block") or {}
+          start = block.get("start")
+          end = block.get("end")
+          tz = (block.get("timeZone") or "Europe/Berlin").strip()
+          if not start or not end:
+              return {"created": False, "reason": "no_slot_times", "skipped": True}
+
+          payload = {
+              "subject": block.get("subject") or "Termin",
+              "body": {"contentType": "HTML", "content": block.get("bodyHtml") or "<p>Termin</p>"},
+              "start": {"dateTime": start, "timeZone": tz},
+              "end": {"dateTime": end, "timeZone": tz},
+              "attendees": block.get("attendees") or [],
+              "allowNewTimeProposals": True,
+          }
+          req = urllib.request.Request(
+              "https://graph.microsoft.com/v1.0/me/events",
+              data=json.dumps(payload).encode(),
+              headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  out = json.loads(resp.read().decode())
+              return {"created": True, "eventId": out.get("id"), "webLink": out.get("webLink"), "skipped": False}
+          except urllib.error.HTTPError as e:
+              detail = e.read().decode() if e.fp else str(e)
+              return {
+                  "created": False,
+                  "reason": "graph_error",
+                  "status": getattr(e, "code", None),
+                  "detail": detail[:2000],
+                  "skipped": False,
+              }
+    props:
+      outlookToken: ${secrets.copilot-outlook-oauth}
+      blockIntent: ${extract-calendar-block-intent[each.index]}

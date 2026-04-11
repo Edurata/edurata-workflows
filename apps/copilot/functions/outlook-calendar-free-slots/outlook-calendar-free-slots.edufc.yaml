@@ -1,0 +1,36 @@
+apiRevision: edurata.io/function/v1
+name: outlook-calendar-free-slots
+title: Outlook calendar free slots
+description: |
+  Reads Microsoft Graph calendarView for the configured horizon, derives busy intervals, then returns calendarAvailability (free slots).
+  Returns calendarAvailability null when emailProvider is not OUTLOOK, scheduleAppointments is false, or token is missing.
+runtime: python3_10
+interface:
+  inputs:
+    type: object
+    properties:
+      emailProvider:
+        type: string
+      scheduleAppointments:
+        type: boolean
+      outlookToken:
+        type: string
+      appointmentTimeZone:
+        type: string
+      appointmentHorizonDays:
+        type: integer
+      appointmentDurationMinutes:
+        type: integer
+      maxSchedulingRecommendations:
+        type: integer
+      appointmentWorkdayStart:
+        type: string
+      appointmentWorkdayEnd:
+        type: string
+  outputs:
+    type: object
+    properties:
+      calendarAvailability:
+        type: object
+      calendarError:
+        type: string

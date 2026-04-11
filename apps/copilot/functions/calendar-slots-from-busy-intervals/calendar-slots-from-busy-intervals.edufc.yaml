@@ -1,0 +1,37 @@
+apiRevision: edurata.io/function/v1
+name: calendar-slots-from-busy-intervals
+title: Calendar slots from busy intervals
+description: |
+  Builds calendarAvailability (free slots) from provider-agnostic busy intervals and workday settings.
+runtime: python3_10
+interface:
+  inputs:
+    type: object
+    properties:
+      calendarFetchOutcome:
+        type: string
+      calendarError:
+        type: string
+      busyIntervals:
+        type: array
+        items:
+          type: object
+      appointmentTimeZone:
+        type: string
+      appointmentHorizonDays:
+        type: integer
+      appointmentDurationMinutes:
+        type: integer
+      maxSchedulingRecommendations:
+        type: integer
+      appointmentWorkdayStart:
+        type: string
+      appointmentWorkdayEnd:
+        type: string
+  outputs:
+    type: object
+    properties:
+      calendarAvailability:
+        type: object
+      calendarError:
+        type: string

@@ -58,10 +58,27 @@ steps:
     foreach: ${generate-ai-responses[*]}
     runtime: python3_10
     code: |
+      import json
+
+      def _reply_text(ai_response):
+          pj = ai_response.get("parsedJson") if isinstance(ai_response.get("parsedJson"), dict) else {}
+          if isinstance(pj, dict) and pj.get("reply") is not None:
+              return str(pj.get("reply") or "").strip()
+          raw = (ai_response.get("reply") or "").strip()
+          if not raw:
+              return ""
+          try:
+              o = json.loads(raw)
+              if isinstance(o, dict) and o.get("reply") is not None:
+                  return str(o.get("reply") or "").strip()
+          except Exception:
+              pass
+          return raw
+
       def handler(inputs):
           ai_response = inputs.get("aiResponse") or {}
           thread_id = (inputs.get("threadId") or "").strip()
-          body = (ai_response.get("reply") or "").strip()
+          body = _reply_text(ai_response)
           cats_obj = ai_response.get("categories")
           if cats_obj is None and "parsedJson" in ai_response:
               pj = ai_response.get("parsedJson") or {}

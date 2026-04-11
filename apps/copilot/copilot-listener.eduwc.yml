@@ -7,4 +7,6 @@ includes:
   - ./partials/copilot-listener.interface-integrations.eduwc.yml
   - ./partials/copilot-listener.outlook-steps.eduwc.yml
   - ./partials/copilot-listener.gmail-steps.eduwc.yml
+  - ./partials/copilot-listener.calendar-steps.eduwc.yml
   - ./partials/copilot-listener.common-steps.eduwc.yml
+  - ./partials/copilot-listener.calendar-booking.eduwc.yml

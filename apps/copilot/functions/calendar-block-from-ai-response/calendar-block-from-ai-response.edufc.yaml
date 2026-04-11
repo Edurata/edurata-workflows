@@ -1,0 +1,29 @@
+apiRevision: edurata.io/function/v1
+name: calendar-block-from-ai-response
+title: Calendar block from AI response
+description: |
+  When the model selects a slot that exists in calendarAvailability.slots, returns hasCalendarBlock and a block payload for creating a calendar event.
+runtime: python3_10
+interface:
+  inputs:
+    type: object
+    properties:
+      aiResponse:
+        type: object
+      calendarAvailability:
+        type: object
+      appointmentTimeZone:
+        type: string
+      attendeeEmail:
+        type: string
+      attendeeName:
+        type: string
+      eventSubject:
+        type: string
+  outputs:
+    type: object
+    properties:
+      hasCalendarBlock:
+        type: boolean
+      block:
+        type: object

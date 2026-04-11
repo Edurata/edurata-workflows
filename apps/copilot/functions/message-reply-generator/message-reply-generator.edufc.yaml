@@ -1,0 +1,51 @@
+# Edurata function: LLM HTTP traffic + prompt construction for message replies (per thread).
+apiRevision: edurata.io/function/v1
+name: message-reply-generator
+title: Message Reply Generator (classify + generate)
+description: |
+  Internal HTTP (same route as workflow inline steps used before):
+  1) POST {apiUrl}/copilot/generate-response — classify needsSchedulingContext (parseResponseToJson).
+  2) Build systemMessage + userMessage (categories, optional free-slot list, single-shot JSON rules).
+  3) POST {apiUrl}/copilot/generate-response — final reply (parseResponseToJson).
+
+  Output shape matches prior generate-ai-responses step: { response: { data: { reply, parsedJson, ... } } }.
+runtime: python3_10
+interface:
+  inputs:
+    type: object
+    properties:
+      apiUrl:
+        type: string
+        description: Base API URL (e.g. meta.apiUrl), no trailing slash required.
+      executionToken:
+        type: string
+        description: Bearer token for private API (meta.executionToken).
+      combinedText:
+        type: string
+        description: Labeled conversation text for this thread.
+      customInfo:
+        type: string
+        description: Extra context for the model.
+      customCategories:
+        type: any
+        description: Listener category definitions (array/object).
+      primaryKey:
+        type: string
+      airtableData:
+        type: any
+      scheduleAppointments:
+        type: boolean
+      calendarAvailability:
+        type: any
+        description: calendarAvailability from outlook-calendar-free-slots (or null).
+    required:
+      - apiUrl
+      - executionToken
+  outputs:
+    type: object
+    properties:
+      response:
+        type: object
+        description: Wrapper with data shaped like general/axios response.data for drafts/calendar extract.
+    required:
+      - response

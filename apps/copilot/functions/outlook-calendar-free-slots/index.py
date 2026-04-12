@@ -5,6 +5,7 @@ Skips when provider is not OUTLOOK, scheduling is off, or token is missing.
 from __future__ import annotations
 
 import json
+import logging
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, time
@@ -12,6 +13,8 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from slot_math import build_calendar_availability_from_busy_intervals
+
+logger = logging.getLogger(__name__)
 
 
 def _localize_graph_dt(
@@ -38,10 +41,16 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     inputs = inputs or {}
     provider = (inputs.get("emailProvider") or "").strip().upper()
     if provider != "OUTLOOK" or not inputs.get("scheduleAppointments"):
+        logger.info(
+            "outlook-calendar-free-slots: skip provider=%s scheduleAppointments=%s",
+            provider or "(empty)",
+            bool(inputs.get("scheduleAppointments")),
+        )
         return {"calendarAvailability": None}
 
     token = (inputs.get("outlookToken") or "").strip()
     if not token:
+        logger.warning("outlook-calendar-free-slots: missing outlookToken")
         return {"calendarAvailability": None, "calendarError": "missing_token"}
 
     tz_name = (inputs.get("appointmentTimeZone") or "Europe/Berlin").strip()
@@ -60,6 +69,17 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     end_utc = datetime.combine(end_day, time(23, 59, 59), tzinfo=tz).astimezone(ZoneInfo("UTC"))
     start_utc_s = start_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
     end_utc_s = end_utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    logger.info(
+        "outlook-calendar-free-slots: graph range start=%s end=%s tz=%s horizon_days=%d workday=%s-%s duration_min=%s",
+        start_utc_s,
+        end_utc_s,
+        tz_name,
+        horizon,
+        inputs.get("appointmentWorkdayStart"),
+        inputs.get("appointmentWorkdayEnd"),
+        inputs.get("appointmentDurationMinutes"),
+    )
 
     events: List[Dict[str, Any]] = []
     url = "https://graph.microsoft.com/v1.0/me/calendarView?" + urllib.parse.urlencode(
@@ -83,8 +103,20 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 data = json.loads(resp.read().decode())
         except Exception as e:
+            logger.exception(
+                "outlook-calendar-free-slots: Graph request failed page=%d error=%s",
+                len(events),
+                str(e)[:500],
+            )
             return {"calendarAvailability": None, "calendarError": str(e)[:500]}
-        events.extend(data.get("value") or [])
+        batch = data.get("value") or []
+        events.extend(batch)
+        logger.info(
+            "outlook-calendar-free-slots: graph page events=%d total_so_far=%d has_next=%s",
+            len(batch),
+            len(events),
+            bool(data.get("@odata.nextLink")),
+        )
         url = data.get("@odata.nextLink")
 
     busy_intervals: List[Dict[str, str]] = []
@@ -104,10 +136,24 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
 
-    return build_calendar_availability_from_busy_intervals(
+    logger.info(
+        "outlook-calendar-free-slots: busy_intervals=%d from_events=%d",
+        len(busy_intervals),
+        len(events),
+    )
+
+    out = build_calendar_availability_from_busy_intervals(
         {
             **inputs,
             "calendarFetchOutcome": "ok",
             "busyIntervals": busy_intervals,
         }
     )
+    cal = out.get("calendarAvailability")
+    slot_n = len((cal or {}).get("slots") or []) if isinstance(cal, dict) else 0
+    logger.info(
+        "outlook-calendar-free-slots: done free_slots=%s calendarError=%s",
+        slot_n,
+        out.get("calendarError"),
+    )
+    return out

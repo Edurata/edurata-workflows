@@ -5,9 +5,12 @@ Prompt construction and both API calls live here; see message-reply-generator.ed
 from __future__ import annotations
 
 import json
+import logging
 import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 CLASSIFY_SYSTEM = (
     "Du klassifizierst E-Mail-Konversationen. Entscheide, ob es um Termine, Uhrzeiten, Treffen, Besichtigungen, "
@@ -54,7 +57,16 @@ def _post_generate_response(
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            body = resp.read().decode("utf-8")
+            parsed = json.loads(body)
+            logger.info(
+                "message-reply-generator: POST %s ok status=%s top_keys=%s body_len=%d",
+                url,
+                getattr(resp, "status", "?"),
+                list(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__,
+                len(body),
+            )
+            return parsed
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace") if e.fp else str(e)
         raise RuntimeError(
@@ -246,6 +258,21 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     token = (inputs.get("executionToken") or "").strip()
     combined = (inputs.get("combinedText") or "").strip()
 
+    cal = inputs.get("calendarAvailability")
+    slot_preview = 0
+    if isinstance(cal, dict):
+        slot_preview = len(cal.get("slots") or [])
+
+    logger.info(
+        "message-reply-generator: start combined_len=%d api_set=%s token_set=%s "
+        "scheduleAppointments=%s calendar_slots=%d",
+        len(combined),
+        bool(api),
+        bool(token),
+        _as_bool(inputs.get("scheduleAppointments")),
+        slot_preview,
+    )
+
     empty_out: Dict[str, Any] = {
         "response": {
             "data": {
@@ -256,14 +283,36 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     if not combined:
+        logger.info("message-reply-generator: empty combinedText -> empty response")
         return empty_out
     if not api or not token:
         raise ValueError("apiUrl and executionToken are required")
 
     classify = _post_generate_response(api, token, CLASSIFY_SYSTEM, combined, timeout=90)
+    dpj = classify.get("parsedJson") if isinstance(classify.get("parsedJson"), dict) else {}
+    needs_sched = dpj.get("needsSchedulingContext") is True
+    cal2 = inputs.get("calendarAvailability")
+    has_slots = isinstance(cal2, dict) and bool(cal2.get("slots") or [])
+    include_sched = needs_sched and _as_bool(inputs.get("scheduleAppointments")) and has_slots
+    logger.info(
+        "message-reply-generator: after classify needsSchedulingContext=%s has_slots=%s "
+        "include_scheduling_in_prompt=%s classify_keys=%s",
+        needs_sched,
+        has_slots,
+        include_sched,
+        list(classify.keys()) if isinstance(classify, dict) else type(classify).__name__,
+    )
+
     msgs = _build_single_shot_messages(inputs, classify)
     if not (msgs.get("systemMessage") or "").strip():
+        logger.info("message-reply-generator: empty systemMessage after build -> empty response")
         return empty_out
+
+    logger.info(
+        "message-reply-generator: second call system_len=%d user_len=%d",
+        len(msgs.get("systemMessage") or ""),
+        len(msgs.get("userMessage") or ""),
+    )
 
     generated = _post_generate_response(
         api,
@@ -271,5 +320,14 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
         msgs["systemMessage"],
         msgs["userMessage"],
         timeout=120,
+    )
+    g_pj = generated.get("parsedJson") if isinstance(generated.get("parsedJson"), dict) else {}
+    sched = g_pj.get("scheduling") if isinstance(g_pj, dict) else None
+    reply_len = len(str((g_pj or {}).get("reply") or generated.get("reply") or ""))
+    logger.info(
+        "message-reply-generator: done reply_len=%s scheduling_type=%s wantsScheduling=%s",
+        reply_len,
+        type(sched).__name__,
+        (sched or {}).get("wantsScheduling") if isinstance(sched, dict) else None,
     )
     return {"response": {"data": generated}}

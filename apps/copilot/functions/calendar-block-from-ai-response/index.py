@@ -4,7 +4,10 @@ Validate LLM scheduling intent against allowed slots and build an Outlook-style 
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 
 def _reply_from_api(data: Any) -> str:
@@ -62,20 +65,36 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(cal, dict):
         allowed = cal.get("slots") or []
 
+    logger.info(
+        "calendar-block-from-ai-response: start allowed_slots=%d ai_keys=%s",
+        len(allowed),
+        list(ai.keys()) if isinstance(ai, dict) else type(ai).__name__,
+    )
+
     scheduling = ai.get("scheduling")
     if not isinstance(scheduling, dict):
         pj = ai.get("parsedJson") if isinstance(ai.get("parsedJson"), dict) else {}
         if isinstance(pj, dict) and isinstance(pj.get("scheduling"), dict):
             scheduling = pj.get("scheduling")
     if not isinstance(scheduling, dict):
+        logger.info("calendar-block-from-ai-response: no scheduling object -> hasCalendarBlock=false")
         return {"hasCalendarBlock": False}
 
     if not scheduling.get("wantsScheduling"):
+        logger.info(
+            "calendar-block-from-ai-response: wantsScheduling=false -> hasCalendarBlock=false data=%s",
+            {k: scheduling.get(k) for k in ("wantsScheduling", "requestedDayOrPreference") if k in scheduling},
+        )
         return {"hasCalendarBlock": False}
 
     start = (scheduling.get("selectedSlotStart") or "").strip()
     end = (scheduling.get("selectedSlotEnd") or "").strip()
     if not start or not end:
+        logger.info(
+            "calendar-block-from-ai-response: missing slot start/end -> hasCalendarBlock=false start_len=%d end_len=%d",
+            len(start),
+            len(end),
+        )
         return {"hasCalendarBlock": False}
 
     ns, ne = _norm_iso(start), _norm_iso(end)
@@ -87,6 +106,12 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
             ok = True
             break
     if not ok:
+        logger.info(
+            "calendar-block-from-ai-response: slot not in allowed list -> hasCalendarBlock=false "
+            "normalized_start=%s normalized_end=%s",
+            ns,
+            ne,
+        )
         return {"hasCalendarBlock": False}
 
     tz = (inputs.get("appointmentTimeZone") or "Europe/Berlin").strip()
@@ -112,6 +137,14 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
 
+    logger.info(
+        "calendar-block-from-ai-response: ok hasCalendarBlock=true tz=%s subject_len=%d "
+        "attendee_set=%d reply_excerpt_len=%d",
+        tz,
+        len(subj),
+        1 if attendee_email else 0,
+        len(reply_txt),
+    )
     return {
         "hasCalendarBlock": True,
         "block": {

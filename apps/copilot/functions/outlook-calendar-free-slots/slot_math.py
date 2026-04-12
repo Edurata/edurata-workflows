@@ -1,9 +1,12 @@
 """Free-slot computation from busy intervals (timezone + workday window)."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, time
 from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_hhmm(s: Any) -> Tuple[int, int]:
@@ -36,6 +39,11 @@ def build_calendar_availability_from_busy_intervals(inputs: Dict[str, Any]) -> D
         out: Dict[str, Any] = {"calendarAvailability": None}
         if inputs.get("calendarError"):
             out["calendarError"] = inputs["calendarError"]
+        logger.info(
+            "slot_math: skip (outcome!=ok) outcome=%s calendarError=%s",
+            outcome,
+            inputs.get("calendarError"),
+        )
         return out
 
     tz_name = (inputs.get("appointmentTimeZone") or "Europe/Berlin").strip()
@@ -76,6 +84,15 @@ def build_calendar_availability_from_busy_intervals(inputs: Dict[str, Any]) -> D
             merged.append([s, e])
         else:
             merged[-1][1] = max(merged[-1][1], e)
+
+    logger.info(
+        "slot_math: busy_raw=%d merged_intervals=%d dur_min=%d max_recs=%d horizon_days=%d",
+        len(busy_pairs),
+        len(merged),
+        dur_min,
+        max_recs,
+        horizon,
+    )
 
     slots: List[Dict[str, str]] = []
     delta = timedelta(minutes=dur_min)

@@ -1,3 +1,4 @@
+billedIds: ${target-conversations.messages[*].id}
 interface:
   inputs:
     type: object

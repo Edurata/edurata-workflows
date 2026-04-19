@@ -6,6 +6,13 @@ interface:
         type: string
         default: mail.kleinanzeigen.de
         description: Domain to filter emails from (e.g., mail.kleinanzeigen.de will match anything@mail.kleinanzeigen.de)
+      inboundMailFolderName:
+        type: string
+        default: ""
+        description: >
+          OUTLOOK only. Folder scanned for inbound mail (list-outlook-unanswered): Graph folder GUID,
+          well-known shortcut (inbox, junkemail, …), or exact Outlook displayName (resolved under mailbox root
+          or direct child of Inbox). Leave empty for default top-level Inbox.
       maxResults:
         type: integer
         default: 10

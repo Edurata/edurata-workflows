@@ -14,6 +14,7 @@ steps:
     props:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
       senderDomain: ${inputs.fromDomain}
+      inboundMailFolderId: ${inputs.inboundMailFolderName}
       maxUnanswered: ${inputs.maxResults}
       # Override
       windowHours: 1000000

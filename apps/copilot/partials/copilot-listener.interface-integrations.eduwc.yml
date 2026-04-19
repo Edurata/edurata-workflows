@@ -6,7 +6,7 @@ interface:
         type: string
         default: mail.kleinanzeigen.de
         description: Domain to filter emails from (e.g., mail.kleinanzeigen.de will match anything@mail.kleinanzeigen.de)
-      inboundMailFolderName:
+      fromMailFolderName:
         type: string
         default: ""
         description: >

@@ -38,6 +38,7 @@ steps:
     runtime: python3_10
     code: |
       import re
+      from email.utils import getaddresses
       def handler(inputs):
           provider = (inputs.get("emailProvider") or "").strip().upper()
           conversation_messages = inputs.get("conversationMessages") or []
@@ -85,14 +86,42 @@ steps:
                   from_name = (email_address_obj.get("name") or from_obj.get("name") or "").strip()
                   received_dt = str(msg.get("receivedDateTime") or "").strip()
                   sent_dt = str(msg.get("sentDateTime") or "").strip()
-                  is_outgoing = bool(received_dt and sent_dt and received_dt == sent_dt)
-                  if not (received_dt and sent_dt):
-                      is_outgoing = bool(listener_email and email_addr.lower() == listener_email)
+                  from_addr_lc = email_addr.lower()
+                  recipient_addrs = []
+                  for r in (msg.get("toRecipients") or []):
+                      ea = ((r or {}).get("emailAddress") or {})
+                      a = (ea.get("address") or "").strip().lower()
+                      if a:
+                          recipient_addrs.append(a)
+                  # Outlook message timestamps are not reliable for direction classification.
+                  # Prefer explicit mailbox-address checks first.
+                  if listener_email and from_addr_lc == listener_email:
+                      is_outgoing = True
+                  elif listener_email and listener_email in recipient_addrs:
+                      is_outgoing = False
+                  else:
+                      is_outgoing = bool(received_dt and sent_dt and received_dt == sent_dt)
               else:
-                  email_addr = ((from_obj.get("address") or "") if isinstance(from_obj, dict) else "").strip()
+                  raw_from = ((from_obj.get("address") or "") if isinstance(from_obj, dict) else "").strip()
+                  parsed_addresses = []
+                  for _, addr in getaddresses([raw_from]):
+                      a = (addr or "").strip().lower()
+                      if a:
+                          parsed_addresses.append(a)
+                  # Prefer the first parsed sender that is not the listener mailbox.
+                  # This avoids replying to the owner/listener address when headers contain multiple addresses.
+                  email_addr = ""
+                  for addr in parsed_addresses:
+                      if not listener_email or addr != listener_email:
+                          email_addr = addr
+                          break
+                  if not email_addr and parsed_addresses:
+                      email_addr = parsed_addresses[0]
+                  if not email_addr:
+                      email_addr = raw_from
                   from_name = ((from_obj.get("name") or "") if isinstance(from_obj, dict) else "").strip()
                   received_dt = str(msg.get("receivedDateTime") or "").strip()
-                  is_outgoing = bool(listener_email and listener_email in email_addr.lower())
+                  is_outgoing = bool(listener_email and listener_email in parsed_addresses)
 
               role = "assistant" if is_outgoing else "user"
               direction = "outgoing" if is_outgoing else "incoming"

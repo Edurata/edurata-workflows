@@ -34,6 +34,7 @@ steps:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
       conversationId: ${each}
       top: 100
+      excludeDeleted: true
   ensure-outlook-categories:
     if:
       and:

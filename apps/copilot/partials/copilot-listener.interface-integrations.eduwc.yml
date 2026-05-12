@@ -1,4 +1,4 @@
-billingIds: ${target-conversations.messages[*].id}
+billingIds: ${generate-ai-responses[*].response.data.reply}
 interface:
   inputs:
     type: object

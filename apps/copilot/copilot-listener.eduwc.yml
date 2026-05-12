@@ -1,5 +1,5 @@
 name: copilot-listener
-apiRevision: edurata.io/v1
+apiRevision: edurata.io/workflow/v1
 description: |
   Listens to the mail inbox for new messages and responds to them with a generated response.
 # Composed from partials (merged in order; later files override on key conflicts).

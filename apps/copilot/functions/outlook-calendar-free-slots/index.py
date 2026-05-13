@@ -40,17 +40,32 @@ def _localize_graph_dt(
 def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     inputs = inputs or {}
     provider = (inputs.get("emailProvider") or "").strip().upper()
-    if provider != "OUTLOOK" or not inputs.get("scheduleAppointments"):
+    sched_raw = inputs.get("scheduleAppointments")
+
+    if provider != "OUTLOOK":
         logger.info(
-            "outlook-calendar-free-slots: skip provider=%s scheduleAppointments=%s",
+            "outlook-calendar-free-slots: skip reason=provider_not_outlook provider=%r "
+            "scheduleAppointments=%r — no Microsoft Graph call, calendarAvailability=null",
             provider or "(empty)",
-            bool(inputs.get("scheduleAppointments")),
+            sched_raw,
+        )
+        return {"calendarAvailability": None}
+
+    if not sched_raw:
+        logger.warning(
+            "outlook-calendar-free-slots: skip reason=scheduleAppointments_off "
+            "scheduleAppointments=%r — set scheduleAppointments=true to load calendarView "
+            "and compute free slots; no Graph call",
+            sched_raw,
         )
         return {"calendarAvailability": None}
 
     token = (inputs.get("outlookToken") or "").strip()
     if not token:
-        logger.warning("outlook-calendar-free-slots: missing outlookToken")
+        logger.warning(
+            "outlook-calendar-free-slots: skip reason=missing_token — "
+            "calendarAvailability=null calendarError=missing_token"
+        )
         return {"calendarAvailability": None, "calendarError": "missing_token"}
 
     tz_name = (inputs.get("appointmentTimeZone") or "Europe/Berlin").strip()
@@ -104,7 +119,8 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
                 data = json.loads(resp.read().decode())
         except Exception as e:
             logger.exception(
-                "outlook-calendar-free-slots: Graph request failed page=%d error=%s",
+                "outlook-calendar-free-slots: Graph request failed reason=graph_http_error "
+                "page=%d error=%s",
                 len(events),
                 str(e)[:500],
             )
@@ -151,9 +167,20 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     )
     cal = out.get("calendarAvailability")
     slot_n = len((cal or {}).get("slots") or []) if isinstance(cal, dict) else 0
-    logger.info(
-        "outlook-calendar-free-slots: done free_slots=%s calendarError=%s",
-        slot_n,
-        out.get("calendarError"),
-    )
+    if slot_n == 0:
+        logger.warning(
+            "outlook-calendar-free-slots: done reason=no_free_slots_in_window "
+            "free_slots=0 graph_events=%d busy_intervals=%d — check workday %s-%s, "
+            "duration_min, horizon_days, or calendar density",
+            len(events),
+            len(busy_intervals),
+            inputs.get("appointmentWorkdayStart"),
+            inputs.get("appointmentWorkdayEnd"),
+        )
+    else:
+        logger.info(
+            "outlook-calendar-free-slots: done free_slots=%d calendarError=%s",
+            slot_n,
+            out.get("calendarError"),
+        )
     return out

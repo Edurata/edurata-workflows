@@ -141,6 +141,20 @@ def build_calendar_availability_from_busy_intervals(inputs: Dict[str, Any]) -> D
 
         d += timedelta(days=1)
 
+    if not slots:
+        logger.warning(
+            "slot_math: zero free slots in horizon workday=%02d:%02d-%02d:%02d "
+            "dur_min=%d horizon_days=%d merged_busy=%d (calendar full in window or "
+            "no gap >= duration)",
+            wh_start_h,
+            wh_start_m,
+            wh_end_h,
+            wh_end_m,
+            dur_min,
+            horizon,
+            len(merged),
+        )
+
     summary = (
         "%d freie Zeitoption(en) à %d Min (max. %d Optionen), nächste %d Tage, Zeitzone %s."
         % (len(slots), dur_min, max_recs, horizon, tz_name)

@@ -88,7 +88,7 @@ interface:
         description: Custom categories to add to the draft
       scheduleAppointments:
         type: boolean
-        default: false
+        default: true
         description: |
           If true (OUTLOOK only), reads your calendar via Microsoft Graph, passes free slots to the AI, and can create an event when the model returns scheduling with an allowed slot.
       appointmentDurationMinutes:

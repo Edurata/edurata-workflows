@@ -282,6 +282,12 @@ steps:
     description: |
       message-reply-generator: Klassifikation needsSchedulingContext, dann ein Single-Shot-Reply (Kategorien + optional scheduling).
       Nutzt build-calendar-availability-from-outlook.calendarAvailability; Termin-Block-Schritte im calendar-steps-Partial.
+      Die langen Instruktions-Prompts (classifySystem, replyBase, schedulingInstructions) werden hier
+      inline gepflegt, damit ein Prompt-Tweak nur einen Workflow-Re-Deploy braucht und keinen
+      Funktions-Rebuild. Strukturelle Kurzregeln (Kategorie-Präfix, JSON-Shape-Regeln, Trailer)
+      bleiben fest im Funktionscode, weil sie an den JSON-Parser gekoppelt sind.
+      Wichtig: keine `${...}`-Platzhalter im Prompt-Text — die Workflow-Engine würde sie als
+      Dependency-Referenzen interpretieren; nutze `{user.email}` o. ä.
     foreach: ${target-thread-ids.ids}
     source:
       repoUrl: https://github.com/Edurata/edurata-workflows.git
@@ -296,3 +302,20 @@ steps:
       airtableData: ${fetch-airtable-data[each.index].response.data}
       scheduleAppointments: ${inputs.scheduleAppointments}
       calendarAvailability: ${build-calendar-availability-from-outlook.calendarAvailability}
+      classifySystem: |-
+        Du klassifizierst E-Mail-Konversationen. Entscheide, ob es um Termine, Uhrzeiten, Treffen, Besichtigungen, Rückrufzeiten, Verfügbarkeit oder Kalender geht (auch indirekt, z. B. „nächste Woche“, „wann passt es“).
+        Antworte ausschließlich mit einem JSON-Objekt mit genau einem booleschen Schlüssel: "needsSchedulingContext" (true oder false).
+        Kein Markdown, keine Code-Blöcke, kein weiterer Text.
+      replyBase: |-
+        Dir wird ein Email verlauf als Kontext von dir mit einer anderen Person gegeben. Du agierst im Namen eines Unternehmens und antwortest auf die letzte(n) unbeantwortete(n) Nachricht(en) der anderen Person.
+        Die andere Person ist ein Kundin/Kunde oder Interessent des Unternehmens.
+        1. Formuliere eine passende, freundliche Chat-Antwort (reply). Nutze dazu die dir gegebenen Informationen zur Beantwortung.
+        1.1. Fasse dich so kurz wie möglich und ähnlich in der Länge wie die letzte Nachricht der anderen Person.
+        1.2. Passe deinen Schreibstil an den der anderen Person an aber bleibe stehts professionell und freundlich.
+        1.3. Antworte nur auf Produkt und Serviceangelegenheiten des Unternehmens, nicht auf allgemeine Themen.
+        1.4. Sprich die andere Person nicht mit dem Nutzernamen an, sondern nur am Anfang mit seinem Namen und dann mit der Bezeichnung 'Sie'.
+      schedulingInstructions: |-
+        3. Terminfindung (nur wenn im User-Message-Block freie Slots aufgeführt sind): Du kennst kein konkretes Kalenderprodukt (weder Outlook noch Google). Nutze ausschließlich die angegebenen freien Zeitfenster für konkrete Uhrzeiten.
+        - Formuliere im Feld "reply" **eine** zusammenhängende Nachricht: zuerst die inhaltliche Antwort auf die Konversation, dann ggf. einen kurzen Abschnitt zur Terminvereinbarung (1–3 Optionen aus der Liste oder Bestätigung/Alternativen).
+        - Wenn du konkrete Slots aus der Liste vorschlägst oder einen Slot bestätigen willst, setze zusätzlich "scheduling" als Objekt mit wantsScheduling, requestedDayOrPreference, selectedSlotStart, selectedSlotEnd (Start/End exakt wie in der Slot-Liste, damit das System den Slot blockieren kann). Sonst "scheduling": null.
+        - Wenn die andere Person einen Wunschtermin nennt: vergleiche mit der Liste; im reply kurz Feedback, scheduling nur bei Bestätigung eines Listen-Slots.

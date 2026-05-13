@@ -38,6 +38,24 @@ interface:
       calendarAvailability:
         type: any
         description: calendarAvailability from outlook-calendar-free-slots (or null).
+      classifySystem:
+        type: string
+        description: |
+          Optional override for the system message used by the needsSchedulingContext classifier
+          (first LLM call). Falls back to the in-code default when omitted/empty.
+          Avoid `${...}` patterns — the workflow engine treats them as dependency references.
+      replyBase:
+        type: string
+        description: |
+          Optional override for the base reply guidelines block prepended to the reply system
+          message (second LLM call). Multi-line YAML scalar. Falls back to the in-code default.
+          Avoid `${...}` patterns — use `{user.email}` style placeholders if needed.
+      schedulingInstructions:
+        type: string
+        description: |
+          Optional override for the section 3 scheduling instructions, only included when free
+          slots are present. Falls back to the in-code default when omitted/empty.
+          Avoid `${...}` patterns.
     required:
       - apiUrl
       - executionToken

@@ -1,6 +1,18 @@
 """
 Message reply: scheduling classification + single-shot reply via POST {apiUrl}/copilot/generate-response.
-Prompt construction and both API calls live here; see message-reply-generator.edufc.yaml.
+
+Long-form prompts are accepted via inputs so they can be tweaked from the workflow YAML
+without rebuilding this function:
+  - classifySystem
+  - replyBase
+  - schedulingInstructions
+
+Short structural strings (category prefix, JSON shape rules, trailer rules) are kept as
+constants below because they are coupled to the JSON parsing contract — adapting them
+freely would risk breaking `parseResponseToJson` downstream.
+
+Avoid `${...}` patterns inside prompt strings that live in YAML — the workflow engine
+treats them as dependency references. Use `{user.email}` style placeholders in examples.
 """
 from __future__ import annotations
 
@@ -12,22 +24,73 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-CLASSIFY_SYSTEM = (
+# Defaults for the overridable long-form prompts.
+DEFAULT_CLASSIFY_SYSTEM = (
     "Du klassifizierst E-Mail-Konversationen. Entscheide, ob es um Termine, Uhrzeiten, Treffen, Besichtigungen, "
     "Rückrufzeiten, Verfügbarkeit oder Kalender geht (auch indirekt, z. B. „nächste Woche“, „wann passt es“).\n"
     'Antworte ausschließlich mit einem JSON-Objekt mit genau einem booleschen Schlüssel: "needsSchedulingContext" (true oder false).\n'
     "Kein Markdown, keine Code-Blöcke, kein weiterer Text."
 )
 
-DEFAULT_REPLY_BASE = [
-    "Dir wird ein Email verlauf als Kontext von dir mit einer anderen Person gegeben. Du agierst im Namen eines Unternehmens und antwortest auf die letzte(n) unbeantwortete(n) Nachricht(en) der anderen Person.",
-    "Die andere Person ist ein Kundin/Kunde oder Interessent des Unternehmens.",
-    "1. Formuliere eine passende, freundliche Chat-Antwort (reply). Nutze dazu die dir gegebenen Informationen zur Beantwortung.",
-    "1.1. Fasse dich so kurz wie möglich und ähnlich in der Länge wie die letzte Nachricht der anderen Person.",
-    "1.2. Passe deinen Schreibstil an den der anderen Person an aber bleibe stehts professionell und freundlich.",
-    "1.3. Antworte nur auf Produkt und Serviceangelegenheiten des Unternehmens, nicht auf allgemeine Themen.",
-    "1.4. Sprich die andere Person nicht mit dem Nutzernamen an, sondern nur am Anfang mit seinem Namen und dann mit der Bezeichnung 'Sie'.",
-]
+DEFAULT_REPLY_BASE = "\n".join(
+    [
+        "Dir wird ein Email verlauf als Kontext von dir mit einer anderen Person gegeben. Du agierst im Namen eines Unternehmens und antwortest auf die letzte(n) unbeantwortete(n) Nachricht(en) der anderen Person.",
+        "Die andere Person ist ein Kundin/Kunde oder Interessent des Unternehmens.",
+        "1. Formuliere eine passende, freundliche Chat-Antwort (reply). Nutze dazu die dir gegebenen Informationen zur Beantwortung.",
+        "1.1. Fasse dich so kurz wie möglich und ähnlich in der Länge wie die letzte Nachricht der anderen Person.",
+        "1.2. Passe deinen Schreibstil an den der anderen Person an aber bleibe stehts professionell und freundlich.",
+        "1.3. Antworte nur auf Produkt und Serviceangelegenheiten des Unternehmens, nicht auf allgemeine Themen.",
+        "1.4. Sprich die andere Person nicht mit dem Nutzernamen an, sondern nur am Anfang mit seinem Namen und dann mit der Bezeichnung 'Sie'.",
+    ]
+)
+
+DEFAULT_SCHEDULING_INSTRUCTIONS = (
+    "3. Terminfindung (nur wenn im User-Message-Block freie Slots aufgeführt sind): "
+    "Du kennst kein konkretes Kalenderprodukt (weder Outlook noch Google). "
+    "Nutze ausschließlich die angegebenen freien Zeitfenster für konkrete Uhrzeiten.\n"
+    "- Formuliere im Feld \"reply\" **eine** zusammenhängende Nachricht: zuerst die inhaltliche Antwort auf die Konversation, "
+    "dann ggf. einen kurzen Abschnitt zur Terminvereinbarung (1–3 Optionen aus der Liste oder Bestätigung/Alternativen).\n"
+    "- Wenn du konkrete Slots aus der Liste vorschlägst oder einen Slot bestätigen willst, setze zusätzlich \"scheduling\" als Objekt mit "
+    "wantsScheduling, requestedDayOrPreference, selectedSlotStart, selectedSlotEnd (Start/End exakt wie in der Slot-Liste, damit das System den Slot blockieren kann). "
+    "Sonst \"scheduling\": null.\n"
+    "- Wenn die andere Person einen Wunschtermin nennt: vergleiche mit der Liste; im reply kurz Feedback, scheduling nur bei Bestätigung eines Listen-Slots."
+)
+
+# Fixed structural strings — coupled to the JSON parsing contract, not exposed via inputs.
+CATEGORY_INSTRUCTION_PREFIX = "2. Ordne die Konversation den folgenden Kategorien zu (categories): "
+
+JSON_RULES = {
+    (True, True): (
+        'Antworte ausschließlich mit einem JSON-Objekt mit genau drei Schlüsseln: "reply" (string), '
+        '"categories" (Objekt mit Kategoriename als Schlüssel und gewähltem Wert als String), '
+        '"scheduling" (Objekt oder null).'
+    ),
+    (False, True): (
+        'Antworte ausschließlich mit einem JSON-Objekt mit genau zwei Schlüsseln: "reply" (string) und "scheduling" (Objekt oder null).'
+    ),
+    (True, False): (
+        'Antworte ausschließlich mit einem JSON-Objekt mit genau drei Schlüsseln: "reply" (Antworttext), "categories" '
+        '(Objekt mit Kategoriename als Schlüssel und gewähltem Wert als String) und "scheduling" (immer null).'
+    ),
+    (False, False): (
+        'Antworte ausschließlich mit einem JSON-Objekt mit genau zwei Schlüsseln: "reply" (Antworttext) und "scheduling" (immer null).'
+    ),
+}
+
+TRAILER_RULES = "\n".join(
+    [
+        "Wichtig: Gib nur das reine JSON-Objekt aus, ohne Markdown, ohne Code-Blöcke (keine ```) und ohne weiteren Text davor oder danach.",
+        "Wichtig: verwende keine Platzhalter wie [Name], {user.email} oder ähnliches.",
+        'Kein Feld "summary".',
+    ]
+)
+
+
+def _override(value: Any, default: str) -> str:
+    """Return `value` if it's a non-empty string, otherwise the default."""
+    if isinstance(value, str) and value.strip():
+        return value
+    return default
 
 
 def _post_generate_response(
@@ -164,10 +227,7 @@ def _category_block_lines(listener_settings: Dict[str, Any]) -> Tuple[List[str],
         cat_desc.append(s)
     if cat_names and cat_desc:
         lines.append(
-            "2. Ordne die Konversation den folgenden Kategorien zu (categories): "
-            + ", ".join(cat_names)
-            + ".\n"
-            + "\n".join(cat_desc)
+            CATEGORY_INSTRUCTION_PREFIX + ", ".join(cat_names) + ".\n" + "\n".join(cat_desc)
         )
     return lines, cat_names
 
@@ -176,56 +236,26 @@ def _build_unified_system_prompt(
     has_categories: bool,
     listener_settings: Dict[str, Any],
     include_scheduling: bool,
+    reply_base: str,
+    scheduling_instructions: str,
 ) -> str:
-    base_block = "\n".join(DEFAULT_REPLY_BASE)
-    lines: List[str] = [base_block]
+    lines: List[str] = [reply_base]
     cat_lines, _ = _category_block_lines(listener_settings)
     lines.extend(cat_lines)
 
     if include_scheduling:
-        lines.append(
-            "3. Terminfindung (nur wenn im User-Message-Block freie Slots aufgeführt sind): "
-            "Du kennst kein konkretes Kalenderprodukt (weder Outlook noch Google). "
-            "Nutze ausschließlich die angegebenen freien Zeitfenster für konkrete Uhrzeiten.\n"
-            "- Formuliere im Feld \"reply\" **eine** zusammenhängende Nachricht: zuerst die inhaltliche Antwort auf die Konversation, "
-            "dann ggf. einen kurzen Abschnitt zur Terminvereinbarung (1–3 Optionen aus der Liste oder Bestätigung/Alternativen).\n"
-            "- Wenn du konkrete Slots aus der Liste vorschlägst oder einen Slot bestätigen willst, setze zusätzlich \"scheduling\" als Objekt mit "
-            "wantsScheduling, requestedDayOrPreference, selectedSlotStart, selectedSlotEnd (Start/End exakt wie in der Slot-Liste, damit das System den Slot blockieren kann). "
-            "Sonst \"scheduling\": null.\n"
-            "- Wenn die andere Person einen Wunschtermin nennt: vergleiche mit der Liste; im reply kurz Feedback, scheduling nur bei Bestätigung eines Listen-Slots."
-        )
-        if has_categories:
-            lines.append(
-                'Antworte ausschließlich mit einem JSON-Objekt mit genau drei Schlüsseln: "reply" (string), '
-                '"categories" (Objekt mit Kategoriename als Schlüssel und gewähltem Wert als String), '
-                '"scheduling" (Objekt oder null).'
-            )
-        else:
-            lines.append(
-                'Antworte ausschließlich mit einem JSON-Objekt mit genau zwei Schlüsseln: "reply" (string) und "scheduling" (Objekt oder null).'
-            )
-    else:
-        if has_categories:
-            lines.append(
-                'Antworte ausschließlich mit einem JSON-Objekt mit genau drei Schlüsseln: "reply" (Antworttext), "categories" '
-                '(Objekt mit Kategoriename als Schlüssel und gewähltem Wert als String) und "scheduling" (immer null).'
-            )
-        else:
-            lines.append(
-                'Antworte ausschließlich mit einem JSON-Objekt mit genau zwei Schlüsseln: "reply" (Antworttext) und "scheduling" (immer null).'
-            )
-
-    lines.extend(
-        [
-            "Wichtig: Gib nur das reine JSON-Objekt aus, ohne Markdown, ohne Code-Blöcke (keine ```) und ohne weiteren Text davor oder danach.",
-            "Wichtig: verwende keine Platzhalter wie [Name], ${user.email} oder ähnliches.",
-            'Kein Feld "summary".',
-        ]
-    )
+        lines.append(scheduling_instructions)
+    lines.append(JSON_RULES[(has_categories, include_scheduling)])
+    lines.append(TRAILER_RULES)
     return "\n".join(lines)
 
 
-def _build_single_shot_messages(inputs: Dict[str, Any], detection_response: Dict[str, Any]) -> Dict[str, str]:
+def _build_single_shot_messages(
+    inputs: Dict[str, Any],
+    detection_response: Dict[str, Any],
+    reply_base: str,
+    scheduling_instructions: str,
+) -> Dict[str, str]:
     combined = (inputs.get("combinedText") or "").strip()
     if not combined:
         return {"systemMessage": "", "userMessage": ""}
@@ -249,7 +279,13 @@ def _build_single_shot_messages(inputs: Dict[str, Any], detection_response: Dict
         slot_block = _format_free_slots_section(cal)
         user_message = user_message + "\n\n---\n\n" + (slot_block or "(keine Slots)")
 
-    system_message = _build_unified_system_prompt(has_categories, listener_settings, include_scheduling)
+    system_message = _build_unified_system_prompt(
+        has_categories,
+        listener_settings,
+        include_scheduling,
+        reply_base,
+        scheduling_instructions,
+    )
     return {"systemMessage": system_message, "userMessage": user_message}
 
 
@@ -258,19 +294,35 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     token = (inputs.get("executionToken") or "").strip()
     combined = (inputs.get("combinedText") or "").strip()
 
+    classify_system = _override(inputs.get("classifySystem"), DEFAULT_CLASSIFY_SYSTEM)
+    reply_base = _override(inputs.get("replyBase"), DEFAULT_REPLY_BASE)
+    scheduling_instructions = _override(
+        inputs.get("schedulingInstructions"), DEFAULT_SCHEDULING_INSTRUCTIONS
+    )
+
     cal = inputs.get("calendarAvailability")
     slot_preview = 0
     if isinstance(cal, dict):
         slot_preview = len(cal.get("slots") or [])
 
+    overrides = [
+        name
+        for name, val in (
+            ("classifySystem", inputs.get("classifySystem")),
+            ("replyBase", inputs.get("replyBase")),
+            ("schedulingInstructions", inputs.get("schedulingInstructions")),
+        )
+        if isinstance(val, str) and val.strip()
+    ]
     logger.info(
         "message-reply-generator: start combined_len=%d api_set=%s token_set=%s "
-        "scheduleAppointments=%s calendar_slots=%d",
+        "scheduleAppointments=%s calendar_slots=%d prompt_overrides=%s",
         len(combined),
         bool(api),
         bool(token),
         _as_bool(inputs.get("scheduleAppointments")),
         slot_preview,
+        overrides,
     )
 
     empty_out: Dict[str, Any] = {
@@ -288,7 +340,7 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     if not api or not token:
         raise ValueError("apiUrl and executionToken are required")
 
-    classify = _post_generate_response(api, token, CLASSIFY_SYSTEM, combined, timeout=90)
+    classify = _post_generate_response(api, token, classify_system, combined, timeout=90)
     dpj = classify.get("parsedJson") if isinstance(classify.get("parsedJson"), dict) else {}
     needs_sched = dpj.get("needsSchedulingContext") is True
     cal2 = inputs.get("calendarAvailability")
@@ -303,7 +355,7 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
         list(classify.keys()) if isinstance(classify, dict) else type(classify).__name__,
     )
 
-    msgs = _build_single_shot_messages(inputs, classify)
+    msgs = _build_single_shot_messages(inputs, classify, reply_base, scheduling_instructions)
     if not (msgs.get("systemMessage") or "").strip():
         logger.info("message-reply-generator: empty systemMessage after build -> empty response")
         return empty_out

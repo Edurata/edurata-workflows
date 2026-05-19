@@ -27,6 +27,8 @@ interface:
         type: string
       appointmentWorkdayEnd:
         type: string
+      appointmentMinimumLeadHours:
+        type: number
   outputs:
     type: object
     properties:

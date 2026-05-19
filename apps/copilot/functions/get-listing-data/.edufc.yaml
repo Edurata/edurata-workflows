@@ -1,0 +1,49 @@
+apiRevision: edurata.io/function/v1
+name: get-listing-data
+title: Get listing data (Airtable + scrape cache)
+description: |
+  Extracts a listing URL from the conversation (regex), loads matching Airtable records,
+  and on cache miss fetches the public listing page, upserts structured fields, and returns
+  the Airtable API-shaped payload for the reply generator.
+runtime: python3_10
+interface:
+  inputs:
+    type: object
+    properties:
+      messages:
+        type: array
+        description: Conversation messages from extract-conversation-info (content fields searched for URL).
+      anzeigeUrlRegex:
+        type: string
+        description: Regex with optional capturing group; first match in message bodies is the listing URL.
+      airtable_base_id:
+        type: string
+      airtable_table_id:
+        type: string
+      airtable_filter_field:
+        type: string
+        description: Airtable column used for lookup and upsert key (default url).
+      token:
+        type: string
+        description: Airtable personal access token (Bearer).
+      crawlPassword:
+        type: env
+        description: Optional Crawlbase token; when set, listing pages are fetched via Crawlbase.
+    required:
+      - messages
+  outputs:
+    type: object
+    properties:
+      response:
+        type: object
+        description: "{ data: { records: [...] } } — same shape as prior fetch-airtable-data step."
+      listingUrl:
+        type: string
+        description: Normalized listing URL used as cache key (empty if not found).
+      scraped:
+        type: boolean
+        description: True when a cache miss triggered fetch + Airtable create.
+    required:
+      - response
+      - listingUrl
+      - scraped

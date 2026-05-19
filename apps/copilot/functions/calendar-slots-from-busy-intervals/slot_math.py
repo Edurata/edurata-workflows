@@ -64,6 +64,17 @@ def build_calendar_availability_from_busy_intervals(inputs: Dict[str, Any]) -> D
     wh_end_h, wh_end_m = _parse_hhmm(inputs.get("appointmentWorkdayEnd"))
 
     now = datetime.now(tz)
+    raw_lead = inputs.get("appointmentMinimumLeadHours")
+    try:
+        if raw_lead is None or str(raw_lead).strip() == "":
+            lead_hours = 0.0
+        else:
+            lead_hours = float(raw_lead)
+    except (TypeError, ValueError):
+        lead_hours = 0.0
+    lead_hours = max(0.0, lead_hours)
+    earliest_slot_start = now + timedelta(hours=lead_hours)
+
     start_day = now.date()
     end_day = start_day + timedelta(days=max(1, horizon))
 
@@ -86,12 +97,15 @@ def build_calendar_availability_from_busy_intervals(inputs: Dict[str, Any]) -> D
             merged[-1][1] = max(merged[-1][1], e)
 
     logger.info(
-        "slot_math: busy_raw=%d merged_intervals=%d dur_min=%d max_recs=%d horizon_days=%d",
+        "slot_math: busy_raw=%d merged_intervals=%d dur_min=%d max_recs=%d horizon_days=%d "
+        "min_lead_h=%s earliest=%s",
         len(busy_pairs),
         len(merged),
         dur_min,
         max_recs,
         horizon,
+        lead_hours,
+        earliest_slot_start.isoformat(),
     )
 
     slots: List[Dict[str, str]] = []
@@ -118,7 +132,7 @@ def build_calendar_availability_from_busy_intervals(inputs: Dict[str, Any]) -> D
             else:
                 merged_day[-1][1] = max(merged_day[-1][1], e)
 
-        cursor = day_start
+        cursor = max(day_start, earliest_slot_start)
         for s, e in merged_day:
             while cursor + delta <= s and len(slots) < max_recs:
                 slots.append(

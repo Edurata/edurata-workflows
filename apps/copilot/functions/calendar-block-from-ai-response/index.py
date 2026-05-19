@@ -115,8 +115,6 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
         return {"hasCalendarBlock": False}
 
     tz = (inputs.get("appointmentTimeZone") or "Europe/Berlin").strip()
-    attendee_email = (inputs.get("attendeeEmail") or "").strip()
-    attendee_name = (inputs.get("attendeeName") or "").strip()
     subj = (inputs.get("eventSubject") or "").strip() or "Termin"
     reply_txt = _reply_from_api(ai)
     if reply_txt:
@@ -128,21 +126,14 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
     else:
         body_html = "<p>Termin</p>"
 
+    # Personal calendar hold only: do not invite inbound addresses (often proxies / noreply).
     attendees: List[Dict[str, Any]] = []
-    if attendee_email:
-        attendees.append(
-            {
-                "emailAddress": {"address": attendee_email, "name": attendee_name or attendee_email},
-                "type": "required",
-            }
-        )
 
     logger.info(
         "calendar-block-from-ai-response: ok hasCalendarBlock=true tz=%s subject_len=%d "
-        "attendee_set=%d reply_excerpt_len=%d",
+        "reply_excerpt_len=%d",
         tz,
         len(subj),
-        1 if attendee_email else 0,
         len(reply_txt),
     )
     return {

@@ -42,12 +42,10 @@ steps:
       def handler(inputs):
           provider = (inputs.get("emailProvider") or "").strip().upper()
           conversation_messages = inputs.get("conversationMessages") or []
-          primary_key_regex = inputs.get("primary_key_regex") or ""
           message_regex_list = inputs.get("message_regex") or []
           if isinstance(message_regex_list, str):
               message_regex_list = [message_regex_list] if message_regex_list else []
           listener_email = (inputs.get("listenerEmail") or "").strip().lower()
-          primary_key = None
           messages = []
           if provider == "OUTLOOK":
               latest_inbound_key = ""
@@ -142,15 +140,8 @@ steps:
                           latest_inbound_from_name = from_name
                           latest_inbound_subject = (msg.get("subject") or "").strip()
               messages.append({"content": part, "index": idx, "from": email_addr or None, "fromName": from_name or None, "role": role, "direction": direction, "regex_extraction": regex_extraction})
-              if not primary_key and primary_key_regex:
-                  pk = re.search(primary_key_regex, content, re.MULTILINE | re.DOTALL)
-                  if pk:
-                      extracted = pk.group(1) if pk.groups() else pk.group(0)
-                      extracted = str(extracted).strip() if extracted is not None else ""
-                      primary_key = extracted or None
 
           return {
-              "primaryKey": primary_key,
               "messages": messages,
               "latestInboundMessageId": latest_inbound_message_id,
               "latestInboundFromAddress": latest_inbound_from_address,
@@ -160,53 +151,24 @@ steps:
     props:
       emailProvider: ${inputs.emailProvider}
       conversationMessages: ${target-conversations[each.index].messages}
-      primary_key_regex: ${inputs.primary_key_regex}
       message_regex: ${inputs.message_regex}
       listenerEmail: ${inputs.listenerEmail}
 
-  fetch-airtable-data:
+  get-listing-data:
     description: |
-      Holt Airtable-Daten pro Thread (immer ein Eintrag pro Thread-Index, damit der forward-Reply-Pfad referenzieren kann).
-      Ohne Base/Table/Token oder ohne Primary Key: leere records, kein API-Call.
+      Listing URL aus dem Thread (Regex), Airtable-Lookup; bei Cache-Miss Seite laden,
+      strukturierte Felder in Airtable anlegen und Records zurückgeben.
     foreach: ${target-thread-ids.ids}
-    runtime: python3_10
-    code: |
-      import json
-      import urllib.parse
-      import urllib.request
-      import urllib.error
-
-      def handler(inputs):
-          base = (inputs.get("airtable_base_id") or "").strip()
-          table = (inputs.get("airtable_table_id") or "").strip()
-          token = (inputs.get("token") or "").strip()
-          pk = (inputs.get("primaryKey") or "").strip()
-          field = (inputs.get("filter_field") or "threadId").strip()
-          if not base or not table or not token or not pk:
-              return {"response": {"data": {"records": []}}}
-          esc = pk.replace("\\", "\\\\").replace("'", "\\'")
-          formula = "AND(LEN('%s') > 0, {%s} = '%s')" % (esc, field, esc)
-          q = urllib.parse.urlencode({"filterByFormula": formula})
-          url = "https://api.airtable.com/v0/%s/%s?%s" % (base, table, q)
-          req = urllib.request.Request(
-              url,
-              headers={"Authorization": "Bearer " + token},
-          )
-          try:
-              with urllib.request.urlopen(req, timeout=60) as resp:
-                  body = json.loads(resp.read().decode())
-          except urllib.error.HTTPError as e:
-              detail = e.read().decode() if e.fp else str(e)
-              return {"response": {"data": {"records": [], "_error": "http_" + str(getattr(e, "code", "")) + ":" + detail[:500]}}}
-          except Exception as e:
-              return {"response": {"data": {"records": [], "_error": str(e)[:500]}}}
-          return {"response": {"data": body}}
+    source:
+      repoUrl: https://github.com/Edurata/edurata-workflows.git
+      path: apps/copilot/functions/get-listing-data
     props:
+      messages: ${extract-conversation-info[each.index].messages}
+      anzeigeUrlRegex: ${inputs.anzeige_url_regex}
       airtable_base_id: ${inputs.airtable_base_id}
       airtable_table_id: ${inputs.airtable_table_id}
+      airtable_filter_field: ${inputs.airtable_filter_field}
       token: ${secrets.copilot-airtable-api-key}
-      primaryKey: ${extract-conversation-info[each.index].primaryKey}
-      filter_field: ${inputs.airtable_filter_field}
 
   prepare-combined-text-for-reply:
     description: |
@@ -298,8 +260,8 @@ steps:
       combinedText: ${prepare-combined-text-for-reply[each.index].combinedText}
       customInfo: ${inputs.customInfo}
       customCategories: ${inputs.customCategories}
-      primaryKey: ${extract-conversation-info[each.index].primaryKey}
-      airtableData: ${fetch-airtable-data[each.index].response.data}
+      primaryKey: ${get-listing-data[each.index].listingUrl}
+      airtableData: ${get-listing-data[each.index].response.data}
       scheduleAppointments: ${inputs.scheduleAppointments}
       calendarAvailability: ${build-calendar-availability-from-outlook.calendarAvailability}
       classifySystem: |-

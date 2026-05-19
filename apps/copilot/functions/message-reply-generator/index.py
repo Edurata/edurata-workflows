@@ -168,7 +168,7 @@ def _build_user_message(combined_text: str, user_info: str, airtable_data: Any, 
             ads = json.dumps(airtable_data, ensure_ascii=False)
         else:
             ads = str(airtable_data)
-        parts.append("Airtable-Daten (Primary Key: " + pk + "):\n" + ads)
+        parts.append("Airtable-Daten (Listing-URL: " + pk + "):\n" + ads)
     return "\n\n---\n\n".join(parts)
 
 

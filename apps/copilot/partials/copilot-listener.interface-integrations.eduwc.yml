@@ -35,11 +35,14 @@ interface:
         description: Airtable table ID to fetch data from
       airtable_filter_field:
         type: string
-        default: threadId
-        description: Field name in Airtable to filter by (e.g., 'threadId', 'messageId', or 'email')
-      primary_key_regex:
+        default: url
+        description: Airtable column for listing URL lookup and cache upsert (default url).
+      anzeige_url_regex:
         type: string
-        description: Regex pattern with a capturing group to extract the primary key from email body (e.g., 'Anzeige-ID:\\s*([A-Z0-9]+)')
+        default: "https?://(?:www\\.)?kleinanzeigen\\.de/s-anzeige/[^\\s\"'<>]+"
+        description: |
+          Regex to extract the listing URL from conversation message bodies (optional capturing group).
+          Used by get-listing-data for Airtable lookup and scrape-on-miss cache fill.
       message_regex:
         type: array
         items:
@@ -88,7 +91,7 @@ interface:
         description: Custom categories to add to the draft
       scheduleAppointments:
         type: boolean
-        default: true
+        default: false
         description: |
           If true (OUTLOOK only), reads your calendar via Microsoft Graph, passes free slots to the AI, and can create an event when the model returns scheduling with an allowed slot.
       appointmentDurationMinutes:
@@ -116,6 +119,13 @@ interface:
         type: string
         default: "18:00"
         description: Local end of working day (HH:MM).
+      appointmentMinimumLeadHours:
+        type: number
+        default: 24
+        description: |
+          Minimum notice before the start of the first offered slot, measured from “now” in appointmentTimeZone.
+          Slots whose start is before now plus this many hours are excluded (still clipped to the workday window).
+          Example: 2 avoids offering slots in the next two hours; 24 generally pushes the first options to roughly “this time tomorrow” or later.
       appointmentMaxSlots:
         type: integer
         default: 24

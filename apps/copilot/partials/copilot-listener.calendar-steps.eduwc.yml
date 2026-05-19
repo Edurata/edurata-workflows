@@ -17,6 +17,7 @@ steps:
       maxSchedulingRecommendations: ${inputs.maxSchedulingRecommendations}
       appointmentWorkdayStart: ${inputs.appointmentWorkdayStart}
       appointmentWorkdayEnd: ${inputs.appointmentWorkdayEnd}
+      appointmentMinimumLeadHours: ${inputs.appointmentMinimumLeadHours}
 
   extract-calendar-block-intent:
     description: |
@@ -30,8 +31,6 @@ steps:
       aiResponse: ${each.response.data}
       calendarAvailability: ${build-calendar-availability-from-outlook.calendarAvailability}
       appointmentTimeZone: ${inputs.appointmentTimeZone}
-      attendeeEmail: ${extract-conversation-info[each.index].latestInboundFromAddress}
-      attendeeName: ${extract-conversation-info[each.index].latestInboundFromName}
       eventSubject: "Termin: ${extract-conversation-info[each.index].latestInboundSubject}"
 
   create-outlook-calendar-block:

@@ -2,7 +2,7 @@ steps:
   # --------------------------- CALENDAR: Verfügbarkeit, LLM-Slot-Extraktion, Outlook-Event ---------------------------
   build-calendar-availability-from-outlook:
     description: |
-      Ein Funktionsschritt: lädt Outlook-Belegungen und berechnet direkt freie Slots.
+      Ein Funktionsschritt: lädt Outlook-Belegungen und berechnet direkt freie Slots..
       Bei Provider != OUTLOOK, scheduleAppointments=false oder Fehlern: calendarAvailability null.
     source:
       repoUrl: https://github.com/Edurata/edurata-workflows.git

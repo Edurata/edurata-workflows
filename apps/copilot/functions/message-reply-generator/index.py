@@ -152,9 +152,22 @@ def _normalize_categories(raw: Any) -> Optional[List[Dict[str, Any]]]:
         if not isinstance(c, dict):
             continue
         d = dict(c)
-        d["values"] = d.get("values") if d.get("values") is not None else []
+        values = d.get("values")
+        if values is None:
+            values = d.get("possibleValues")
+        d["values"] = values if values is not None else []
         out.append(d)
     return out or None
+
+
+def _format_category_value_label(v: Any) -> str:
+    if isinstance(v, dict) and v.get("name") is not None:
+        name = str(v.get("name"))
+        desc = (v.get("description") or "").strip()
+        if desc:
+            return name + " — " + desc
+        return name
+    return str(v)
 
 
 def _build_user_message(combined_text: str, user_info: str, airtable_data: Any, primary_key: str) -> str:
@@ -212,13 +225,8 @@ def _category_block_lines(listener_settings: Dict[str, Any]) -> Tuple[List[str],
             continue
         name = c.get("name") or ""
         desc = (c.get("description") or "").strip()
-        vals = c.get("values") if c.get("values") is not None else c.get("possibleValues") or []
-        val_names: List[str] = []
-        for v in vals or []:
-            if isinstance(v, dict) and v.get("name") is not None:
-                val_names.append(str(v.get("name")))
-            else:
-                val_names.append(str(v))
+        vals = c.get("values") or []
+        val_names: List[str] = [_format_category_value_label(v) for v in vals or []]
         s = "- " + str(name)
         if desc:
             s += ": " + desc

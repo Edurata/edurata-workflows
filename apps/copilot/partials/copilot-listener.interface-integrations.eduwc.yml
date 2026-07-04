@@ -81,6 +81,10 @@ interface:
                   name:
                     type: string
                     description: Possible value name
+                  description:
+                    type: string
+                    description: |
+                      What this value means (especially for type STRINGS). Passed to the AI when classifying the conversation.
                   color:
                     type: string
                     description: Possible value color

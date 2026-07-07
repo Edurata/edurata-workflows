@@ -26,7 +26,7 @@ steps:
         - "OUTLOOK"
     description: |
       Holt die letzten n Nachrichten einer Konversation (Thread) per list-outlook-conversation.
-    foreach: ${get-outlook-unanswered.unansweredConversationIds}
+    foreach: ${target-thread-ids.ids}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/list-outlook-conversation

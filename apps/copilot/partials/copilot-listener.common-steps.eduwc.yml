@@ -20,6 +20,8 @@ steps:
   target-conversations:
     description: |
       Vereinheitlicht die geladenen Konversationen über Provider hinweg.
+      Provider-spezifische Konversations-Schritte sind optional (?), damit der übersprungene Zweig
+      das Laden der anderen Provider-Ausgabe nicht blockiert.
     foreach: ${target-thread-ids.ids}
     runtime: python3_10
     code: |
@@ -30,8 +32,8 @@ steps:
           return {"messages": inputs.get("outlookMessages") or []}
     props:
       emailProvider: ${inputs.emailProvider}
-      outlookMessages: ${get-outlook-conversation[each.index].messages}
-      gmailMessages: ${get-gmail-thread-conversation[each.index].messages}
+      outlookMessages: ${get-outlook-conversation[each.index].messages?}
+      gmailMessages: ${get-gmail-thread-conversation[each.index].messages?}
 
   extract-conversation-info:
     description: |

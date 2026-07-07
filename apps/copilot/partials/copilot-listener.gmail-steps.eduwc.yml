@@ -26,7 +26,7 @@ steps:
         - "GMAIL"
     description: |
       Holt die Nachrichten eines Gmail-Threads (alt -> neu).
-    foreach: ${get-gmail-unanswered.unansweredThreadIds}
+    foreach: ${target-thread-ids.ids}
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/get-gmail-thread-conversation

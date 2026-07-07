@@ -3,21 +3,40 @@ interface:
   inputs:
     type: object
     properties:
-      fromDomain:
-        type: string
-        default: mail.kleinanzeigen.de
-        description: Domain to filter emails from (e.g., mail.kleinanzeigen.de will match anything@mail.kleinanzeigen.de)
-      fromMailFolderName:
-        type: string
-        default: ""
+      fromDomains:
+        type: array
+        items:
+          type: string
         description: >
-          OUTLOOK only. Folder scanned for inbound mail (list-outlook-unanswered): Graph folder GUID,
-          well-known shortcut (inbox, junkemail, …), or exact Outlook displayName (resolved under mailbox root
-          or direct child of Inbox). Leave empty for default top-level Inbox.
+          Optional. Domains to include (OR). Each matches senders whose address contains @domain.
+          When empty or omitted, all senders in mailFolderNames are considered.
+      excludeDomains:
+        type: array
+        items:
+          type: string
+        description: >
+          Optional. Domains to drop even when they would otherwise match (e.g. noreply@mail.example.com
+          via mail.example.com).
+      mailFolderNames:
+        type: array
+        items:
+          type: string
+        default:
+          - inbox
+        description: >
+          Optional. Folders to scan for inbound mail (OR). Outlook: Graph folder GUID, well-known shortcut
+          (inbox, junkemail, …), or exact displayName. Gmail: system folder (inbox, spam, …) or label name.
+          Defaults to inbox.
       maxResults:
         type: integer
         default: 10
         description: Maximum number of emails to retrieve
+      windowHours:
+        type: number
+        default: 720
+        description: >
+          Rolling lookback window in hours for inbound and sent mail. Default 720 (30 days).
+          Use 0 for no time limit (subject to API pagination). Examples: 24 = last day, 168 = last week.
       emailProvider:
         type: string
         enum: [OUTLOOK, GMAIL]

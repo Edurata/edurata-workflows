@@ -6,16 +6,18 @@ steps:
         - ${inputs.emailProvider}
         - "GMAIL"
     description: |
-      Holt unbeantwortete Gmail-Threads von der Absender-Domain (rolling time window).
+      Holt unbeantwortete Gmail-Threads in den konfigurierten Ordnern/Labels (rolling time window).
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/list-gmail-unanswered
     props:
       GMAIL_API_KEY: ${secrets.copilot-gmail-oauth}
-      senderDomain: ${inputs.fromDomain}
+      senderDomains: ${inputs.fromDomains}
+      excludeDomains: ${inputs.excludeDomains}
+      mailFolderNames: ${inputs.mailFolderNames}
       listenerEmail: ${inputs.listenerEmail}
       maxUnanswered: ${inputs.maxResults}
-      windowHours: 1000000
+      windowHours: ${inputs.windowHours}
 
   get-gmail-thread-conversation:
     if:

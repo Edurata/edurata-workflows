@@ -6,18 +6,18 @@ steps:
         - ${inputs.emailProvider}
         - "OUTLOOK"
     description: |
-      Holt unbeantwortete Outlook-Konversationen von der Absender-Domain (rolling time window).
+      Holt unbeantwortete Outlook-Konversationen in den konfigurierten Ordnern (rolling time window).
       Unbeantwortet = keine gesendete Antwort nach letzter Inbound-Nachricht im Fenster, und kein/veralteter Entwurf.
     source:
       repoUrl: "https://github.com/Edurata/edurata-functions.git"
       path: etl/extract/list-outlook-unanswered
     props:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
-      senderDomain: ${inputs.fromDomain}
-      inboundMailFolderId: ${inputs.fromMailFolderName}
+      senderDomains: ${inputs.fromDomains}
+      excludeDomains: ${inputs.excludeDomains}
+      mailFolderNames: ${inputs.mailFolderNames}
       maxUnanswered: ${inputs.maxResults}
-      # Override
-      windowHours: 1000000
+      windowHours: ${inputs.windowHours}
 
   get-outlook-conversation:
     if:

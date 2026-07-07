@@ -7,9 +7,24 @@ interface:
   inputs:
     type: object
     properties:
-      fromDomain:
-        type: string
-        description: Sender hostname/domain to filter (e.g. mail.example.com matches anything@mail.example.com)
+      fromDomains:
+        type: array
+        items:
+          type: string
+        description: >
+          Optional sender domains to include (OR). When empty, all senders in mailFolderNames are considered.
+      mailFolderNames:
+        type: array
+        items:
+          type: string
+        default:
+          - inbox
+        description: Outlook folders to scan for inbound mail (OR). Defaults to inbox.
+      windowHours:
+        type: number
+        default: 720
+        description: >
+          Rolling lookback window in hours. Default 720 (30 days). Use 0 for no time limit.
       replyTemplate:
         type: string
         description: HTML body for the reply (e.g. "Hallo, vielen Dank für Ihre Nachricht. ...")
@@ -38,9 +53,10 @@ steps:
       path: etl/extract/list-outlook-unanswered
     props:
       OUTLOOK_API_KEY: ${secrets.copilot-outlook-oauth}
-      senderDomain: ${inputs.fromDomain}
+      senderDomains: ${inputs.fromDomains}
+      mailFolderNames: ${inputs.mailFolderNames}
+      windowHours: ${inputs.windowHours}
       maxUnanswered: ${inputs.maxResults}
-      windowHours: 1000000
   get-outlook-conversation:
     description: Load the last messages of each conversation.
     foreach: ${get-outlook-unanswered.unansweredConversationIds}

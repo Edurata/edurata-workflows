@@ -29,6 +29,9 @@ interface:
       customCategories:
         type: any
         description: Listener category definitions (array/object).
+      lang:
+        type: string
+        description: Language for DISCRETE_THREE/SENTIMENT default category values (de or en).
       primaryKey:
         type: string
         description: Listing URL (cache key) from get-listing-data; shown in the Airtable context block.

@@ -58,6 +58,21 @@ DEFAULT_SCHEDULING_INSTRUCTIONS = (
 
 # Fixed structural strings — coupled to the JSON parsing contract, not exposed via inputs.
 CATEGORY_INSTRUCTION_PREFIX = "2. Ordne die Konversation den folgenden Kategorien zu (categories): "
+CATEGORY_STRICT_RULE = (
+    "Wichtig: Verwende für jede Kategorie ausschließlich einen Wert aus deren eigener "
+    "Werteliste. Mische keine Kategorien — ein Wert aus der Liste einer Kategorie darf "
+    "nicht unter einem anderen Kategorienschlüssel stehen."
+)
+TYPE_DEFAULT_VALUE_NAMES: Dict[str, Dict[str, List[str]]] = {
+    "en": {
+        "DISCRETE_THREE": ["high", "medium", "low"],
+        "SENTIMENT": ["positive", "neutral", "negative"],
+    },
+    "de": {
+        "DISCRETE_THREE": ["hoch", "mittel", "niedrig"],
+        "SENTIMENT": ["positiv", "neutral", "negativ"],
+    },
+}
 
 JSON_RULES = {
     (True, True): (
@@ -170,6 +185,89 @@ def _format_category_value_label(v: Any) -> str:
     return str(v)
 
 
+def _normalize_lang(raw: Any) -> str:
+    lang = (raw or "en").strip().lower() if isinstance(raw, str) else "en"
+    return lang if lang in ("de", "en") else "en"
+
+
+def _resolve_category_value_names(cat: Dict[str, Any], lang: str) -> List[str]:
+    vals = cat.get("values") or cat.get("possibleValues") or []
+    names: List[str] = []
+    for v in vals:
+        if isinstance(v, dict) and v.get("name") is not None:
+            name = str(v.get("name")).strip()
+        else:
+            name = str(v).strip()
+        if name:
+            names.append(name)
+    if names:
+        return names
+    t = (cat.get("type") or "").strip()
+    defaults = TYPE_DEFAULT_VALUE_NAMES.get(lang, TYPE_DEFAULT_VALUE_NAMES["en"]).get(t)
+    return list(defaults) if defaults else []
+
+
+def _canonical_category_value(value: str, allowed: List[str]) -> str:
+    val_lc = value.strip().lower()
+    for allowed_value in allowed:
+        if allowed_value.lower() == val_lc:
+            return allowed_value
+    return value.strip()
+
+
+def _sanitize_categories(
+    categories: Any,
+    normalized_cats: Optional[List[Dict[str, Any]]],
+    lang: str,
+) -> Optional[Dict[str, str]]:
+    if not isinstance(categories, dict) or not normalized_cats:
+        return categories if isinstance(categories, dict) else None
+
+    allowed_by_name: Dict[str, List[str]] = {}
+    value_owner: Dict[str, str] = {}
+    type_by_name: Dict[str, str] = {}
+    for cat in normalized_cats:
+        if not isinstance(cat, dict):
+            continue
+        name = str(cat.get("name") or "").strip()
+        if not name:
+            continue
+        allowed = _resolve_category_value_names(cat, lang)
+        allowed_by_name[name] = allowed
+        type_by_name[name] = (cat.get("type") or "").strip()
+        for allowed_value in allowed:
+            value_owner[allowed_value.lower()] = name
+
+    out: Dict[str, str] = {}
+    for raw_name, raw_value in categories.items():
+        cat_name = str(raw_name or "").strip()
+        value = str(raw_value or "").strip()
+        if not cat_name or not value:
+            continue
+
+        allowed = allowed_by_name.get(cat_name)
+        if allowed is None:
+            out[cat_name] = value
+            continue
+
+        canonical = _canonical_category_value(value, allowed)
+        if canonical.lower() in {v.lower() for v in allowed}:
+            out[cat_name] = canonical
+            continue
+
+        owner = value_owner.get(value.lower())
+        if owner and owner != cat_name and owner not in out:
+            out[owner] = _canonical_category_value(value, allowed_by_name[owner])
+
+        cat_type = type_by_name.get(cat_name, "")
+        if cat_type in ("DISCRETE_THREE", "SENTIMENT") and cat_name not in out:
+            fallback = "mittel" if lang == "de" else "medium"
+            if fallback.lower() in {v.lower() for v in allowed}:
+                out[cat_name] = _canonical_category_value(fallback, allowed)
+
+    return out or None
+
+
 def _build_user_message(combined_text: str, user_info: str, airtable_data: Any, primary_key: str) -> str:
     parts = [combined_text]
     ui = (user_info or "").strip()
@@ -214,7 +312,7 @@ def _format_free_slots_section(cal: Any) -> str:
     return header
 
 
-def _category_block_lines(listener_settings: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+def _category_block_lines(listener_settings: Dict[str, Any], lang: str) -> Tuple[List[str], List[str]]:
     cats = (listener_settings or {}).get("customCategories") or []
     lines: List[str] = []
     cat_names = [str((c or {}).get("name") or "") for c in cats]
@@ -225,8 +323,12 @@ def _category_block_lines(listener_settings: Dict[str, Any]) -> Tuple[List[str],
             continue
         name = c.get("name") or ""
         desc = (c.get("description") or "").strip()
-        vals = c.get("values") or []
-        val_names: List[str] = [_format_category_value_label(v) for v in vals or []]
+        allowed_names = _resolve_category_value_names(c, lang)
+        vals = c.get("values") or c.get("possibleValues") or []
+        if vals:
+            val_names: List[str] = [_format_category_value_label(v) for v in vals]
+        else:
+            val_names = list(allowed_names)
         s = "- " + str(name)
         if desc:
             s += ": " + desc
@@ -237,6 +339,7 @@ def _category_block_lines(listener_settings: Dict[str, Any]) -> Tuple[List[str],
         lines.append(
             CATEGORY_INSTRUCTION_PREFIX + ", ".join(cat_names) + ".\n" + "\n".join(cat_desc)
         )
+        lines.append(CATEGORY_STRICT_RULE)
     return lines, cat_names
 
 
@@ -247,8 +350,9 @@ def _build_unified_system_prompt(
     reply_base: str,
     scheduling_instructions: str,
 ) -> str:
+    lang = _normalize_lang(listener_settings.get("lang"))
     lines: List[str] = [reply_base]
-    cat_lines, _ = _category_block_lines(listener_settings)
+    cat_lines, _ = _category_block_lines(listener_settings, lang)
     lines.extend(cat_lines)
 
     if include_scheduling:
@@ -279,7 +383,8 @@ def _build_single_shot_messages(
     primary_key = (inputs.get("primaryKey") or "").strip()
     airtable_data = inputs.get("airtableData")
     normalized_cats = _normalize_categories(inputs.get("customCategories"))
-    listener_settings = {"customCategories": normalized_cats or []}
+    lang = _normalize_lang(inputs.get("lang"))
+    listener_settings = {"customCategories": normalized_cats or [], "lang": lang}
     has_categories = bool(normalized_cats)
 
     user_message = _build_user_message(combined, user_info, airtable_data, primary_key)
@@ -381,7 +486,20 @@ def handler(inputs: Dict[str, Any]) -> Dict[str, Any]:
         msgs["userMessage"],
         timeout=120,
     )
+    normalized_cats = _normalize_categories(inputs.get("customCategories"))
+    lang = _normalize_lang(inputs.get("lang"))
     g_pj = generated.get("parsedJson") if isinstance(generated.get("parsedJson"), dict) else {}
+    if isinstance(g_pj, dict) and normalized_cats and "categories" in g_pj:
+        raw_cats = g_pj.get("categories")
+        sanitized = _sanitize_categories(raw_cats, normalized_cats, lang)
+        if sanitized is not None and sanitized != raw_cats:
+            logger.info(
+                "message-reply-generator: sanitized categories %s -> %s",
+                raw_cats,
+                sanitized,
+            )
+            g_pj["categories"] = sanitized
+            generated["parsedJson"] = g_pj
     sched = g_pj.get("scheduling") if isinstance(g_pj, dict) else None
     reply_len = len(str((g_pj or {}).get("reply") or generated.get("reply") or ""))
     logger.info(

@@ -264,6 +264,7 @@ steps:
       combinedText: ${prepare-combined-text-for-reply[each.index].combinedText}
       customInfo: ${inputs.customInfo}
       customCategories: ${inputs.customCategories}
+      lang: ${inputs.lang}
       primaryKey: ${get-listing-data[each.index].listingUrl}
       airtableData: ${get-listing-data[each.index].response.data}
       scheduleAppointments: ${inputs.scheduleAppointments}

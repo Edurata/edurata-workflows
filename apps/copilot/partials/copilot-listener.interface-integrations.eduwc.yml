@@ -21,12 +21,10 @@ interface:
         type: array
         items:
           type: string
-        default:
-          - inbox
         description: >
           Optional. Folders to scan for inbound mail (OR). Outlook: Graph folder GUID, well-known shortcut
           (inbox, junkemail, …), or exact displayName. Gmail: system folder (inbox, spam, …) or label name.
-          Defaults to inbox.
+          When omitted or empty, defaults to inbox only. When set, only the listed folders are scanned.
       maxResults:
         type: integer
         default: 10

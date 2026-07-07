@@ -17,9 +17,9 @@ interface:
         type: array
         items:
           type: string
-        default:
-          - inbox
-        description: Outlook folders to scan for inbound mail (OR). Defaults to inbox.
+        description: >
+          Outlook folders to scan for inbound mail (OR). When omitted or empty, defaults to inbox only.
+          When set, only the listed folders are scanned.
       windowHours:
         type: number
         default: 720

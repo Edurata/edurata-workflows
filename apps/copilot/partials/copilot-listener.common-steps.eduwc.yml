@@ -3,6 +3,8 @@ steps:
   target-thread-ids:
     description: |
       Vereinheitlicht die zu verarbeitenden Thread-/Conversation-IDs über Provider hinweg.
+      Provider-spezifische Quell-Schritte sind optional (?), damit ein übersprungener Gmail/Outlook-Zweig
+      das Laden der anderen Provider-Ausgabe nicht blockiert.
     runtime: python3_10
     code: |
       def handler(inputs):
@@ -12,8 +14,8 @@ steps:
           return {"ids": inputs.get("outlookIds") or []}
     props:
       emailProvider: ${inputs.emailProvider}
-      outlookIds: ${get-outlook-unanswered.unansweredConversationIds}
-      gmailIds: ${get-gmail-unanswered.unansweredThreadIds}
+      outlookIds: ${get-outlook-unanswered?.unansweredConversationIds}
+      gmailIds: ${get-gmail-unanswered?.unansweredThreadIds}
 
   target-conversations:
     description: |
